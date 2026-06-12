@@ -17,6 +17,8 @@ interface ChainStop {
     inTime: number; // where the next song enters (its matched line)
     inLine: string;
     sharedWord: string | null; // exact word both songs sing (null = semantic match)
+    aWordTime: number; // estimated moment A sings the word — the loop point
+    bWordTime: number; // estimated moment B sings it — the drop point
     reasoning: string;
   } | null;
 }
@@ -39,6 +41,28 @@ function lineEnd(lyrics: LyricLine[], time: number): number {
   const next = idx >= 0 ? lyrics[idx + 1] : undefined;
   const end = next ? next.time : time + 4;
   return Math.min(end, time + 8); // a "line" longer than 8s is an instrumental gap
+}
+
+/**
+ * Estimate when a specific word is sung within its line. LRC lyrics only
+ * timestamp lines, so we place the word proportionally by its position —
+ * crude, but close enough to catch the word in a one-beat loop.
+ */
+function estimateWordTime(
+  lyrics: LyricLine[],
+  lineTime: number,
+  lineText: string,
+  word: string
+): number {
+  const end = lineEnd(lyrics, lineTime);
+  const words = lineText.split(/\s+/).filter(Boolean);
+  const target = word.toLowerCase();
+  const wIdx = words.findIndex((w) =>
+    w.toLowerCase().replace(/[^\p{L}\p{N}']+/gu, "").startsWith(target)
+  );
+  if (wIdx < 0) return lineTime;
+  // vocals typically start right at the line timestamp; spread words evenly
+  return lineTime + (wIdx / words.length) * (end - lineTime) * 0.9;
 }
 
 /**
@@ -91,7 +115,11 @@ export default function LyricDjPage() {
       const candidates = await Promise.all(
         picks.map(async (pick) => {
           try {
-            const results = await searchTracks(pick.query).catch(() => []);
+            // "official audio" uploads have no cinematic intro, so lrclib
+            // timestamps actually line up with the audio we play
+            const results = await searchTracks(`${pick.query} official audio`)
+              .catch(() => [])
+              .then((r) => (r.length ? r : searchTracks(pick.query).catch(() => [])));
             const found = results[0];
             if (!found) return null;
             const [loaded, lyrics] = await Promise.all([
@@ -139,6 +167,22 @@ export default function LyricDjPage() {
                 inTime: matches[i].bTime,
                 inLine: matches[i].bLine,
                 sharedWord: matches[i].sharedWord ?? null,
+                aWordTime: matches[i].sharedWord
+                  ? estimateWordTime(
+                      stop.lyrics,
+                      matches[i].aTime,
+                      matches[i].aLine,
+                      matches[i].sharedWord
+                    )
+                  : matches[i].aTime,
+                bWordTime: matches[i].sharedWord
+                  ? estimateWordTime(
+                      stops[i + 1].lyrics,
+                      matches[i].bTime,
+                      matches[i].bLine,
+                      matches[i].sharedWord
+                    )
+                  : matches[i].bTime,
                 reasoning: matches[i].reasoning,
               }
             : null,
@@ -165,32 +209,53 @@ export default function LyricDjPage() {
     setPlayingIdx(0);
   }
 
-  // Watch the playhead; fire each pre-computed handoff so A's matched line
-  // plays out FULLY and B's matched word lands exactly where A's line ends —
-  // a fast fade makes it read as one continuous lyric.
+  // Watch the playhead and fire each pre-computed handoff.
+  // Exact shared word → DJ word edit: the word stutters in a beat-synced loop
+  // (music looping with it), echo rising, then B drops ON its own word.
+  // Semantic match → A's line plays out fully into a fast crossfade.
   useEffect(() => {
     const ps = playState.current;
     if (ps.idx < 0 || ps.fired) return;
     const stop = chain[ps.idx];
     const next = chain[ps.idx + 1];
     if (!stop?.handoff || !next) return;
-    const FADE = 0.8;
-    const fireAt = stop.handoff.outLineEnd - FADE;
-    if (position >= fireAt - 0.1) {
-      ps.fired = true;
-      getEngine().onTransitionEnd = () => {
-        playState.current = { idx: ps.idx + 1, fired: false };
-        setPlayingIdx(ps.idx + 1);
-      };
-      getEngine().transition(next.loaded.buffer, {
-        style: "crossfade",
-        outPoint: position,
-        // B enters FADE early so its matched line starts right at fade-out
-        inPoint: Math.max(0, stop.handoff.inTime - FADE),
-        duration: FADE,
-        beatMatch: false,
-        reasoning: stop.handoff.reasoning,
-      });
+    const h = stop.handoff;
+
+    const advance = () => {
+      playState.current = { idx: ps.idx + 1, fired: false };
+      setPlayingIdx(ps.idx + 1);
+      setStatus("");
+    };
+
+    if (h.sharedWord) {
+      if (position >= h.aWordTime - 0.05) {
+        ps.fired = true;
+        // loop = one beat of A (two if the track is fast), 4 repeats
+        const beat = 60 / Math.max(stop.loaded.analysis.bpm, 60);
+        const loopLen = beat < 0.32 ? beat * 2 : Math.min(beat, 0.8);
+        setStatus(`✨ looping “${h.sharedWord}” ×4…`);
+        getEngine().onTransitionEnd = advance;
+        getEngine().stutterTransition(next.loaded.buffer, {
+          loopStart: h.aWordTime,
+          loopLen,
+          repeats: 4,
+          inPoint: h.bWordTime,
+        });
+      }
+    } else {
+      const FADE = 0.8;
+      if (position >= h.outLineEnd - FADE - 0.1) {
+        ps.fired = true;
+        getEngine().onTransitionEnd = advance;
+        getEngine().transition(next.loaded.buffer, {
+          style: "crossfade",
+          outPoint: position,
+          inPoint: Math.max(0, h.inTime - FADE),
+          duration: FADE,
+          beatMatch: false,
+          reasoning: h.reasoning,
+        });
+      }
     }
   }, [position, chain]);
 
@@ -213,7 +278,15 @@ export default function LyricDjPage() {
       {seed && building && (
         <p className="animate-pulse text-sm text-amber-400">{status}</p>
       )}
-      {!building && status && <p className="text-sm text-red-400">{status}</p>}
+      {!building && status && (
+        <p
+          className={`text-sm ${
+            playingIdx >= 0 ? "font-semibold text-fuchsia-300" : "text-red-400"
+          }`}
+        >
+          {status}
+        </p>
+      )}
 
       {chain.length > 0 && (
         <>

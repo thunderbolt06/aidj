@@ -294,6 +294,66 @@ export class DJEngine {
   }
 
   /**
+   * Word-stutter transition (Lyric DJ): loop a short beat-synced slice of the
+   * current track (the sung word) N times — echo rising — then drop the next
+   * track exactly as the loop releases. Returns the ctx time of the drop.
+   */
+  stutterTransition(
+    nextBuffer: AudioBuffer,
+    opts: {
+      loopStart: number; // seconds into current track — where the word begins
+      loopLen: number; // one repeat length (≈ a beat)
+      repeats: number;
+      inPoint: number; // where the next track enters
+    }
+  ): number {
+    const ctx = this.ctx;
+    const A = this.activeDeck;
+    const B = this.nextDeck;
+    if (!A.buffer) throw new Error("no active buffer");
+    const now = ctx.currentTime + 0.04;
+    const dropAt = now + opts.loopLen * opts.repeats;
+
+    // replace A's source with a looping slice of the word
+    A.stopSource(now);
+    const loop = ctx.createBufferSource();
+    loop.buffer = A.buffer;
+    loop.loop = true;
+    loop.loopStart = opts.loopStart;
+    loop.loopEnd = opts.loopStart + opts.loopLen;
+    loop.connect(A.low);
+    loop.start(now, opts.loopStart);
+    loop.stop(dropAt + 0.05);
+    A.source = loop;
+
+    // echo swells through the stutter, A ducks out right at the drop
+    A.echoSend.gain.cancelScheduledValues(now);
+    A.echoSend.gain.setValueAtTime(0.15, now);
+    A.echoSend.gain.linearRampToValueAtTime(0.7, dropAt);
+    A.echoSend.gain.setTargetAtTime(0, dropAt + 0.1, 0.2);
+    const aGain = A.gain.gain;
+    aGain.cancelScheduledValues(now);
+    aGain.setValueAtTime(aGain.value, now);
+    aGain.setValueAtTime(aGain.value, dropAt - 0.02);
+    aGain.linearRampToValueAtTime(0, dropAt + 0.08);
+
+    // B drops on its word as the loop releases
+    B.buffer = nextBuffer;
+    B.resetFx(now);
+    const bGain = B.gain.gain;
+    bGain.cancelScheduledValues(now);
+    bGain.setValueAtTime(0, now);
+    bGain.setValueAtTime(0, dropAt - 0.08);
+    bGain.linearRampToValueAtTime(1, dropAt + 0.04);
+    B.play(dropAt - 0.08, Math.max(0, opts.inPoint - 0.08));
+
+    this.active = 1 - this.active;
+    const msLeft = (dropAt - ctx.currentTime) * 1000;
+    setTimeout(() => this.onTransitionEnd?.(), msLeft + 60);
+    return dropAt;
+  }
+
+  /**
    * Tension build for press-and-hold gestures: while on, the active deck's
    * lows drain away and the echo bus swells — release into a transition.
    */

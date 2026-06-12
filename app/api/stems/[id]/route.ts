@@ -64,20 +64,30 @@ export async function GET(
         return (o as { url: () => URL }).url().toString();
       return null;
     };
-    const wantedKey =
-      stem === "vocals"
-        ? "vocals"
-        : ["no_vocals", "accompaniment", "other", "instrumental"].find(
-            (k) => output[k]
-          ) ?? "no_vocals";
-    const url = pickUrl(output[wantedKey]);
-    if (!url) throw new Error(`no ${stem} stem in output: ${Object.keys(output)}`);
+    // one demucs run yields BOTH stems — cache both so the sibling request
+    // (e.g. instrumental after vocals) is free
+    const instKey =
+      ["no_vocals", "accompaniment", "other", "instrumental"].find(
+        (k) => output[k]
+      ) ?? "no_vocals";
+    const urls = {
+      vocals: pickUrl(output["vocals"]),
+      instrumental: pickUrl(output[instKey]),
+    };
+    if (!urls[stem as "vocals" | "instrumental"])
+      throw new Error(`no ${stem} stem in output: ${Object.keys(output)}`);
 
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("stem download failed");
-    const buf = Buffer.from(await res.arrayBuffer());
-    await writeFile(cachePath, buf);
-    return audioResponse(buf);
+    let wanted: Buffer | null = null;
+    for (const [name, url] of Object.entries(urls)) {
+      if (!url) continue;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      await writeFile(path.join(STEMS_DIR, `${id}-${name}.mp3`), buf);
+      if (name === stem) wanted = buf;
+    }
+    if (!wanted) throw new Error("stem download failed");
+    return audioResponse(wanted);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "stem separation failed" },

@@ -72,11 +72,13 @@ function sparseEnergy(energy: number[], buckets = 40): number[] {
 export async function planTransition(
   from: LoadedTrack,
   to: LoadedTrack,
-  position: number
+  position: number,
+  opts?: { timeoutMs?: number }
 ): Promise<TransitionPlan> {
   const res = await fetch("/api/ai/transition", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: opts?.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
     body: JSON.stringify({
       trackA: {
         title: `${from.meta.title} — ${from.meta.artist}`,

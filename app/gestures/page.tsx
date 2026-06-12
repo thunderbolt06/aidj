@@ -26,8 +26,9 @@ export default function GesturesPage() {
       quantize: true,
       quantizeBeats: 4,
       endless: true,
-      maxTransitionDur: 6,
+      maxTransitionDur: 4,
     });
+    mix.prefetch(2); // warm audio two songs ahead so releases never wait
   }
 
   function holdStart() {

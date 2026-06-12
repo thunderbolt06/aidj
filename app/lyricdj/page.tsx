@@ -11,22 +11,34 @@ interface ChainStop {
   lyrics: LyricLine[];
   /** Lyric-matched handoff to the NEXT stop (null for the last song). */
   handoff: {
-    outTime: number; // when to leave this song (at outLine)
+    outTime: number; // when A's matched line starts
+    outLineEnd: number; // when A's matched line ends — the cut moment
     outLine: string;
     inTime: number; // where the next song enters (its matched line)
     inLine: string;
+    sharedWord: string | null; // exact word both songs sing (null = semantic match)
     reasoning: string;
   } | null;
 }
 
 async function fetchLyrics(t: Track): Promise<LyricLine[]> {
-  const clean = t.title.replace(/[([].*?[)\]]/g, "").trim();
+  // server does the heavy title/artist cleaning; duration disambiguates covers
   const res = await fetch(
-    `/api/lyrics?track=${encodeURIComponent(clean)}&artist=${encodeURIComponent(t.artist)}`
+    `/api/lyrics?track=${encodeURIComponent(t.title)}&artist=${encodeURIComponent(
+      t.artist
+    )}&duration=${t.duration || ""}`
   );
   if (!res.ok) return [];
   const j = await res.json();
   return j.synced ? j.lines : [];
+}
+
+/** End of the lyric line starting at `time` = start of the following line. */
+function lineEnd(lyrics: LyricLine[], time: number): number {
+  const idx = lyrics.findIndex((l) => Math.abs(l.time - time) < 0.01);
+  const next = idx >= 0 ? lyrics[idx + 1] : undefined;
+  const end = next ? next.time : time + 4;
+  return Math.min(end, time + 8); // a "line" longer than 8s is an instrumental gap
 }
 
 /**
@@ -44,7 +56,7 @@ export default function LyricDjPage() {
   const playState = useRef({ idx: -1, fired: false });
 
   useEffect(() => {
-    const id = setInterval(() => setPosition(getEngine().position()), 200);
+    const id = setInterval(() => setPosition(getEngine().position()), 100);
     return () => {
       clearInterval(id);
       getEngine().stop();
@@ -76,23 +88,26 @@ export default function LyricDjPage() {
       };
 
       setStatus("finding + loading every song and its lyrics…");
+      const candidates = await Promise.all(
+        picks.map(async (pick) => {
+          try {
+            const results = await searchTracks(pick.query).catch(() => []);
+            const found = results[0];
+            if (!found) return null;
+            const [loaded, lyrics] = await Promise.all([
+              loadTrack(found.id),
+              fetchLyrics(found),
+            ]);
+            return lyrics.length ? { track: found, loaded, lyrics } : null;
+          } catch {
+            return null; // skip unloadable songs
+          }
+        })
+      );
       const stops: { track: Track; loaded: LoadedTrack; lyrics: LyricLine[] }[] = [
         { track: t, loaded: seedLoaded, lyrics: seedLyrics },
+        ...candidates.filter((c): c is NonNullable<typeof c> => c !== null),
       ];
-      for (const pick of picks) {
-        const results = await searchTracks(pick.query).catch(() => []);
-        const found = results[0];
-        if (!found) continue;
-        try {
-          const [loaded, lyrics] = await Promise.all([
-            loadTrack(found.id, setStatus),
-            fetchLyrics(found),
-          ]);
-          if (lyrics.length) stops.push({ track: found, loaded, lyrics });
-        } catch {
-          /* skip unloadable songs */
-        }
-      }
       if (stops.length < 2) throw new Error("couldn't assemble a chain with lyrics");
 
       setStatus("matching lyric lines for every transition…");
@@ -105,6 +120,7 @@ export default function LyricDjPage() {
             body: JSON.stringify({
               a: { title: stop.track.title, lines: stop.lyrics },
               b: { title: next.track.title, lines: next.lyrics },
+              bFamous: next.loaded.meta.famousStart,
             }),
           });
           if (!res.ok) return null;
@@ -118,9 +134,11 @@ export default function LyricDjPage() {
           handoff: matches[i]
             ? {
                 outTime: matches[i].aTime,
+                outLineEnd: lineEnd(stop.lyrics, matches[i].aTime),
                 outLine: matches[i].aLine,
                 inTime: matches[i].bTime,
                 inLine: matches[i].bLine,
+                sharedWord: matches[i].sharedWord ?? null,
                 reasoning: matches[i].reasoning,
               }
             : null,
@@ -147,14 +165,18 @@ export default function LyricDjPage() {
     setPlayingIdx(0);
   }
 
-  // watch the playhead; fire each pre-computed handoff at its lyric line
+  // Watch the playhead; fire each pre-computed handoff so A's matched line
+  // plays out FULLY and B's matched word lands exactly where A's line ends —
+  // a fast fade makes it read as one continuous lyric.
   useEffect(() => {
     const ps = playState.current;
     if (ps.idx < 0 || ps.fired) return;
     const stop = chain[ps.idx];
     const next = chain[ps.idx + 1];
     if (!stop?.handoff || !next) return;
-    if (position >= stop.handoff.outTime - 0.5) {
+    const FADE = 0.8;
+    const fireAt = stop.handoff.outLineEnd - FADE;
+    if (position >= fireAt - 0.1) {
       ps.fired = true;
       getEngine().onTransitionEnd = () => {
         playState.current = { idx: ps.idx + 1, fired: false };
@@ -163,8 +185,9 @@ export default function LyricDjPage() {
       getEngine().transition(next.loaded.buffer, {
         style: "crossfade",
         outPoint: position,
-        inPoint: Math.max(0, stop.handoff.inTime - 3),
-        duration: 3,
+        // B enters FADE early so its matched line starts right at fade-out
+        inPoint: Math.max(0, stop.handoff.inTime - FADE),
+        duration: FADE,
         beatMatch: false,
         reasoning: stop.handoff.reasoning,
       });
@@ -180,9 +203,9 @@ export default function LyricDjPage() {
       <header>
         <h1 className="text-2xl font-bold">Lyric DJ</h1>
         <p className="text-sm text-zinc-400">
-          Pick a seed song. The AI builds a whole setlist where every
-          transition lands on lyric lines that connect — all computed before a
-          single note plays.
+          Pick a seed song. The AI builds a whole setlist where each song hands
+          an <b>exact sung word</b> to the next — all computed before a single
+          note plays.
         </p>
       </header>
 
@@ -196,7 +219,7 @@ export default function LyricDjPage() {
         <>
           <ol className="space-y-3">
             {chain.map((stop, i) => (
-              <li key={stop.track.id}>
+              <li key={`${stop.track.id}-${i}`}>
                 <div
                   className={`rounded-xl border p-3 text-sm ${
                     i === playingIdx
@@ -209,11 +232,19 @@ export default function LyricDjPage() {
                   </p>
                   {stop.handoff && (
                     <p className="mt-1 text-xs text-zinc-400">
-                      exits on{" "}
+                      {stop.handoff.sharedWord ? (
+                        <>
+                          hands off the word{" "}
+                          <span className="rounded bg-fuchsia-900/60 px-1 font-bold text-fuchsia-200">
+                            {stop.handoff.sharedWord}
+                          </span>{" "}
+                          —{" "}
+                        </>
+                      ) : null}
                       <span className="text-fuchsia-300">
                         “{stop.handoff.outLine}”
                       </span>{" "}
-                      → next enters on{" "}
+                      →{" "}
                       <span className="text-fuchsia-300">
                         “{stop.handoff.inLine}”
                       </span>

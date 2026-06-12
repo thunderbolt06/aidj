@@ -272,6 +272,28 @@ export class DJEngine {
   }
 
   /**
+   * Infinite mashup: replace one layer with a new song while the other keeps
+   * playing — quick dip, swap source, come back. EQ carve on the deck stays.
+   */
+  swapMashupLayer(
+    which: "bed" | "topper",
+    buffer: AudioBuffer,
+    opts: { offset: number; rate: number }
+  ) {
+    const deck = this.decks[which === "bed" ? 0 : 1];
+    const now = this.ctx.currentTime;
+    const g = deck.gain.gain;
+    const level = Math.max(g.value, which === "bed" ? 1 : 0.85);
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(0, now + 0.25);
+    deck.buffer = buffer;
+    deck.play(now + 0.3, opts.offset, opts.rate);
+    g.setValueAtTime(0, now + 0.3);
+    g.linearRampToValueAtTime(level, now + 0.8);
+  }
+
+  /**
    * Tension build for press-and-hold gestures: while on, the active deck's
    * lows drain away and the echo bus swells — release into a transition.
    */

@@ -137,7 +137,10 @@ export function useAutoMix() {
         let plan: TransitionPlan;
         if (st.current.opts.useAi) {
           try {
-            plan = await planTransition(current, next, getEngine().position());
+            // capped: a slow AI must never make a user gesture wait
+            plan = await planTransition(current, next, getEngine().position(), {
+              timeoutMs: 5000,
+            });
           } catch {
             plan = heuristicPlan(next, getEngine().position());
           }
@@ -197,8 +200,13 @@ export function useAutoMix() {
     try {
       let prepared = s.prepared;
       if (!prepared && s.preparing) {
-        setStatus("finishing prep…");
-        prepared = await s.preparing;
+        // wait briefly for in-flight prep (usually just the tail of the audio
+        // download) but never hang a user gesture on it
+        setStatus("next song still loading…");
+        prepared = await Promise.race([
+          s.preparing,
+          new Promise<null>((r) => setTimeout(() => r(null), 8000)),
+        ]);
       }
       if (!prepared) {
         // last resort: heuristic, no AI, still no blocking UI fetch beyond audio

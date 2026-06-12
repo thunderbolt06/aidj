@@ -1,9 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import type { TransitionStyle } from "@/lib/types";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+
+const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
+  { value: "", label: "🤖 AI picks the trick" },
+  { value: "loop_roll", label: "🔂 Loop roll (stutter → slam)" },
+  { value: "brake", label: "🛑 Vinyl brake" },
+  { value: "riser", label: "🚀 Noise riser → drop" },
+  { value: "double_drop", label: "💥 Double drop" },
+  { value: "bass_swap", label: "🎚 Bass swap" },
+  { value: "filter_sweep", label: "🌀 Filter sweep" },
+  { value: "echo_out", label: "🔊 Echo out" },
+  { value: "crossfade", label: "🌊 Crossfade" },
+  { value: "cut", label: "✂️ Cut" },
+];
 
 export default function AutoDjPage() {
   const mix = useAutoMix();
@@ -11,6 +25,7 @@ export default function AutoDjPage() {
   const [useAi, setUseAi] = useState(true);
   const [quantize, setQuantize] = useState(true);
   const [endless, setEndless] = useState(true);
+  const [trick, setTrick] = useState<TransitionStyle | "">("");
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
@@ -98,10 +113,31 @@ export default function AutoDjPage() {
           />
           Endless
         </label>
+        <select
+          value={trick}
+          onChange={(e) => {
+            const v = e.target.value as TransitionStyle | "";
+            setTrick(v);
+            mix.setOptions({ styleHint: v || undefined }); // applies live mid-set
+          }}
+          className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+        >
+          {TRICKS.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
         {!mix.running ? (
           <button
             onClick={() => {
-              mix.start({ clipLen, useAi, quantize, endless });
+              mix.start({
+                clipLen,
+                useAi,
+                quantize,
+                endless,
+                styleHint: trick || undefined,
+              });
             }}
             disabled={mix.queue.length < 2}
             className="rounded-lg bg-zinc-100 px-5 py-2 font-semibold text-zinc-900 disabled:opacity-40"

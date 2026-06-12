@@ -17,8 +17,10 @@ interface ChainStop {
     inTime: number; // where the next song enters (its matched line)
     inLine: string;
     sharedWord: string | null; // exact word both songs sing (null = semantic match)
-    aWordTime: number; // estimated moment A sings the word — the loop point
-    bWordTime: number; // estimated moment B sings it — the drop point
+    aWordTime: number; // moment A sings the word — the loop point
+    aWordEnd: number; // word release in A — sets the natural loop length
+    bWordTime: number; // moment B sings it — the drop point
+    aligned: boolean; // true = Whisper-verified transients, false = estimate
     reasoning: string;
   } | null;
 }
@@ -41,6 +43,43 @@ function lineEnd(lyrics: LyricLine[], time: number): number {
   const next = idx >= 0 ? lyrics[idx + 1] : undefined;
   const end = next ? next.time : time + 4;
   return Math.min(end, time + 8); // a "line" longer than 8s is an instrumental gap
+}
+
+/**
+ * Whisper-verify where the word is actually sung: transcribe the window
+ * around the lyric line with word timestamps and pick the occurrence closest
+ * to the estimate. Returns null when Whisper can't hear the word.
+ */
+async function alignWord(
+  videoId: string,
+  lineTime: number,
+  lineEndTime: number,
+  word: string,
+  estimate: number
+): Promise<{ start: number; end: number } | null> {
+  try {
+    const windowStart = Math.max(0, lineTime - 2);
+    const res = await fetch("/api/align", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: videoId,
+        windowStart,
+        windowDur: Math.min(30, lineEndTime - windowStart + 3),
+        word,
+      }),
+    });
+    if (!res.ok) return null;
+    const { hits } = (await res.json()) as {
+      hits: { start: number; end: number }[];
+    };
+    if (!hits?.length) return null;
+    return hits.reduce((best, h) =>
+      Math.abs(h.start - estimate) < Math.abs(best.start - estimate) ? h : best
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -156,36 +195,64 @@ export default function LyricDjPage() {
         })
       );
 
+      // Whisper pass: replace proportional estimates with the REAL sung
+      // transients of every handoff word (both songs, in parallel)
+      setStatus("Whisper-aligning the exact words in the audio…");
+      const handoffs = await Promise.all(
+        matches.map(async (m, i) => {
+          if (!m) return null;
+          const stop = stops[i];
+          const nxt = stops[i + 1];
+          const base = {
+            outTime: m.aTime,
+            outLineEnd: lineEnd(stop.lyrics, m.aTime),
+            outLine: m.aLine,
+            inTime: m.bTime,
+            inLine: m.bLine,
+            sharedWord: m.sharedWord ?? null,
+            reasoning: m.reasoning,
+          };
+          if (!m.sharedWord) {
+            return {
+              ...base,
+              aWordTime: m.aTime,
+              aWordEnd: m.aTime + 0.5,
+              bWordTime: m.bTime,
+              aligned: false,
+            };
+          }
+          const aEst = estimateWordTime(stop.lyrics, m.aTime, m.aLine, m.sharedWord);
+          const bEst = estimateWordTime(nxt.lyrics, m.bTime, m.bLine, m.sharedWord);
+          const [aHit, bHit] = await Promise.all([
+            alignWord(
+              stop.track.id,
+              m.aTime,
+              lineEnd(stop.lyrics, m.aTime),
+              m.sharedWord,
+              aEst
+            ),
+            alignWord(
+              nxt.track.id,
+              m.bTime,
+              lineEnd(nxt.lyrics, m.bTime),
+              m.sharedWord,
+              bEst
+            ),
+          ]);
+          return {
+            ...base,
+            aWordTime: aHit?.start ?? aEst,
+            aWordEnd: aHit?.end ?? aEst + 0.45,
+            bWordTime: bHit?.start ?? bEst,
+            aligned: !!(aHit && bHit),
+          };
+        })
+      );
+
       setChain(
         stops.map((stop, i) => ({
           ...stop,
-          handoff: matches[i]
-            ? {
-                outTime: matches[i].aTime,
-                outLineEnd: lineEnd(stop.lyrics, matches[i].aTime),
-                outLine: matches[i].aLine,
-                inTime: matches[i].bTime,
-                inLine: matches[i].bLine,
-                sharedWord: matches[i].sharedWord ?? null,
-                aWordTime: matches[i].sharedWord
-                  ? estimateWordTime(
-                      stop.lyrics,
-                      matches[i].aTime,
-                      matches[i].aLine,
-                      matches[i].sharedWord
-                    )
-                  : matches[i].aTime,
-                bWordTime: matches[i].sharedWord
-                  ? estimateWordTime(
-                      stops[i + 1].lyrics,
-                      matches[i].bTime,
-                      matches[i].bLine,
-                      matches[i].sharedWord
-                    )
-                  : matches[i].bTime,
-                reasoning: matches[i].reasoning,
-              }
-            : null,
+          handoff: handoffs[i] ?? null,
         }))
       );
       setStatus("");
@@ -230,14 +297,20 @@ export default function LyricDjPage() {
     if (h.sharedWord) {
       if (position >= h.aWordTime - 0.05) {
         ps.fired = true;
-        // loop = one beat of A (two if the track is fast), 4 repeats
+        // loop the WORD itself: its real duration snapped up to the nearest
+        // beat subdivision so the stutter stays in the groove
         const beat = 60 / Math.max(stop.loaded.analysis.bpm, 60);
-        const loopLen = beat < 0.32 ? beat * 2 : Math.min(beat, 0.8);
-        setStatus(`✨ looping “${h.sharedWord}” ×4…`);
+        const wordDur = Math.max(0.12, h.aWordEnd - h.aWordTime);
+        const loopLen =
+          [beat / 4, beat / 2, beat, beat * 2].find((d) => d >= wordDur * 0.85) ??
+          beat * 2;
+        setStatus(
+          `✨ looping “${h.sharedWord}” ×4${h.aligned ? " (whisper-aligned)" : ""}…`
+        );
         getEngine().onTransitionEnd = advance;
         getEngine().stutterTransition(next.loaded.buffer, {
           loopStart: h.aWordTime,
-          loopLen,
+          loopLen: Math.min(loopLen, 0.9),
           repeats: 4,
           inPoint: h.bWordTime,
         });
@@ -310,7 +383,15 @@ export default function LyricDjPage() {
                           hands off the word{" "}
                           <span className="rounded bg-fuchsia-900/60 px-1 font-bold text-fuchsia-200">
                             {stop.handoff.sharedWord}
-                          </span>{" "}
+                          </span>
+                          {stop.handoff.aligned && (
+                            <span
+                              className="ml-1 text-emerald-400"
+                              title="word position verified in the audio by Whisper"
+                            >
+                              ✓
+                            </span>
+                          )}{" "}
                           —{" "}
                         </>
                       ) : null}

@@ -34,7 +34,11 @@ export type TransitionStyle =
   | "bass_swap" // swap low ends on a beat
   | "filter_sweep" // highpass sweep out, sweep in
   | "echo_out" // feedback delay tail into next track
-  | "cut"; // hard cut on the beat
+  | "cut" // hard cut on the beat
+  | "loop_roll" // 1→½→¼ beat stutter roll, then slam (classic buildup)
+  | "brake" // vinyl brake: record grinds to a halt, drop slams
+  | "riser" // white-noise sweep + bass pull-out into a hard drop
+  | "double_drop"; // both hooks hit together for 8 beats, then A exits
 
 export interface TransitionPlan {
   style: TransitionStyle;

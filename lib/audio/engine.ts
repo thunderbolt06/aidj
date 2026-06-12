@@ -62,6 +62,20 @@ class Deck {
     return (this.ctx.currentTime - this.startedAt) * rate;
   }
 
+  rate(): number {
+    return this.source?.playbackRate.value ?? 1;
+  }
+
+  /** Exact AudioContext time at which the playhead reaches `trackPos`. */
+  ctxTimeAt(trackPos: number): number {
+    return this.startedAt + trackPos / this.rate();
+  }
+
+  /** Track position at AudioContext time `t`. */
+  posAt(t: number): number {
+    return (t - this.startedAt) * this.rate();
+  }
+
   stopSource(when = 0) {
     try {
       this.source?.stop(when);
@@ -142,7 +156,44 @@ export class DJEngine {
   }
 
   /**
+   * AudioContext time of the next phrase boundary on the ACTIVE deck's beat
+   * grid, at least `minLead` seconds away — the moment a drop should land.
+   */
+  nextGridTime(from: TrackAnalysis, quantBeats: number, minLead = 0.08): number {
+    const A = this.activeDeck;
+    if (!A.playing || from.bpm <= 0) return this.ctx.currentTime + minLead;
+    const beatLen = 60 / from.bpm;
+    const phrase = beatLen * Math.max(quantBeats, 1);
+    const minPos = A.posAt(this.ctx.currentTime + minLead);
+    const k = Math.ceil((minPos - from.beatOffset) / phrase);
+    return A.ctxTimeAt(from.beatOffset + k * phrase);
+  }
+
+  /** Seconds until the next quantized drop (for UI countdowns). */
+  timeToDrop(from: TrackAnalysis, quantBeats: number, minLead = 0.08): number {
+    return this.nextGridTime(from, quantBeats, minLead) - this.ctx.currentTime;
+  }
+
+  private noiseBuffer: AudioBuffer | null = null;
+  private getNoise(): AudioBuffer {
+    if (!this.noiseBuffer) {
+      const sr = this.ctx.sampleRate;
+      const buf = this.ctx.createBuffer(1, sr * 2, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      this.noiseBuffer = buf;
+    }
+    return this.noiseBuffer;
+  }
+
+  /**
    * Execute a transition from the active deck to `nextBuffer` per the plan.
+   *
+   * Everything is scheduled on the AudioContext clock against a single anchor
+   * `t0` — the moment B enters. With `quantizeBeats` set, t0 snaps to A's
+   * beat grid (sample-accurate, no setTimeout drift) and pre-roll effects
+   * (loop roll, brake, riser) are scheduled BEFORE it so the drop lands on
+   * the phrase. B's inPoint additionally snaps to B's own beat grid.
    * Returns the context time at which the transition completes.
    */
   transition(
@@ -150,32 +201,59 @@ export class DJEngine {
     plan: TransitionPlan,
     analyses?: { from: TrackAnalysis; to: TrackAnalysis },
     opts?: {
-      /**
-       * Keep the incoming track locked at the matched tempo instead of
-       * gliding back to its native BPM — used by tempo-anchored mashups.
-       */
+      /** Keep B locked at the matched tempo (tempo-anchored mashups). */
       holdRate?: boolean;
+      /** Snap the drop to A's grid: phrase length in beats (e.g. 16). */
+      quantizeBeats?: number;
     }
   ): number {
     const ctx = this.ctx;
     const A = this.activeDeck;
     const B = this.nextDeck;
-    const now = ctx.currentTime;
     const dur = Math.max(0.05, plan.duration);
-    const end = now + dur;
+
+    const aRate = A.rate();
+    const aBeat = analyses?.from.bpm ? 60 / analyses.from.bpm : 0.5;
+    const beatCtx = aBeat / aRate; // one A-beat in wall-clock seconds
+
+    // pre-roll: how long the trick needs BEFORE B enters
+    const preRoll =
+      plan.style === "loop_roll" || plan.style === "riser"
+        ? 4 * beatCtx
+        : plan.style === "brake"
+          ? 1.5 * beatCtx
+          : 0;
+
+    // anchor: B's entry, snapped to A's beat grid when quantizing
+    const t0 =
+      opts?.quantizeBeats && analyses?.from && A.playing
+        ? this.nextGridTime(analyses.from, opts.quantizeBeats, preRoll + 0.08)
+        : ctx.currentTime + preRoll + 0.08;
+    const end = t0 + dur;
 
     B.buffer = nextBuffer;
-    B.resetFx(now);
+    B.resetFx(ctx.currentTime);
 
     // beat-match: play B at A's tempo, then glide to native tempo
     let rate = 1;
     if (plan.beatMatch && analyses && analyses.to.bpm > 0) {
       rate = analyses.from.bpm / analyses.to.bpm;
-      // mashups hold a wider stretch; normal transitions stay subtle
       const [lo, hi] = opts?.holdRate ? [0.85, 1.18] : [0.92, 1.08];
       if (rate < lo || rate > hi) rate = 1;
     }
-    B.play(now + 0.02, plan.inPoint, rate);
+
+    // snap B's entry onto B's own beat grid so beat 1 lands at t0
+    let inPoint = Math.max(0, plan.inPoint);
+    if (analyses && analyses.to.bpm > 0) {
+      const bBeat = 60 / analyses.to.bpm;
+      inPoint = Math.max(
+        0,
+        analyses.to.beatOffset +
+          Math.round((inPoint - analyses.to.beatOffset) / bBeat) * bBeat
+      );
+    }
+
+    B.play(t0, inPoint, rate);
     if (rate !== 1 && B.source && !opts?.holdRate) {
       B.source.playbackRate.setValueAtTime(rate, end);
       B.source.playbackRate.linearRampToValueAtTime(1, end + 4);
@@ -183,54 +261,142 @@ export class DJEngine {
 
     const aGain = A.gain.gain;
     const bGain = B.gain.gain;
+    const now = ctx.currentTime;
     aGain.cancelScheduledValues(now);
     bGain.cancelScheduledValues(now);
     aGain.setValueAtTime(aGain.value, now);
     bGain.setValueAtTime(0, now);
 
+    let aStopAt = end + 3;
+
     switch (plan.style) {
       case "cut": {
-        aGain.setValueAtTime(0, now + 0.02);
-        bGain.setValueAtTime(1, now + 0.02);
+        aGain.setValueAtTime(aGain.value, t0 - 0.01);
+        aGain.linearRampToValueAtTime(0, t0 + 0.02);
+        bGain.setValueAtTime(1, t0);
+        aStopAt = t0 + 0.3;
         break;
       }
       case "crossfade": {
-        equalPowerFade(aGain, bGain, now, dur);
+        equalPowerFade(aGain, bGain, t0, dur);
         break;
       }
       case "bass_swap": {
-        // kill B's bass, crossfade, swap bass at midpoint
-        B.low.gain.setValueAtTime(-24, now);
-        equalPowerFade(aGain, bGain, now, dur);
-        const mid = now + dur / 2;
+        B.low.gain.setValueAtTime(-24, t0);
+        equalPowerFade(aGain, bGain, t0, dur);
+        // swap the low end exactly on a beat near the midpoint
+        const mid = t0 + Math.max(1, Math.round(dur / 2 / beatCtx)) * beatCtx;
         A.low.gain.setValueAtTime(0, mid);
-        A.low.gain.linearRampToValueAtTime(-24, mid + 0.15);
+        A.low.gain.linearRampToValueAtTime(-24, mid + 0.12);
         B.low.gain.setValueAtTime(-24, mid);
-        B.low.gain.linearRampToValueAtTime(0, mid + 0.15);
+        B.low.gain.linearRampToValueAtTime(0, mid + 0.12);
         break;
       }
       case "filter_sweep": {
-        // A's lows and mids sweep away while B fades in underneath
-        A.low.gain.setValueAtTime(0, now);
+        A.low.gain.setValueAtTime(0, t0);
         A.low.gain.linearRampToValueAtTime(-30, end);
-        A.mid.gain.setValueAtTime(0, now);
+        A.mid.gain.setValueAtTime(0, t0);
         A.mid.gain.linearRampToValueAtTime(-18, end);
-        equalPowerFade(aGain, bGain, now, dur);
+        equalPowerFade(aGain, bGain, t0, dur);
         break;
       }
       case "echo_out": {
-        // A drops into the echo bus and cuts early; tail rings into B
-        A.echoSend.gain.setValueAtTime(0, now);
-        A.echoSend.gain.linearRampToValueAtTime(0.9, now + dur * 0.3);
-        aGain.setValueAtTime(aGain.value, now);
-        aGain.linearRampToValueAtTime(0, now + dur * 0.45);
-        bGain.setValueAtTime(0, now + dur * 0.25);
-        bGain.linearRampToValueAtTime(1, end);
+        A.echoSend.gain.setValueAtTime(0, t0);
+        A.echoSend.gain.linearRampToValueAtTime(0.9, t0 + dur * 0.3);
+        aGain.setValueAtTime(aGain.value, t0);
+        aGain.linearRampToValueAtTime(0, t0 + dur * 0.45);
+        bGain.setValueAtTime(0, t0);
+        bGain.linearRampToValueAtTime(1, t0 + dur * 0.5);
+        break;
+      }
+      case "loop_roll": {
+        // classic roll: 1-beat loop ×2, half-beat ×2, quarter-beat ×4 — then slam
+        const rollStart = t0 - 4 * beatCtx;
+        const p = A.posAt(rollStart);
+        if (A.buffer && p > 0) {
+          A.stopSource(rollStart);
+          const seg = (loopLen: number, from: number, until: number) => {
+            const s = ctx.createBufferSource();
+            s.buffer = A.buffer!;
+            s.loop = true;
+            s.loopStart = p;
+            s.loopEnd = p + loopLen;
+            s.playbackRate.value = aRate;
+            s.connect(A.low);
+            s.start(from, p);
+            s.stop(until);
+            return s;
+          };
+          seg(aBeat, rollStart, rollStart + 2 * beatCtx);
+          seg(aBeat / 2, rollStart + 2 * beatCtx, rollStart + 3 * beatCtx);
+          A.source = seg(aBeat / 4, rollStart + 3 * beatCtx, t0 + 0.02);
+          A.echoSend.gain.setValueAtTime(0.1, rollStart);
+          A.echoSend.gain.linearRampToValueAtTime(0.55, t0);
+          A.echoSend.gain.setTargetAtTime(0, t0 + 0.05, 0.15);
+        }
+        aGain.setValueAtTime(aGain.value, t0 - 0.01);
+        aGain.linearRampToValueAtTime(0, t0 + 0.03);
+        bGain.setValueAtTime(1, t0);
+        aStopAt = t0 + 0.3;
+        break;
+      }
+      case "brake": {
+        // vinyl brake: the record grinds to a halt, then the drop slams
+        const brakeStart = t0 - 1.5 * beatCtx;
+        if (A.source) {
+          A.source.playbackRate.cancelScheduledValues(now);
+          A.source.playbackRate.setValueAtTime(aRate, brakeStart);
+          A.source.playbackRate.exponentialRampToValueAtTime(0.02, t0);
+        }
+        A.echoSend.gain.setValueAtTime(0.1, brakeStart);
+        A.echoSend.gain.linearRampToValueAtTime(0.4, t0);
+        A.echoSend.gain.setTargetAtTime(0, t0 + 0.05, 0.2);
+        aGain.setValueAtTime(aGain.value, t0 - 0.05);
+        aGain.linearRampToValueAtTime(0, t0 + 0.02);
+        bGain.setValueAtTime(1, t0);
+        aStopAt = t0 + 0.3;
+        break;
+      }
+      case "riser": {
+        // white-noise sweep + bass pull-out building 4 beats into a hard drop
+        const riseStart = t0 - 4 * beatCtx;
+        const noise = ctx.createBufferSource();
+        noise.buffer = this.getNoise();
+        noise.loop = true;
+        const bp = ctx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.Q.value = 1.2;
+        bp.frequency.setValueAtTime(350, riseStart);
+        bp.frequency.exponentialRampToValueAtTime(5500, t0);
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(0.0001, riseStart);
+        ng.gain.exponentialRampToValueAtTime(0.4, t0 - 0.02);
+        ng.gain.setValueAtTime(0, t0);
+        noise.connect(bp).connect(ng).connect(this.master);
+        noise.start(riseStart);
+        noise.stop(t0 + 0.05);
+        // bass drains out of A through the rise — the floor falls away
+        A.low.gain.setValueAtTime(0, riseStart);
+        A.low.gain.linearRampToValueAtTime(-26, t0);
+        aGain.setValueAtTime(aGain.value, t0 - 0.01);
+        aGain.linearRampToValueAtTime(0, t0 + 0.02);
+        bGain.setValueAtTime(1, t0);
+        aStopAt = t0 + 0.3;
+        break;
+      }
+      case "double_drop": {
+        // both hooks slam together for 8 beats, then A bows out
+        bGain.setValueAtTime(1, t0);
+        A.low.gain.setValueAtTime(-8, t0); // make room for B's low end
+        const out = t0 + 8 * beatCtx;
+        aGain.setValueAtTime(aGain.value, out);
+        aGain.linearRampToValueAtTime(0, out + beatCtx);
+        aStopAt = out + beatCtx + 0.3;
         break;
       }
     }
 
-    A.stopSource(end + 3);
+    A.stopSource(aStopAt);
     this.active = 1 - this.active;
 
     const timeLeft = (end - ctx.currentTime) * 1000;

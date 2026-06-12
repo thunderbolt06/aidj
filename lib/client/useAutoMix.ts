@@ -10,7 +10,6 @@ import {
   searchTracks,
   type LoadedTrack,
 } from "@/lib/client/dj";
-import { timeToNextPhrase } from "@/lib/audio/analysis";
 
 export interface AutoMixOptions {
   /**
@@ -146,8 +145,9 @@ export function useAutoMix() {
           }
         } else {
           plan = heuristicPlan(next, getEngine().position());
-          if (st.current.opts.styleHint) plan.style = st.current.opts.styleHint;
         }
+        // forced style overrides whatever the planner chose
+        if (st.current.opts.styleHint) plan.style = st.current.opts.styleHint;
         plan.beatMatch =
           Math.abs(current.analysis.bpm - next.analysis.bpm) /
             Math.max(current.analysis.bpm, 1) <
@@ -266,20 +266,13 @@ export function useAutoMix() {
     if (!current || !s.running) return;
     const { next, plan } = prepared;
 
-    if (s.opts.quantize) {
-      const beats = s.opts.quantizeBeats ?? 16;
-      const wait = timeToNextPhrase(current.analysis, getEngine().position(), beats);
-      if (wait > 0.05) {
-        setStatus(`dropping on the phrase in ${wait.toFixed(1)}s…`);
-        await new Promise((r) => setTimeout(r, wait * 1000 - 30));
-        if (!s.running) return;
-      }
-      const beatLen = 60 / Math.max(next.analysis.bpm, 1);
-      plan.inPoint = Math.max(
-        0,
-        next.analysis.beatOffset +
-          Math.round((plan.inPoint - next.analysis.beatOffset) / beatLen) * beatLen
-      );
+    // beat-grid quantization is handled INSIDE the engine now — every ramp
+    // and source start is scheduled on the AudioContext clock against the
+    // next phrase boundary, so drops land sample-accurate (no timer drift)
+    const quantizeBeats = s.opts.quantize ? (s.opts.quantizeBeats ?? 16) : undefined;
+    if (quantizeBeats) {
+      const wait = getEngine().timeToDrop(current.analysis, quantizeBeats);
+      if (wait > 1) setStatus(`dropping on the phrase in ${wait.toFixed(1)}s…`);
     }
 
     if (s.opts.maxTransitionDur && plan.style !== "cut")
@@ -294,10 +287,12 @@ export function useAutoMix() {
     setNow(next);
     setNowIdx(s.nowIdx);
     setNextReady(false);
-    getEngine().transition(next.buffer, plan, {
-      from: current.analysis,
-      to: next.analysis,
-    });
+    getEngine().transition(
+      next.buffer,
+      plan,
+      { from: current.analysis, to: next.analysis },
+      { quantizeBeats }
+    );
     setStatus("");
     s.opts.onHop?.({
       track: s.queue[s.nowIdx],
@@ -343,6 +338,14 @@ export function useAutoMix() {
     }
   }
 
+  /** Update options mid-set (e.g. switching the forced trick live). */
+  function setOptions(partial: Partial<AutoMixOptions>) {
+    st.current.opts = { ...st.current.opts, ...partial };
+    // a prepared plan may carry the old style; re-apply the hint
+    if (partial.styleHint && st.current.prepared)
+      st.current.prepared.plan.style = partial.styleHint;
+  }
+
   /** Preload upcoming tracks' audio (no planning). */
   function prefetch(count = 2) {
     const { queue, nowIdx } = st.current;
@@ -368,5 +371,6 @@ export function useAutoMix() {
     transitionTo,
     prepareNext,
     prefetch,
+    setOptions,
   };
 }

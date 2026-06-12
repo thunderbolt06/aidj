@@ -229,6 +229,59 @@ export class DJEngine {
     return end;
   }
 
+  /**
+   * Mashup: play both decks at once — A as the low-end "bed", B band-passed
+   * on top as the "topper", tempo-matched to A. Poor man's stem separation.
+   */
+  playMashup(
+    bed: AudioBuffer,
+    topper: AudioBuffer,
+    opts: { bedOffset: number; topperOffset: number; rate: number; topperGain?: number }
+  ) {
+    const now = this.ctx.currentTime;
+    const [A, B] = this.decks;
+    this.active = 0;
+    A.buffer = bed;
+    B.buffer = topper;
+    A.resetFx(now);
+    B.resetFx(now);
+    // bed keeps its body but makes room on top
+    A.high.gain.setValueAtTime(-10, now);
+    A.mid.gain.setValueAtTime(-4, now);
+    A.gain.gain.setValueAtTime(1, now);
+    // topper: strip lows so basslines don't fight, lift presence
+    B.low.gain.setValueAtTime(-30, now);
+    B.mid.gain.setValueAtTime(3, now);
+    B.high.gain.setValueAtTime(2, now);
+    B.gain.gain.setValueAtTime(opts.topperGain ?? 0.9, now);
+    A.play(now + 0.05, opts.bedOffset, 1);
+    B.play(now + 0.05, opts.topperOffset, opts.rate);
+  }
+
+  setTopperGain(v: number) {
+    this.decks[1].gain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+  }
+
+  /**
+   * Tension build for press-and-hold gestures: while on, the active deck's
+   * lows drain away and the echo bus swells — release into a transition.
+   */
+  tension(on: boolean, rampSec = 1.5) {
+    const A = this.activeDeck;
+    const now = this.ctx.currentTime;
+    const low = A.low.gain;
+    const echo = A.echoSend.gain;
+    low.cancelScheduledValues(now);
+    echo.cancelScheduledValues(now);
+    if (on) {
+      low.setTargetAtTime(-26, now, rampSec);
+      echo.setTargetAtTime(0.5, now, rampSec * 1.5);
+    } else {
+      low.setTargetAtTime(0, now, 0.15);
+      echo.setTargetAtTime(0, now, 0.3);
+    }
+  }
+
   setMasterVolume(v: number) {
     this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
   }

@@ -22,6 +22,26 @@ export async function analyzeTrack(buffer: AudioBuffer): Promise<TrackAnalysis> 
   };
 }
 
+/**
+ * Seconds until the next phrase boundary from `position`, on a grid anchored
+ * at the first detected beat. Pop/dance phrases are 4 or 8 bars; 16 beats
+ * (4 bars) keeps the wait tolerable (max ~8s at 120 BPM).
+ */
+export function timeToNextPhrase(
+  analysis: { bpm: number; beatOffset: number },
+  position: number,
+  beatsPerPhrase = 16
+): number {
+  if (analysis.bpm <= 0) return 0;
+  const beatLen = 60 / analysis.bpm;
+  const phraseLen = beatLen * beatsPerPhrase;
+  const sincePhrase = (position - analysis.beatOffset) % phraseLen;
+  const wait = (phraseLen - sincePhrase) % phraseLen;
+  // if the boundary is closer than a beat, take the following one so the
+  // transition has time to schedule cleanly
+  return wait < beatLen ? wait + phraseLen : wait;
+}
+
 async function renderLowpassed(buffer: AudioBuffer): Promise<AudioBuffer> {
   const ctx = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
   const src = ctx.createBufferSource();

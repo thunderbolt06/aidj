@@ -9,11 +9,14 @@ import {
   planTransition,
   type LoadedTrack,
 } from "@/lib/client/dj";
+import { timeToNextPhrase } from "@/lib/audio/analysis";
 
 export interface AutoMixOptions {
   clipLen?: number; // seconds per song before auto-hop; 0 = no auto-hop
   useAi?: boolean;
   styleHint?: TransitionPlan["style"];
+  /** Wait for the next phrase boundary (4 bars) before executing transitions. */
+  quantize?: boolean;
 }
 
 /**
@@ -111,6 +114,22 @@ export function useAutoMix() {
             current.analysis.bpm <
           0.08;
       }
+      // quantize: hold the drop until the next phrase boundary in A,
+      // and snap B's entry onto its own beat grid
+      if (st.current.opts.quantize) {
+        const wait = timeToNextPhrase(current.analysis, getEngine().position());
+        if (wait > 0.05) {
+          setStatus(`dropping on the phrase in ${wait.toFixed(1)}s…`);
+          await new Promise((r) => setTimeout(r, wait * 1000 - 30));
+        }
+        const beatLen = 60 / Math.max(next.analysis.bpm, 1);
+        plan.inPoint =
+          next.analysis.beatOffset +
+          Math.round((plan.inPoint - next.analysis.beatOffset) / beatLen) * beatLen;
+        if (plan.inPoint < 0) plan.inPoint = 0;
+        plan.beatMatch = true;
+      }
+      if (!st.current.running) return;
       plan.outPoint = getEngine().position();
       setLastPlan(plan);
       st.current.current = next;

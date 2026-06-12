@@ -49,6 +49,18 @@ const experiments = [
     desc: "Two songs layered and beat-aligned into one.",
     status: "ready",
   },
+  {
+    href: "/reels",
+    title: "Reels Feed",
+    desc: "Vertical swipe feed of famous parts — the swipe IS the transition.",
+    status: "ready",
+  },
+  {
+    href: "/bridge",
+    title: "Generated Bridge",
+    desc: "MusicGen composes a custom bridge clip between two songs.",
+    status: "ready",
+  },
 ];
 
 export default function Home() {

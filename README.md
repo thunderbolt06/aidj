@@ -14,6 +14,10 @@ Intent-based music with AI-generated DJ transitions. Every page is an experiment
 | `/karaoke` | Synced lyrics (lrclib) + AI lyric-matched transitions — connects two songs at lyric lines that rhyme/relate |
 | `/talkingdj` | MC Fable — Claude writes the banter, OpenAI TTS speaks it ducked over the music, talk back via mic for vibe changes |
 | `/mashup` | Two songs layered: A is the low-end bed, B band-passed on top, tempo-matched |
+| `/reels` | Vertical swipe feed of famous parts — swiping to the next card IS the transition (phrase-quantized); feed refills itself with AI suggestions |
+| `/bridge` | Generated bridge — Claude writes the brief, Replicate MusicGen composes a ~10s clip from A's world into B's, rendered while A plays |
+
+**Beat-grid quantize**: transitions can wait for the next 4-bar phrase boundary (toggle on Auto-DJ, always on in Reels) and snap the incoming track onto its own beat grid instead of firing on raw timers.
 
 ## How it works
 

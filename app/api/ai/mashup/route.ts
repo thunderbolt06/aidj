@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractJson } from "@/lib/server/extractJson";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +43,7 @@ export async function POST(req: NextRequest) {
       ],
     });
     const text = msg.content[0].type === "text" ? msg.content[0].text : "{}";
-    const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-    return NextResponse.json(JSON.parse(json));
+         return NextResponse.json(extractJson(text));
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "design failed" },

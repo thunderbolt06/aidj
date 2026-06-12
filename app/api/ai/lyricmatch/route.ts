@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractJson } from "@/lib/server/extractJson";
 import type { LyricLine } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -137,8 +138,7 @@ Respond ONLY with JSON (indices only — NEVER quote any lyric text):
       ],
     });
     const text = msg.content[0].type === "text" ? msg.content[0].text : "{}";
-    const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-    const { aIdx, bIdx, reasoning } = JSON.parse(json) as {
+         const { aIdx, bIdx, reasoning } = extractJson(text) as {
       aIdx: number;
       bIdx: number;
       reasoning: string;

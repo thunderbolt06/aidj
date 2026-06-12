@@ -148,7 +148,14 @@ export class DJEngine {
   transition(
     nextBuffer: AudioBuffer,
     plan: TransitionPlan,
-    analyses?: { from: TrackAnalysis; to: TrackAnalysis }
+    analyses?: { from: TrackAnalysis; to: TrackAnalysis },
+    opts?: {
+      /**
+       * Keep the incoming track locked at the matched tempo instead of
+       * gliding back to its native BPM — used by tempo-anchored mashups.
+       */
+      holdRate?: boolean;
+    }
   ): number {
     const ctx = this.ctx;
     const A = this.activeDeck;
@@ -164,10 +171,12 @@ export class DJEngine {
     let rate = 1;
     if (plan.beatMatch && analyses && analyses.to.bpm > 0) {
       rate = analyses.from.bpm / analyses.to.bpm;
-      if (rate < 0.92 || rate > 1.08) rate = 1; // too far apart to sound good
+      // mashups hold a wider stretch; normal transitions stay subtle
+      const [lo, hi] = opts?.holdRate ? [0.85, 1.18] : [0.92, 1.08];
+      if (rate < lo || rate > hi) rate = 1;
     }
     B.play(now + 0.02, plan.inPoint, rate);
-    if (rate !== 1 && B.source) {
+    if (rate !== 1 && B.source && !opts?.holdRate) {
       B.source.playbackRate.setValueAtTime(rate, end);
       B.source.playbackRate.linearRampToValueAtTime(1, end + 4);
     }

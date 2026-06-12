@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractJson } from "@/lib/server/extractJson";
 import Replicate from "replicate";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   let prompt: string;
   let bpm: number;
   try {
-    const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    const j = extractJson(text) as { prompt: string; bpm?: number };
     prompt = j.prompt;
     bpm = j.bpm ?? a?.bpm ?? 120;
   } catch {

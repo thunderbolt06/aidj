@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractJson } from "@/lib/server/extractJson";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,8 @@ export async function POST(req: NextRequest) {
     ],
   });
   const text = msg.content[0].type === "text" ? msg.content[0].text : "{}";
-  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-  try {
-    return NextResponse.json(JSON.parse(json));
+     try {
+    return NextResponse.json(extractJson(text));
   } catch {
     return NextResponse.json({ error: "invalid", raw: text }, { status: 502 });
   }

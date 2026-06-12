@@ -28,7 +28,8 @@ export default function MixPage() {
   );
   const [position, setPosition] = useState(0);
   const [plan, setPlan] = useState<TransitionPlan | null>(null);
-  const [planning, setPlanning] = useState(false);
+  const [planReady, setPlanReady] = useState(false);
+  const prePlan = useRef<Promise<TransitionPlan> | null>(null);
   const raf = useRef(0);
 
   useEffect(() => {
@@ -42,6 +43,8 @@ export default function MixPage() {
 
   function pick(which: "A" | "B", t: Track) {
     const set = which === "A" ? setA : setB;
+    prePlan.current = null; // new pairing invalidates any prepared plan
+    setPlanReady(false);
     set({ track: t, loaded: null, status: "queued…" });
     loadTrack(t.id, (s) => set((p) => ({ ...p, status: s })))
       .then((loaded) => set((p) => ({ ...p, loaded, status: "" })))
@@ -54,20 +57,37 @@ export default function MixPage() {
     const start = Math.max(0, (a.loaded.meta.famousStart ?? 30) - 15);
     getEngine().startTrack(a.loaded.buffer, start);
     setPlaying("A");
+    preparePlan();
   }
+
+  /** Plan the transition in the background so the button is instant. */
+  function preparePlan() {
+    if (!a.loaded || !b.loaded || prePlan.current) return;
+    setPlanReady(false);
+    prePlan.current = planTransition(a.loaded, b.loaded, getEngine().position())
+      .catch(() => heuristicPlan(b.loaded!, getEngine().position()))
+      .then((p) => {
+        setPlanReady(true);
+        return p;
+      });
+  }
+
+  // if B finishes loading while A is already playing, start planning then
+  useEffect(() => {
+    if (playing === "A" && a.loaded && b.loaded) preparePlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, a.loaded, b.loaded]);
 
   async function doTransition() {
     if (!a.loaded || !b.loaded || playing !== "A") return;
-    setPlanning(true);
     const pos = getEngine().position();
-    let p: TransitionPlan;
-    try {
-      p = await planTransition(a.loaded, b.loaded, pos);
-    } catch {
-      p = heuristicPlan(b.loaded, pos);
-    }
+    // pre-planned: executes immediately. Not yet planned: heuristic, still instant.
+    const p: TransitionPlan = prePlan.current
+      ? { ...(await prePlan.current) }
+      : heuristicPlan(b.loaded, pos);
+    // the AI planned against an older playhead; never transition into the past
+    p.outPoint = Math.max(p.outPoint, pos);
     setPlan(p);
-    setPlanning(false);
     setPlaying("transitioning");
     getEngine().onTransitionEnd = () => setPlaying("B");
     getEngine().transition(b.loaded.buffer, p, {
@@ -140,10 +160,11 @@ export default function MixPage() {
         </button>
         <button
           onClick={doTransition}
-          disabled={!b.loaded || playing !== "A" || planning}
+          disabled={!b.loaded || playing !== "A"}
           className="rounded-lg bg-fuchsia-600 px-5 py-2.5 font-semibold hover:bg-fuchsia-500 disabled:opacity-40"
         >
-          {planning ? "AI planning…" : "⚡ AI Transition → B"}
+          ⚡ AI Transition → B
+          {playing === "A" && (planReady ? " (ready)" : " (planning…)")}
         </button>
         <button
           onClick={() => {

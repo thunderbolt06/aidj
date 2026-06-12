@@ -18,8 +18,16 @@ export default function GesturesPage() {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function startSet() {
-    await mix.start({ clipLen: 0, useAi: true });
-    mix.prefetch(2);
+    // clipLen 0: user-driven. The hook pre-loads and pre-plans the next hop
+    // while you listen, so releasing the pad executes instantly.
+    await mix.start({
+      clipLen: 0,
+      useAi: true,
+      quantize: true,
+      quantizeBeats: 4,
+      endless: true,
+      maxTransitionDur: 6,
+    });
   }
 
   function holdStart() {
@@ -31,8 +39,12 @@ export default function GesturesPage() {
   function holdEnd(release: "transition" | "cancel") {
     if (!holding) return;
     setHolding(false);
-    getEngine().tension(false);
-    if (release === "transition") mix.hopNow().then(() => mix.prefetch(2));
+    if (release === "transition") {
+      // keep the tension through the drop — the transition resets deck FX
+      mix.hopNow();
+    } else {
+      getEngine().tension(false);
+    }
   }
 
   return (
@@ -85,8 +97,9 @@ export default function GesturesPage() {
                 // swipe up
                 if (holdTimer.current) clearTimeout(holdTimer.current);
                 touchStartY.current = null;
-                holdEnd("cancel");
-                mix.hopNow().then(() => mix.prefetch(2));
+                setHolding(false);
+                getEngine().tension(false);
+                mix.hopNow();
               }
             }}
             onPointerUp={() => {

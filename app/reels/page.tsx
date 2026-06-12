@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Track } from "@/lib/types";
-import { searchTracks } from "@/lib/client/dj";
+import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
@@ -41,6 +41,10 @@ export default function ReelsPage() {
       setFeed(tracks);
       mix.setQueue(tracks);
       setBusy("");
+      // warm the first few cards before the user even hits start
+      tracks.slice(0, 3).forEach((t, i) => {
+        setTimeout(() => loadTrack(t.id).catch(() => {}), i * 3000);
+      });
     } catch (e) {
       setBusy(e instanceof Error ? e.message : "failed");
     }
@@ -85,7 +89,7 @@ export default function ReelsPage() {
     activeId.current = track.id;
     if (!started) return; // first play happens via the start button
     await mix.transitionTo(track);
-    mix.prefetch(2);
+    mix.prefetch(3);
     if (index >= feedRef.current.length - 3) refill(track);
   }
 
@@ -114,8 +118,15 @@ export default function ReelsPage() {
     if (!feed.length) return;
     setStarted(true);
     activeId.current = feed[0].id;
-    await mix.start({ clipLen: 0, useAi: true, quantize: true });
-    mix.prefetch(2);
+    // snappy: 1-bar quantize, ≤3s blends, no AI roundtrips at swipe time
+    await mix.start({
+      clipLen: 0,
+      useAi: false,
+      quantize: true,
+      quantizeBeats: 4,
+      maxTransitionDur: 3,
+    });
+    mix.prefetch(3);
   }
 
   if (!started) {

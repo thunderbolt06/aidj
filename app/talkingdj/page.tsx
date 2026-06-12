@@ -128,7 +128,16 @@ export default function TalkingDjPage() {
         {!mix.running ? (
           <button
             onClick={async () => {
-              await mix.start({ clipLen: 60, useAi: true });
+              await mix.start({
+                clipLen: "ai",
+                useAi: true,
+                quantize: true,
+                endless: true,
+                onHop: () => {
+                  // banter roughly every other song so it stays special
+                  if (Math.random() < 0.6) djSpeak();
+                },
+              });
               djSpeak();
             }}
             disabled={mix.queue.length < 2}

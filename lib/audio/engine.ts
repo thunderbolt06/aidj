@@ -236,7 +236,14 @@ export class DJEngine {
   playMashup(
     bed: AudioBuffer,
     topper: AudioBuffer,
-    opts: { bedOffset: number; topperOffset: number; rate: number; topperGain?: number }
+    opts: {
+      bedOffset: number;
+      topperOffset: number;
+      rate: number;
+      topperGain?: number;
+      /** false when using real stems — no EQ carving needed. */
+      carve?: boolean;
+    }
   ) {
     const now = this.ctx.currentTime;
     const [A, B] = this.decks;
@@ -245,14 +252,16 @@ export class DJEngine {
     B.buffer = topper;
     A.resetFx(now);
     B.resetFx(now);
-    // bed keeps its body but makes room on top
-    A.high.gain.setValueAtTime(-10, now);
-    A.mid.gain.setValueAtTime(-4, now);
+    if (opts.carve !== false) {
+      // bed keeps its body but makes room on top
+      A.high.gain.setValueAtTime(-10, now);
+      A.mid.gain.setValueAtTime(-4, now);
+      // topper: strip lows so basslines don't fight, lift presence
+      B.low.gain.setValueAtTime(-30, now);
+      B.mid.gain.setValueAtTime(3, now);
+      B.high.gain.setValueAtTime(2, now);
+    }
     A.gain.gain.setValueAtTime(1, now);
-    // topper: strip lows so basslines don't fight, lift presence
-    B.low.gain.setValueAtTime(-30, now);
-    B.mid.gain.setValueAtTime(3, now);
-    B.high.gain.setValueAtTime(2, now);
     B.gain.gain.setValueAtTime(opts.topperGain ?? 0.9, now);
     A.play(now + 0.05, opts.bedOffset, 1);
     B.play(now + 0.05, opts.topperOffset, opts.rate);

@@ -33,8 +33,14 @@ const experiments = [
   },
   {
     href: "/karaoke",
-    title: "Karaoke + Lyric Transitions",
-    desc: "Synced lyrics; transitions that connect matching lyric lines.",
+    title: "Karaoke",
+    desc: "Synced lyrics, tap a line to jump. Pure sing-along.",
+    status: "ready",
+  },
+  {
+    href: "/lyricdj",
+    title: "Lyric DJ",
+    desc: "A whole setlist chained by connecting lyric lines — computed before playback.",
     status: "ready",
   },
   {
@@ -59,6 +65,12 @@ const experiments = [
     href: "/bridge",
     title: "Generated Bridge",
     desc: "MusicGen composes a custom bridge clip between two songs.",
+    status: "ready",
+  },
+  {
+    href: "/export",
+    title: "Export Reel",
+    desc: "Render a ≤60s famous-parts mega-mix as a vertical video for Reels/Shorts.",
     status: "ready",
   },
 ];

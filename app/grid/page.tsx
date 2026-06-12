@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Track } from "@/lib/types";
-import { searchTracks } from "@/lib/client/dj";
+import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
@@ -41,8 +41,14 @@ export default function GridPage() {
           return r[0] ? { track: r[0], tag: s.tag } : null;
         })
       );
-      setGrid(found.filter((s): s is Suggestion => !!s).slice(0, 9));
+      const tiles = found.filter((s): s is Suggestion => !!s).slice(0, 9);
+      setGrid(tiles);
       setBusy("");
+      // preload every tile's audio in the background so taps are instant;
+      // stagger so we don't fire 9 yt-dlp extractions at once
+      tiles.forEach((s, i) => {
+        setTimeout(() => loadTrack(s.track.id).catch(() => {}), i * 4000);
+      });
     } catch (e) {
       setBusy(e instanceof Error ? e.message : "failed");
     }
@@ -50,7 +56,8 @@ export default function GridPage() {
 
   async function startWith(t: Track) {
     mix.setQueue([t]);
-    await mix.start({ clipLen: 0, useAi: true }); // no auto-hop; user drives
+    // user drives via the grid; quantize to 2 bars so taps drop on-beat fast
+    await mix.start({ clipLen: 0, useAi: false, quantize: true, quantizeBeats: 8 });
     refreshGrid(t);
   }
 

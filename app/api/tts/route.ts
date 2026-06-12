@@ -9,10 +9,13 @@ export async function POST(req: NextRequest) {
   const openai = new OpenAI();
   const speech = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
-    voice: "verse",
+    voice: "ash",
     input: text,
     instructions:
-      "Energetic club DJ on a mic, talking over music. Fast, punchy, charismatic.",
+      "You're a real late-night radio DJ live on air, NOT a voice assistant. " +
+      "Loose and conversational — vary your pace, throw in small natural pauses, " +
+      "drop word endings casually, react like you're vibing to the track behind you. " +
+      "Slightly raspy, warm, never announcer-perfect. Occasionally trail off or chuckle.",
     response_format: "mp3",
   });
   const buf = Buffer.from(await speech.arrayBuffer());

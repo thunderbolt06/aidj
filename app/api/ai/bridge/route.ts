@@ -43,15 +43,22 @@ export async function POST(req: NextRequest) {
   }
 
   const replicate = new Replicate();
-  const output = (await replicate.run(MUSICGEN, {
-    input: {
-      prompt: `${prompt} ${bpm} bpm.`,
-      duration: Math.min(Math.max(duration, 5), 20),
-      model_version: "stereo-large",
-      output_format: "mp3",
-      normalization_strategy: "loudness",
-    },
-  })) as unknown;
+  let output: unknown;
+  try {
+    output = await replicate.run(MUSICGEN, {
+      input: {
+        prompt: `${prompt} ${bpm} bpm.`,
+        duration: Math.min(Math.max(duration, 5), 20),
+        model_version: "stereo-large",
+        output_format: "mp3",
+        normalization_strategy: "loudness",
+      },
+    });
+  } catch (e) {
+    // surface the real reason (e.g. "Insufficient credit") instead of a bare 500
+    const msg = e instanceof Error ? e.message : "MusicGen call failed";
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
 
   // replicate returns a URL (or FileOutput with .url())
   const url =

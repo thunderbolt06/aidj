@@ -16,6 +16,7 @@ export default function BridgePage() {
   const [a, setA] = useState<LoadedTrack | null>(null);
   const [b, setB] = useState<LoadedTrack | null>(null);
   const [status, setStatus] = useState("");
+  const [fallback, setFallback] = useState(""); // loud failure banner
   const [prompt, setPrompt] = useState("");
   const [phase, setPhase] = useState<"idle" | "A" | "bridge" | "B">("idle");
   const [position, setPosition] = useState(0);
@@ -48,6 +49,7 @@ export default function BridgePage() {
     timers.current = [];
     bridgeBuf.current = null;
     setPrompt("");
+    setFallback("");
 
     // start A right away; the bridge generates while it plays
     const famousA = Math.max(0, (a.meta.famousStart ?? 40) - 10);
@@ -74,9 +76,12 @@ export default function BridgePage() {
       bridge = await getEngine().decode(await res.arrayBuffer());
       bridgeBuf.current = bridge;
     } catch (e) {
-      setStatus(
-        `${e instanceof Error ? e.message : "bridge failed"} — falling back to a plain crossfade`
+      // LOUD failure — the user must know no bridge was generated
+      setFallback(
+        `NO BRIDGE GENERATED: ${e instanceof Error ? e.message : "unknown error"}. ` +
+          `Playing a plain crossfade instead.`
       );
+      setStatus("");
       transitionToB(3);
       return;
     }
@@ -84,13 +89,14 @@ export default function BridgePage() {
     setStatus("bridge ready — dropping it in…");
     const bridgeAnalysis = await analyzeTrack(bridge);
     getEngine().onTransitionEnd = null;
+    // fast 1.2s entry so nearly the whole generated clip is heard in the clear
     getEngine().transition(
       bridge,
       {
         style: "filter_sweep",
         outPoint: getEngine().position(),
         inPoint: 0,
-        duration: 2.5,
+        duration: 1.2,
         beatMatch: false,
         reasoning: "into the generated bridge",
       },
@@ -99,9 +105,9 @@ export default function BridgePage() {
     setPhase("bridge");
     setStatus("");
 
-    // schedule the exit from the bridge into B
-    const exitMs = Math.max(0, (bridge.duration - 3) * 1000);
-    timers.current.push(setTimeout(() => transitionToB(3), exitMs));
+    // exit near the very end of the bridge so it plays out fully
+    const exitMs = Math.max(0, (bridge.duration - 1.5) * 1000);
+    timers.current.push(setTimeout(() => transitionToB(1.5), exitMs));
   }
 
   function transitionToB(dur: number) {
@@ -179,6 +185,21 @@ export default function BridgePage() {
       </div>
 
       {status && <p className="animate-pulse text-sm text-amber-400">{status}</p>}
+      {fallback && (
+        <div className="rounded-xl border-2 border-red-600 bg-red-950/40 p-4 text-sm font-semibold text-red-300">
+          ⚠ {fallback}
+          {fallback.includes("credit") && (
+            <p className="mt-1 font-normal text-red-200">
+              Add credit at replicate.com → Account → Billing, then try again.
+            </p>
+          )}
+        </div>
+      )}
+      {phase === "bridge" && (
+        <div className="animate-pulse rounded-xl border-2 border-fuchsia-500 bg-fuchsia-950/40 p-4 text-center text-lg font-bold text-fuchsia-200">
+          🌉 GENERATED BRIDGE PLAYING
+        </div>
+      )}
 
       {prompt && (
         <div className="rounded-xl border border-fuchsia-900/50 bg-fuchsia-950/20 p-4 text-sm">

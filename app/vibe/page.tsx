@@ -63,7 +63,7 @@ export default function VibePage() {
       mix.setQueue(tracks);
       setBusy("");
       if (!wasRunning) {
-        await mix.start({ clipLen: 60, useAi: true });
+        await mix.start({ clipLen: "ai", useAi: true, quantize: true, endless: true });
       } else {
         // vibe change mid-set: hop into the new queue immediately
         await mix.transitionTo(tracks[0]);

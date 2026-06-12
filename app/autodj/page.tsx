@@ -7,18 +7,20 @@ import { HeatmapBar } from "@/components/HeatmapBar";
 
 export default function AutoDjPage() {
   const mix = useAutoMix();
-  const [clipLen, setClipLen] = useState(60);
+  const [clipLen, setClipLen] = useState<number | "ai">("ai");
   const [useAi, setUseAi] = useState(true);
   const [quantize, setQuantize] = useState(true);
+  const [endless, setEndless] = useState(true);
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
       <header>
         <h1 className="text-2xl font-bold">Auto-DJ</h1>
         <p className="text-sm text-zinc-400">
-          Only the famous part of every song — auto-transition every {clipLen}s.
-          With quantize on, drops wait for the next 4-bar phrase boundary
-          instead of firing mid-bar.
+          Only the famous part of every song. In <b>AI timing</b> mode the
+          transition plan decides when each song has given its best moment;
+          quantize keeps drops on 4-bar phrase boundaries. Endless mode
+          refills the queue so the set never stops.
         </p>
       </header>
 
@@ -55,9 +57,13 @@ export default function AutoDjPage() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        {[30, 60].map((len) => (
+        {([
+          ["ai", "🤖 AI timing"],
+          [30, "30s"],
+          [60, "60s"],
+        ] as const).map(([len, label]) => (
           <button
-            key={len}
+            key={String(len)}
             onClick={() => setClipLen(len)}
             className={`rounded-lg px-4 py-2 text-sm ${
               clipLen === len
@@ -65,7 +71,7 @@ export default function AutoDjPage() {
                 : "border border-zinc-700 text-zinc-300"
             }`}
           >
-            {len}s clips
+            {label}
           </button>
         ))}
         <label className="flex items-center gap-2 text-sm text-zinc-300">
@@ -82,12 +88,20 @@ export default function AutoDjPage() {
             checked={quantize}
             onChange={(e) => setQuantize(e.target.checked)}
           />
-          Quantize to phrase
+          Quantize
+        </label>
+        <label className="flex items-center gap-2 text-sm text-zinc-300">
+          <input
+            type="checkbox"
+            checked={endless}
+            onChange={(e) => setEndless(e.target.checked)}
+          />
+          Endless
         </label>
         {!mix.running ? (
           <button
             onClick={() => {
-              mix.start({ clipLen, useAi, quantize });
+              mix.start({ clipLen, useAi, quantize, endless });
             }}
             disabled={mix.queue.length < 2}
             className="rounded-lg bg-zinc-100 px-5 py-2 font-semibold text-zinc-900 disabled:opacity-40"
@@ -122,6 +136,9 @@ export default function AutoDjPage() {
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           <p className="text-xs text-zinc-500">
             {mix.now.analysis.bpm} BPM · famous @ {mix.now.meta.famousStart ?? "?"}s
+            {mix.nextReady && (
+              <span className="ml-2 text-emerald-400">· next hop prepared ✓</span>
+            )}
           </p>
           {mix.lastPlan && (
             <p className="text-xs text-fuchsia-300">

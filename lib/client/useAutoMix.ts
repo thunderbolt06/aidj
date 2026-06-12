@@ -172,9 +172,17 @@ export function useAutoMix() {
     let waitSec: number;
     if (clipLen === "ai") {
       if (!prepared) return; // armed when preparation finishes
-      const untilOut = prepared.plan.outPoint - getEngine().position();
-      // sanity: 8s minimum so songs register, 120s max so sets keep moving
-      waitSec = Math.min(Math.max(untilOut, 8), 120);
+      const cur = st.current.current;
+      const pos = getEngine().position();
+      // the banger must play out: never exit before the famous section
+      // (hook + a phrase ≈ 35s) has fully landed
+      const famousEnd = (cur?.meta.famousStart ?? 40) + 35;
+      let target = Math.max(prepared.plan.outPoint, famousEnd);
+      // don't run off the end of the track
+      const dur = cur?.analysis.duration ?? Infinity;
+      target = Math.min(target, dur - 12);
+      // floor 25s so every song registers, cap 150s so the set keeps moving
+      waitSec = Math.min(Math.max(target - pos, 25), 150);
     } else {
       waitSec = clipLen;
     }

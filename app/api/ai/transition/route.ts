@@ -17,7 +17,11 @@ Pick the transition that will feel best to a casual listener:
 - cut: only when B's hook hits instantly hard
 
 Rules:
-- outPoint: a natural exit in A, at or shortly after the current position (never before it), ideally at an energy dip or phrase end (~every 15-30s boundary).
+- outPoint: a natural exit in A — never before the current position, and CRITICALLY: let A's
+  famous section play out in full before leaving. If A has famousStart, outPoint must be at
+  least famousStart + 35 (the hook plus a phrase), unless the current position is already past
+  that. Prefer an energy dip or phrase end after the hook lands. A typical good clip runs
+  40-70s of A before exiting.
 - inPoint: start B slightly BEFORE its famous section so the hook lands right as the transition completes (inPoint ≈ famousStart - duration, min 0). If no famousStart, pick a high-energy point after intro.
 - duration: 4-12s. cut = 0.1, echo_out = 6-8.
 - beatMatch true only if BPMs within 8%.

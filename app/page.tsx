@@ -1,65 +1,91 @@
-import Image from "next/image";
+import Link from "next/link";
+
+const experiments = [
+  {
+    href: "/mix",
+    title: "2-Song Mix",
+    desc: "Pick two songs, AI plans and renders the DJ transition live.",
+    status: "ready",
+  },
+  {
+    href: "/autodj",
+    title: "Auto-DJ (30s / 1min)",
+    desc: "Plays only the famous part of each song, auto-transitions.",
+    status: "soon",
+  },
+  {
+    href: "/vibe",
+    title: "Vibe Prompt",
+    desc: "Type or speak an intent — 'singable road trip' — AI builds the mix.",
+    status: "soon",
+  },
+  {
+    href: "/grid",
+    title: "9-Grid Next Song",
+    desc: "Tap one of 9 suggested songs to transition into it.",
+    status: "soon",
+  },
+  {
+    href: "/gestures",
+    title: "Gestures",
+    desc: "Press-and-hold to loop, release to transition. Swipe up to auto-mix.",
+    status: "soon",
+  },
+  {
+    href: "/karaoke",
+    title: "Karaoke + Lyric Transitions",
+    desc: "Synced lyrics; transitions that connect matching lyric lines.",
+    status: "soon",
+  },
+  {
+    href: "/talkingdj",
+    title: "Talking DJ",
+    desc: "An AI DJ that talks between songs and listens to your replies.",
+    status: "soon",
+  },
+  {
+    href: "/mashup",
+    title: "Mashup Generator",
+    desc: "Two songs layered and beat-aligned into one.",
+    status: "soon",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="mx-auto max-w-3xl p-6">
+      <h1 className="text-3xl font-bold">
+        AI<span className="text-fuchsia-500">DJ</span> Lab
+      </h1>
+      <p className="mt-1 text-zinc-400">
+        Intent-based music with AI-generated transitions. Every card is an
+        experiment — try them all, keep what slaps.
+      </p>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        {experiments.map((e) => (
+          <Link
+            key={e.href}
+            href={e.href}
+            className="group rounded-xl border border-zinc-800 p-4 transition hover:border-fuchsia-600"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold group-hover:text-fuchsia-400">
+                {e.title}
+              </h2>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
+                  e.status === "ready"
+                    ? "bg-emerald-900/60 text-emerald-300"
+                    : "bg-zinc-800 text-zinc-400"
+                }`}
+              >
+                {e.status}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-zinc-400">{e.desc}</p>
+          </Link>
+        ))}
+      </div>
+    </main>
   );
 }

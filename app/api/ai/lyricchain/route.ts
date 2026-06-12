@@ -36,19 +36,34 @@ function wordBank(lines: LyricLine[], max = 60): string[] {
     .map(([w]) => w);
 }
 
-const SYSTEM = `You build a "lyric chain" DJ setlist. You get a seed song title and a bank of
-distinctive words that appear in its lyrics. Pick 4 real, popular, singable songs where each
-song's lyrics contain at least one EXACT word from the bank (the DJ cuts between songs on that
-shared sung word). Prefer distinctive words over generic ones. Well-known songs only — synced
+/** Words sung inside the famous section — the ones the crowd knows. */
+function hookBank(lines: LyricLine[], famousStart: number | null): string[] {
+  if (famousStart == null) return [];
+  const hookLines = lines.filter(
+    (l) => l.time >= famousStart - 3 && l.time <= famousStart + 40
+  );
+  return wordBank(hookLines, 25);
+}
+
+const SYSTEM = `You build a "lyric chain" DJ setlist. You get a seed song title and two word
+banks from its lyrics: hookWords (sung in the song's MOST FAMOUS part — the part everyone
+knows and sings along to) and otherWords. Pick 4 real, popular, singable songs where each
+song's lyrics contain at least one EXACT word from the banks (the DJ cuts between songs on
+that shared sung word).
+
+STRONGLY prefer hookWords — a wordplay cut on a line the crowd is already singing hits far
+harder than one on a deep-cut verse. Ideally the shared word also appears in the NEXT song's
+chorus/hook. Prefer distinctive words over generic ones. Well-known songs only — synced
 lyrics must plausibly exist on lrclib. Keep language consistent with the seed.
 
 Respond ONLY with JSON (single words only, never lyric lines):
 {"chain": [{"query": "artist - song title", "sharedWord": "the exact word from the bank"} x4]}`;
 
 export async function POST(req: NextRequest) {
-  const { title, lines } = (await req.json()) as {
+  const { title, lines, famousStart } = (await req.json()) as {
     title: string;
     lines: LyricLine[];
+    famousStart?: number | null;
   };
   try {
     const client = new Anthropic();
@@ -59,7 +74,11 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "user",
-          content: JSON.stringify({ seed: title, wordBank: wordBank(lines) }),
+          content: JSON.stringify({
+            seed: title,
+            hookWords: hookBank(lines, famousStart ?? null),
+            otherWords: wordBank(lines),
+          }),
         },
       ],
     });
@@ -70,6 +89,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       chain: parsed.chain.map((c) => ({
         query: c.query,
+        sharedWord: c.sharedWord ?? null,
         connection: c.sharedWord ? `shares the word “${c.sharedWord}”` : "",
       })),
     });

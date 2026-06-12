@@ -143,11 +143,15 @@ export default function LyricDjPage() {
       const chainRes = await fetch("/api/ai/lyricchain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: t.title, lines: seedLyrics }),
+        body: JSON.stringify({
+          title: t.title,
+          lines: seedLyrics,
+          famousStart: seedLoaded.meta.famousStart,
+        }),
       });
       if (!chainRes.ok) throw new Error("chain failed — ANTHROPIC_API_KEY?");
       const { chain: picks } = (await chainRes.json()) as {
-        chain: { query: string; connection: string }[];
+        chain: { query: string; sharedWord: string | null; connection: string }[];
       };
 
       setStatus("finding + loading every song and its lyrics…");
@@ -165,13 +169,20 @@ export default function LyricDjPage() {
               loadTrack(found.id),
               fetchLyrics(found),
             ]);
-            return lyrics.length ? { track: found, loaded, lyrics } : null;
+            return lyrics.length
+              ? { track: found, loaded, lyrics, preferWord: pick.sharedWord }
+              : null;
           } catch {
             return null; // skip unloadable songs
           }
         })
       );
-      const stops: { track: Track; loaded: LoadedTrack; lyrics: LyricLine[] }[] = [
+      const stops: {
+        track: Track;
+        loaded: LoadedTrack;
+        lyrics: LyricLine[];
+        preferWord?: string | null;
+      }[] = [
         { track: t, loaded: seedLoaded, lyrics: seedLyrics },
         ...candidates.filter((c): c is NonNullable<typeof c> => c !== null),
       ];
@@ -188,6 +199,11 @@ export default function LyricDjPage() {
               a: { title: stop.track.title, lines: stop.lyrics },
               b: { title: next.track.title, lines: next.lyrics },
               bFamous: next.loaded.meta.famousStart,
+              // prefer handoff words sung in A's hook — that's the part
+              // people recognize and sing along to
+              aFamous: stop.loaded.meta.famousStart,
+              // the chain AI picked this song FOR this word — try it first
+              preferWord: next.preferWord ?? null,
             }),
           });
           if (!res.ok) return null;

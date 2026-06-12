@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 
 const STOP = new Set(
-  `the a an and or but if so as at by to of in on for with from that this is are was were be been am it its do don't did not no yes oh ooh woah whoa yeah hey la na mm hmm i you he she we they me my your his her our them him us it's i'm you're we're they're ain't gonna wanna gotta got get just like can can't will won't all what when where who why how now then there here out up down over under again`
+  `the a an and or but if so as at by to of in on for with from that this is are was were be been am it its do don't did not no yes oh ooh woah whoa yeah hey la na mm hmm i you he she we they me my your his her our them him us it's i'm you're we're they're ain't gonna wanna gotta got get just like can can't will won't all what when where who why how now then there here out up down over under again about let's okay come came make say said well much too very really still only even one two know going make`
     .split(/\s+/)
 );
 
@@ -38,7 +38,9 @@ interface Match {
 function exactMatch(
   aLines: LyricLine[],
   bLines: LyricLine[],
-  bFamous: number | null
+  bFamous: number | null,
+  aFamous: number | null,
+  preferWord: string | null
 ): Match | null {
   // word frequency across both songs — rare words make better hooks
   const freq = new Map<string, number>();
@@ -63,13 +65,19 @@ function exactMatch(
   aTokens.forEach((toks, aIdx) => {
     const aT = aLines[aIdx].time;
     // leave from the middle/late part of A, but not the very last line
-    const aPosScore =
+    let aPosScore =
       aT > aDur * 0.25 && aT < aDur * 0.9 ? 2 : aT >= aDur * 0.9 ? -2 : 0;
+    // HOOK BIAS: a word sung inside A's famous section resonates hardest —
+    // the crowd is already singing along when the stutter grabs it
+    if (aFamous != null && aT >= aFamous - 3 && aT <= aFamous + 40)
+      aPosScore += 5;
     for (const w of new Set(toks)) {
       for (const bIdx of bIndex.get(w) ?? []) {
         const bT = bLines[bIdx].time;
         if (bT < 8) continue; // don't land on a cold intro line
         let score = 4 / Math.sqrt(freq.get(w) ?? 1) + Math.min(w.length, 9) * 0.3 + aPosScore;
+        // the chain AI suggested this word as the link — trust it first
+        if (preferWord && w === preferWord) score += 6;
         // land B near its hook when we know where that is
         if (bFamous != null)
           score += Math.max(0, 3 - Math.abs(bT - bFamous) / 12);
@@ -91,13 +99,21 @@ function exactMatch(
 }
 
 export async function POST(req: NextRequest) {
-  const { a, b, bFamous } = (await req.json()) as {
+  const { a, b, bFamous, aFamous, preferWord } = (await req.json()) as {
     a: { title: string; lines: LyricLine[] };
     b: { title: string; lines: LyricLine[] };
     bFamous?: number | null;
+    aFamous?: number | null;
+    preferWord?: string | null;
   };
 
-  const exact = exactMatch(a.lines, b.lines, bFamous ?? null);
+  const exact = exactMatch(
+    a.lines,
+    b.lines,
+    bFamous ?? null,
+    aFamous ?? null,
+    preferWord?.toLowerCase().trim() ?? null
+  );
   if (exact) {
     const aLine = a.lines[exact.aIdx];
     const bLine = b.lines[exact.bIdx];

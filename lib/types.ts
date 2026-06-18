@@ -27,6 +27,21 @@ export interface TrackAnalysis {
   /** Per-second RMS energy, normalized 0..1. */
   energy: number[];
   duration: number;
+  /**
+   * Estimated downbeat (bar-1) offset in seconds — the beat to anchor
+   * phrase quantization on, not just the first detected beat.
+   */
+  downbeatOffset: number;
+  /** 0..1 confidence in the detected tempo (share of the winning vote). */
+  bpmConfidence: number;
+  /** Integrated loudness as linear RMS (pre-normalization), for trim gain. */
+  loudness: number;
+  /** Camelot code, e.g. "8A" / "11B". Null if key detection was inconclusive. */
+  camelot: string | null;
+  /** Human key name, e.g. "F#min" / "Cmaj". */
+  keyName: string | null;
+  /** 0..1 confidence in the detected key (Krumhansl correlation). */
+  keyConfidence: number;
 }
 
 export type TransitionStyle =
@@ -38,7 +53,13 @@ export type TransitionStyle =
   | "loop_roll" // 1→½→¼ beat stutter roll, then slam (classic buildup)
   | "brake" // vinyl brake: record grinds to a halt, drop slams
   | "riser" // white-noise sweep + bass pull-out into a hard drop
-  | "double_drop"; // both hooks hit together for 8 beats, then A exits
+  | "double_drop" // both hooks hit together for 8 beats, then A exits
+  | "silence_drop" // cut everything for a beat (dead air), then slam B on the 1
+  | "backspin" // vinyl rewind: A's last 2 beats reverse-accelerate, B slams
+  | "tape_stop" // power-cut: A pitch-drops to a halt over ~1 beat, then B drops
+  | "reverb_freeze" // A's tail swells into a reverb wash, B rises out of it
+  | "gate" // rhythmic strobe-gate on A for a bar while B fades up underneath
+  | "stem_acapella"; // B's isolated vocal rides over A, then B's full mix drops in
 
 export interface TransitionPlan {
   style: TransitionStyle;

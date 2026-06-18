@@ -15,6 +15,8 @@ class Deck {
   readonly mid: BiquadFilterNode;
   readonly high: BiquadFilterNode;
   readonly gain: GainNode;
+  /** Static per-track level trim (loudness normalization). */
+  readonly trim: GainNode;
   readonly echoSend: GainNode;
   /** ctx.currentTime when playback started, minus the track offset. */
   private startedAt = 0;
@@ -32,11 +34,19 @@ class Deck {
     this.high.type = "highshelf";
     this.high.frequency.value = 4000;
     this.gain = ctx.createGain();
+    this.trim = ctx.createGain();
+    this.trim.gain.value = 1;
     this.echoSend = ctx.createGain();
     this.echoSend.gain.value = 0;
 
-    this.low.connect(this.mid).connect(this.high).connect(this.gain).connect(master);
-    this.gain.connect(this.echoSend).connect(echoBus);
+    // low→mid→high→gain (fades, 0..1) → trim (level-match) → master
+    this.low.connect(this.mid).connect(this.high).connect(this.gain).connect(this.trim).connect(master);
+    this.trim.connect(this.echoSend).connect(echoBus);
+  }
+
+  /** Set the loudness-normalization trim for this track (smoothed). */
+  setTrim(v: number) {
+    this.trim.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
   }
 
   /** Start playback at context time `when`, from `offset` seconds into the track. */
@@ -104,6 +114,12 @@ export class DJEngine {
   /** Called when a transition completes, with the new active deck index. */
   onTransitionEnd: (() => void) | null = null;
 
+  // mixtape recording (master tap → MediaRecorder)
+  private recorder: MediaRecorder | null = null;
+  private recChunks: BlobPart[] = [];
+  private recDest: MediaStreamAudioDestinationNode | null = null;
+  private recStartCtxTime = 0;
+
   constructor() {
     this.ctx = new AudioContext();
     this.master = this.ctx.createGain();
@@ -137,10 +153,11 @@ export class DJEngine {
   }
 
   /** Load + immediately play a track on the active deck. */
-  startTrack(buffer: AudioBuffer, offset = 0) {
+  startTrack(buffer: AudioBuffer, offset = 0, analysis?: TrackAnalysis) {
     const deck = this.activeDeck;
     deck.buffer = buffer;
     deck.resetFx(this.ctx.currentTime);
+    deck.trim.gain.setValueAtTime(trimGainFromLoudness(analysis?.loudness), this.ctx.currentTime);
     deck.gain.gain.cancelScheduledValues(this.ctx.currentTime);
     deck.gain.gain.setValueAtTime(1, this.ctx.currentTime);
     this.nextDeck.gain.gain.setValueAtTime(0, this.ctx.currentTime);
@@ -162,11 +179,13 @@ export class DJEngine {
   nextGridTime(from: TrackAnalysis, quantBeats: number, minLead = 0.08): number {
     const A = this.activeDeck;
     if (!A.playing || from.bpm <= 0) return this.ctx.currentTime + minLead;
+    // anchor phrases on the estimated downbeat (bar 1), not just the first beat
+    const anchor = from.downbeatOffset ?? from.beatOffset;
     const beatLen = 60 / from.bpm;
     const phrase = beatLen * Math.max(quantBeats, 1);
     const minPos = A.posAt(this.ctx.currentTime + minLead);
-    const k = Math.ceil((minPos - from.beatOffset) / phrase);
-    return A.ctxTimeAt(from.beatOffset + k * phrase);
+    const k = Math.ceil((minPos - anchor) / phrase);
+    return A.ctxTimeAt(anchor + k * phrase);
   }
 
   /** Seconds until the next quantized drop (for UI countdowns). */
@@ -184,6 +203,37 @@ export class DJEngine {
       this.noiseBuffer = buf;
     }
     return this.noiseBuffer;
+  }
+
+  /** A short sub-bass thump one-shot — punctuates silence_drop / FX layers. */
+  private impact(at: number) {
+    const ctx = this.ctx;
+    const s = ctx.createBufferSource();
+    s.buffer = this.getNoise();
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(180, at);
+    lp.frequency.exponentialRampToValueAtTime(55, at + 0.25);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.9, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.3);
+    s.connect(lp).connect(g).connect(this.master);
+    s.start(at);
+    s.stop(at + 0.35);
+  }
+
+  /** Build a reversed AudioBuffer of `lenSec` starting at `startSec`. */
+  private reversedSlice(buf: AudioBuffer, startSec: number, lenSec: number): AudioBuffer {
+    const sr = buf.sampleRate;
+    const start = Math.max(0, Math.floor(startSec * sr));
+    const len = Math.min(Math.floor(lenSec * sr), buf.length - start);
+    const out = this.ctx.createBuffer(buf.numberOfChannels, Math.max(1, len), sr);
+    for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+      const src = buf.getChannelData(ch);
+      const dst = out.getChannelData(ch);
+      for (let i = 0; i < len; i++) dst[i] = src[start + len - 1 - i];
+    }
+    return out;
   }
 
   /**
@@ -218,11 +268,18 @@ export class DJEngine {
 
     // pre-roll: how long the trick needs BEFORE B enters
     const preRoll =
-      plan.style === "loop_roll" || plan.style === "riser"
+      plan.style === "loop_roll" ||
+      plan.style === "riser" ||
+      plan.style === "reverb_freeze" ||
+      plan.style === "gate"
         ? 4 * beatCtx
-        : plan.style === "brake"
-          ? 1.5 * beatCtx
-          : 0;
+        : plan.style === "backspin"
+          ? 2 * beatCtx
+          : plan.style === "brake"
+            ? 1.5 * beatCtx
+            : plan.style === "tape_stop" || plan.style === "silence_drop"
+              ? 1 * beatCtx
+              : 0;
 
     // anchor: B's entry, snapped to A's beat grid when quantizing
     const t0 =
@@ -233,6 +290,7 @@ export class DJEngine {
 
     B.buffer = nextBuffer;
     B.resetFx(ctx.currentTime);
+    B.trim.gain.setValueAtTime(trimGainFromLoudness(analyses?.to.loudness), ctx.currentTime);
 
     // beat-match: play B at A's tempo, then glide to native tempo
     let rate = 1;
@@ -242,14 +300,15 @@ export class DJEngine {
       if (rate < lo || rate > hi) rate = 1;
     }
 
-    // snap B's entry onto B's own beat grid so beat 1 lands at t0
+    // snap B's entry onto B's own beat grid (anchored on its downbeat) so
+    // bar 1 lands at t0
     let inPoint = Math.max(0, plan.inPoint);
     if (analyses && analyses.to.bpm > 0) {
+      const bAnchor = analyses.to.downbeatOffset ?? analyses.to.beatOffset;
       const bBeat = 60 / analyses.to.bpm;
       inPoint = Math.max(
         0,
-        analyses.to.beatOffset +
-          Math.round((inPoint - analyses.to.beatOffset) / bBeat) * bBeat
+        bAnchor + Math.round((inPoint - bAnchor) / bBeat) * bBeat
       );
     }
 
@@ -392,6 +451,115 @@ export class DJEngine {
         aGain.setValueAtTime(aGain.value, out);
         aGain.linearRampToValueAtTime(0, out + beatCtx);
         aStopAt = out + beatCtx + 0.3;
+        break;
+      }
+      case "silence_drop": {
+        // cut everything for the last beat (dead air), then B slams on the 1
+        const cutAt = t0 - 1 * beatCtx;
+        aGain.setValueAtTime(aGain.value, cutAt - 0.02);
+        aGain.linearRampToValueAtTime(0, cutAt);
+        bGain.setValueAtTime(1, t0);
+        this.impact(t0); // sub-thump so the silence→slam hits harder
+        aStopAt = t0 + 0.1;
+        break;
+      }
+      case "backspin": {
+        // vinyl rewind: play A's last 2 beats reversed and accelerating, B slams
+        const spinStart = t0 - 2 * beatCtx;
+        const p = A.posAt(spinStart);
+        if (A.buffer && p - 2 * aBeat > 0) {
+          A.stopSource(spinStart);
+          const rev = this.reversedSlice(A.buffer, p - 2 * aBeat, 2 * aBeat);
+          const s = ctx.createBufferSource();
+          s.buffer = rev;
+          s.playbackRate.setValueAtTime(aRate, spinStart);
+          s.playbackRate.exponentialRampToValueAtTime(aRate * 2.6, t0);
+          s.connect(A.low);
+          s.start(spinStart);
+          s.stop(t0 + 0.02);
+          A.source = s;
+          A.echoSend.gain.setValueAtTime(0.2, spinStart);
+          A.echoSend.gain.linearRampToValueAtTime(0.6, t0);
+          A.echoSend.gain.setTargetAtTime(0, t0 + 0.05, 0.15);
+        }
+        aGain.setValueAtTime(aGain.value, t0 - 0.01);
+        aGain.linearRampToValueAtTime(0, t0 + 0.02);
+        bGain.setValueAtTime(1, t0);
+        aStopAt = t0 + 0.2;
+        break;
+      }
+      case "tape_stop": {
+        // power-cut: A pitch-drops to a halt over ~1 beat, top end closing
+        const stopStart = t0 - 1 * beatCtx;
+        if (A.source) {
+          A.source.playbackRate.cancelScheduledValues(now);
+          A.source.playbackRate.setValueAtTime(aRate, stopStart);
+          A.source.playbackRate.exponentialRampToValueAtTime(0.02, t0);
+        }
+        A.high.gain.setValueAtTime(0, stopStart);
+        A.high.gain.linearRampToValueAtTime(-40, t0);
+        A.mid.gain.setValueAtTime(0, stopStart);
+        A.mid.gain.linearRampToValueAtTime(-20, t0);
+        aGain.setValueAtTime(aGain.value, t0 - 0.02);
+        aGain.linearRampToValueAtTime(0, t0 + 0.01);
+        bGain.setValueAtTime(1, t0);
+        aStopAt = t0 + 0.2;
+        break;
+      }
+      case "gate": {
+        // rhythmic strobe-gate on A for a bar while B fades up underneath
+        const gateStart = t0 - 4 * beatCtx;
+        const eighth = beatCtx / 2;
+        const lvl = aGain.value;
+        let step = 0;
+        for (let tt = gateStart; tt < t0 - 1e-3; tt += eighth) {
+          aGain.setValueAtTime(step % 2 === 0 ? lvl : 0, tt);
+          step++;
+        }
+        aGain.setValueAtTime(0, t0);
+        bGain.setValueAtTime(0, gateStart);
+        bGain.linearRampToValueAtTime(1, t0);
+        aStopAt = t0 + 0.1;
+        break;
+      }
+      case "reverb_freeze": {
+        // A's tail blooms into a long-feedback reverb wash; B rises out of it
+        const swellStart = t0 - 4 * beatCtx;
+        const fd = ctx.createDelay(1);
+        fd.delayTime.value = 0.16;
+        const fb = ctx.createGain();
+        fb.gain.value = 0.9;
+        const send = ctx.createGain();
+        send.gain.setValueAtTime(0.0001, swellStart);
+        send.gain.exponentialRampToValueAtTime(0.95, t0);
+        send.gain.setValueAtTime(0, t0 + 0.02); // stop feeding — the tail rings out
+        const wet = ctx.createGain();
+        wet.gain.setValueAtTime(0.9, t0);
+        wet.gain.setTargetAtTime(0, t0 + 0.4, 0.6);
+        A.gain.connect(send);
+        send.connect(fd);
+        fd.connect(fb).connect(fd);
+        fd.connect(wet).connect(this.master);
+        // A dry pulls out across the swell; B fades up out of the wash
+        aGain.setValueAtTime(aGain.value, swellStart);
+        aGain.linearRampToValueAtTime(0, t0);
+        bGain.setValueAtTime(0, t0);
+        bGain.linearRampToValueAtTime(1, t0 + 2 * beatCtx);
+        setTimeout(
+          () => {
+            try {
+              A.gain.disconnect(send);
+            } catch {
+              /* already gone */
+            }
+            send.disconnect();
+            fd.disconnect();
+            fb.disconnect();
+            wet.disconnect();
+          },
+          Math.max(0, (t0 + 3 - now) * 1000)
+        );
+        aStopAt = t0 + 0.1;
         break;
       }
     }
@@ -560,6 +728,182 @@ export class DJEngine {
     g.setTargetAtTime(level, now, 0.2);
     g.setTargetAtTime(1, now + holdSec, 0.4);
   }
+
+  // ── Mixtape recording ─────────────────────────────────────────────────────
+
+  get recording(): boolean {
+    return this.recorder?.state === "recording";
+  }
+
+  /** Tap the master output into a MediaRecorder to capture the live set. */
+  startRecording(): boolean {
+    if (this.recording) return true;
+    if (typeof MediaRecorder === "undefined") return false;
+    if (!this.recDest) {
+      this.recDest = this.ctx.createMediaStreamDestination();
+      this.master.connect(this.recDest);
+    }
+    const mime = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/ogg;codecs=opus",
+    ].find((m) => MediaRecorder.isTypeSupported?.(m));
+    this.recChunks = [];
+    this.recorder = new MediaRecorder(
+      this.recDest.stream,
+      mime ? { mimeType: mime } : undefined
+    );
+    this.recorder.ondataavailable = (e) => {
+      if (e.data.size) this.recChunks.push(e.data);
+    };
+    this.recStartCtxTime = this.ctx.currentTime;
+    this.recorder.start(1000); // gather a chunk per second so a crash loses little
+    return true;
+  }
+
+  /** Stop recording and resolve the captured mix as a Blob. */
+  stopRecording(): Promise<{ blob: Blob; durationSec: number }> {
+    return new Promise((resolve, reject) => {
+      const r = this.recorder;
+      if (!r) {
+        reject(new Error("not recording"));
+        return;
+      }
+      const durationSec = this.ctx.currentTime - this.recStartCtxTime;
+      r.onstop = () => {
+        const blob = new Blob(this.recChunks, {
+          type: r.mimeType || "audio/webm",
+        });
+        this.recorder = null;
+        resolve({ blob, durationSec });
+      };
+      r.stop();
+    });
+  }
+
+  // ── Stem-aware transition ─────────────────────────────────────────────────
+
+  /**
+   * Acapella-in: B's isolated VOCAL stem rides in over A's groove for ~8 beats,
+   * then B's full mix drops on the phrase and A bows out — the classic radio
+   * blend. `bVocal` is B's demucs vocal stem; `bFull` is B's full track. Grid-
+   * quantized like `transition`. Returns the ctx time the swap completes.
+   */
+  stemSwap(
+    bFull: AudioBuffer,
+    opts: {
+      bVocal: AudioBuffer;
+      inPoint: number;
+      analyses: { from: TrackAnalysis; to: TrackAnalysis };
+      quantizeBeats?: number;
+    }
+  ): number {
+    const ctx = this.ctx;
+    const A = this.activeDeck;
+    const B = this.nextDeck;
+    const { from, to } = opts.analyses;
+
+    const aRate = A.rate();
+    const aBeat = from.bpm ? 60 / from.bpm : 0.5;
+    const beatCtx = aBeat / aRate;
+    const preBeats = 8;
+    const preRoll = preBeats * beatCtx;
+
+    const t0 =
+      opts.quantizeBeats && A.playing
+        ? this.nextGridTime(from, opts.quantizeBeats, preRoll + 0.08)
+        : ctx.currentTime + preRoll + 0.08;
+    const preStart = t0 - preRoll;
+
+    // tempo-match B to A (same clamp as transition's beatMatch)
+    let rate = 1;
+    if (to.bpm > 0) {
+      rate = from.bpm / to.bpm;
+      if (rate < 0.9 || rate > 1.1) rate = 1;
+    }
+
+    // snap B's full-mix entry to its downbeat grid so bar 1 lands at t0
+    let inPoint = Math.max(0, opts.inPoint);
+    if (to.bpm > 0) {
+      const bAnchor = to.downbeatOffset ?? to.beatOffset;
+      const beat = 60 / to.bpm;
+      inPoint = Math.max(0, bAnchor + Math.round((inPoint - bAnchor) / beat) * beat);
+    }
+
+    B.buffer = bFull;
+    B.resetFx(ctx.currentTime);
+    B.trim.gain.setValueAtTime(trimGainFromLoudness(to.loudness), ctx.currentTime);
+
+    // acapella overlay: B's vocal stem, timed so its hook reaches inPoint at t0.
+    // The overlay plays at `rate`, so over `preRoll` wall-seconds it advances
+    // `preRoll * rate` of B-time — start that far back from inPoint.
+    const voxOffset = Math.max(0, inPoint - preRoll * rate);
+    const vox = ctx.createBufferSource();
+    vox.buffer = opts.bVocal;
+    vox.playbackRate.value = rate;
+    const voxGain = ctx.createGain();
+    voxGain.gain.setValueAtTime(0.0001, preStart);
+    voxGain.gain.exponentialRampToValueAtTime(1, preStart + 2 * beatCtx);
+    voxGain.gain.setValueAtTime(1, t0 - 0.02);
+    voxGain.gain.linearRampToValueAtTime(0, t0 + 0.05); // B-full takes over the vocal
+    vox.connect(voxGain).connect(this.master);
+    vox.start(preStart, voxOffset);
+    vox.stop(t0 + 0.1);
+
+    // duck A's mids/highs so the incoming vocal sits on top, lows stay till t0
+    A.high.gain.setValueAtTime(0, preStart);
+    A.high.gain.linearRampToValueAtTime(-8, t0 - beatCtx);
+    A.mid.gain.setValueAtTime(0, preStart);
+    A.mid.gain.linearRampToValueAtTime(-5, t0 - beatCtx);
+
+    // at t0: B full drops, owns the low end; A fades out over 2 beats
+    B.play(t0, inPoint, rate);
+    if (rate !== 1 && B.source) {
+      B.source.playbackRate.setValueAtTime(rate, t0 + 2 * beatCtx);
+      B.source.playbackRate.linearRampToValueAtTime(1, t0 + 2 * beatCtx + 4);
+    }
+    const aGain = A.gain.gain;
+    const bGain = B.gain.gain;
+    const now = ctx.currentTime;
+    aGain.cancelScheduledValues(now);
+    bGain.cancelScheduledValues(now);
+    aGain.setValueAtTime(aGain.value, now);
+    bGain.setValueAtTime(0, now);
+    bGain.setValueAtTime(1, t0);
+    A.low.gain.setValueAtTime(-24, t0);
+    aGain.setValueAtTime(aGain.value, t0);
+    aGain.linearRampToValueAtTime(0, t0 + 2 * beatCtx);
+    const aStopAt = t0 + 2 * beatCtx + 0.3;
+
+    setTimeout(
+      () => {
+        try {
+          voxGain.disconnect();
+        } catch {
+          /* already gone */
+        }
+      },
+      Math.max(0, (t0 + 1 - now) * 1000)
+    );
+
+    A.stopSource(aStopAt);
+    this.active = 1 - this.active;
+    const end = t0 + 2 * beatCtx;
+    setTimeout(() => this.onTransitionEnd?.(), (end - ctx.currentTime) * 1000 + 50);
+    return end;
+  }
+}
+
+/**
+ * Map a track's integrated loudness (linear RMS) to a level-match trim gain,
+ * referenced to a typical mastered level and clamped so a quiet or hot track
+ * can't blow the mix out. Unknown loudness → unity.
+ */
+function trimGainFromLoudness(loudness?: number): number {
+  if (!loudness || loudness <= 0) return 1;
+  const REF = 0.09; // target RMS — roughly a commercial master
+  return Math.min(2.2, Math.max(0.5, REF / loudness));
 }
 
 function equalPowerFade(a: AudioParam, b: AudioParam, start: number, dur: number) {

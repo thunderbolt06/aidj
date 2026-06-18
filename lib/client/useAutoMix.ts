@@ -5,11 +5,14 @@ import type { Track, TransitionPlan } from "@/lib/types";
 import {
   getEngine,
   heuristicPlan,
+  loadStem,
   loadTrack,
   planTransition,
   searchTracks,
   type LoadedTrack,
 } from "@/lib/client/dj";
+import { timeStretchBuffer } from "@/lib/audio/timestretch";
+import type { TrackAnalysis } from "@/lib/types";
 
 export interface AutoMixOptions {
   /**
@@ -27,6 +30,17 @@ export interface AutoMixOptions {
   endless?: boolean;
   /** Cap transition length (snappy UIs like reels want ≤4s). */
   maxTransitionDur?: number;
+  /**
+   * Key-lock / master tempo: when beat-matching, pitch-preserve the tempo
+   * change (pre-stretch B) instead of detuning it with playbackRate.
+   */
+  keyLock?: boolean;
+  /**
+   * Allow stem-aware transitions (acapella-in). Pre-warms demucs vocal stems
+   * during prepare-ahead; needs Replicate credit. Falls back loudly if a stem
+   * isn't ready at hop time.
+   */
+  stems?: boolean;
   /** Called after every completed hop. */
   onHop?: (info: { track: Track; plan: TransitionPlan; index: number }) => void;
 }
@@ -35,6 +49,42 @@ interface Prepared {
   trackId: string;
   next: LoadedTrack;
   plan: TransitionPlan;
+  /** Key-locked, pitch-preserved buffer + its remapped analysis (if prepared). */
+  matched?: { buffer: AudioBuffer; analysis: TrackAnalysis; inPoint: number };
+}
+
+export interface HopLogEntry {
+  title: string;
+  artist: string;
+  style: TransitionPlan["style"];
+  index: number;
+}
+
+/**
+ * Key-lock: pre-stretch B (pitch preserved) so playing it at rate 1 lands it
+ * at A's tempo IN ITS OWN KEY. Only engages for the mild tempo gaps where
+ * beat-matching already kicks in. Returns null if no stretch is warranted.
+ */
+function buildMatched(
+  ctx: BaseAudioContext,
+  bBuffer: AudioBuffer,
+  from: TrackAnalysis,
+  to: TrackAnalysis,
+  inPoint: number
+): { buffer: AudioBuffer; analysis: TrackAnalysis; inPoint: number } | null {
+  if (!from.bpm || !to.bpm) return null;
+  const rate = from.bpm / to.bpm;
+  if (rate < 0.92 || rate > 1.08 || Math.abs(rate - 1) < 0.01) return null;
+  const factor = 1 / rate; // stretch B's duration so its tempo becomes A's
+  const buffer = timeStretchBuffer(ctx, bBuffer, factor);
+  const analysis: TrackAnalysis = {
+    ...to,
+    bpm: from.bpm,
+    duration: to.duration * factor,
+    beatOffset: to.beatOffset * factor,
+    downbeatOffset: to.downbeatOffset * factor,
+  };
+  return { buffer, analysis, inPoint: inPoint * factor };
 }
 
 /**
@@ -53,6 +103,9 @@ export function useAutoMix() {
   const [lastPlan, setLastPlan] = useState<TransitionPlan | null>(null);
   const [position, setPosition] = useState(0);
   const [nextReady, setNextReady] = useState(false);
+  const [setLog, setSetLog] = useState<HopLogEntry[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [mix, setMix] = useState<{ url: string; durationSec: number } | null>(null);
 
   const st = useRef({
     queue: [] as Track[],
@@ -65,6 +118,7 @@ export function useAutoMix() {
     prepToken: null as object | null,
     refilling: false,
     hopping: false,
+    setLog: [] as HopLogEntry[],
   });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -103,14 +157,23 @@ export function useAutoMix() {
     await getEngine().resume();
     st.current.running = true;
     setRunning(true);
+    st.current.setLog = [];
+    setSetLog([]);
     const first = await loadTrack(q[0].id, setStatus);
     if (!st.current.running) return;
     st.current.current = first;
     st.current.nowIdx = 0;
     setNow(first);
     setNowIdx(0);
+    st.current.setLog.push({
+      title: first.meta.title,
+      artist: first.meta.artist,
+      style: "crossfade",
+      index: 0,
+    });
+    setSetLog([...st.current.setLog]);
     const famous = first.meta.famousStart ?? 40;
-    getEngine().startTrack(first.buffer, Math.max(0, famous - 5));
+    getEngine().startTrack(first.buffer, Math.max(0, famous - 5), first.analysis);
     setStatus("");
     prepareNext();
     maybeRefill();
@@ -139,12 +202,13 @@ export function useAutoMix() {
             // capped: a slow AI must never make a user gesture wait
             plan = await planTransition(current, next, getEngine().position(), {
               timeoutMs: 5000,
+              stemsAvailable: st.current.opts.stems,
             });
           } catch {
-            plan = heuristicPlan(next, getEngine().position());
+            plan = heuristicPlan(next, getEngine().position(), current);
           }
         } else {
-          plan = heuristicPlan(next, getEngine().position());
+          plan = heuristicPlan(next, getEngine().position(), current);
         }
         // forced style overrides whatever the planner chose
         if (st.current.opts.styleHint) plan.style = st.current.opts.styleHint;
@@ -153,6 +217,25 @@ export function useAutoMix() {
             Math.max(current.analysis.bpm, 1) <
           0.08;
         const prepared: Prepared = { trackId: target.id, next, plan };
+
+        // key-lock: pre-stretch B (pitch-preserved) to A's tempo so beat-match
+        // doesn't detune it — done now, during prepare-ahead, never at hop time
+        if (st.current.opts.keyLock && plan.beatMatch) {
+          const m = buildMatched(
+            getEngine().ctx,
+            next.buffer,
+            current.analysis,
+            next.analysis,
+            plan.inPoint
+          );
+          if (m) prepared.matched = m;
+        }
+
+        // stems: pre-warm B's vocal stem so an acapella-in is ready at the hop
+        if (st.current.opts.stems && plan.style === "stem_acapella") {
+          loadStem(target.id, "vocals").catch(() => {});
+        }
+
         if (st.current.prepToken === token) {
           st.current.prepared = prepared;
           setNextReady(true);
@@ -216,7 +299,7 @@ export function useAutoMix() {
         prepared = {
           trackId: target.id,
           next,
-          plan: heuristicPlan(next, getEngine().position()),
+          plan: heuristicPlan(next, getEngine().position(), s.current ?? undefined),
         };
       }
       await executeHop(prepared);
@@ -244,7 +327,7 @@ export function useAutoMix() {
       if (!prepared) {
         // not prepared: heuristic plan, zero AI latency at click time
         const next = await loadTrack(track.id, setStatus);
-        const plan = heuristicPlan(next, getEngine().position());
+        const plan = heuristicPlan(next, getEngine().position(), s.current);
         if (s.opts.styleHint) plan.style = s.opts.styleHint;
         plan.beatMatch =
           Math.abs(s.current.analysis.bpm - next.analysis.bpm) /
@@ -265,19 +348,38 @@ export function useAutoMix() {
     const current = s.current;
     if (!current || !s.running) return;
     const { next, plan } = prepared;
+    const engine = getEngine();
 
     // beat-grid quantization is handled INSIDE the engine now — every ramp
     // and source start is scheduled on the AudioContext clock against the
     // next phrase boundary, so drops land sample-accurate (no timer drift)
     const quantizeBeats = s.opts.quantize ? (s.opts.quantizeBeats ?? 16) : undefined;
     if (quantizeBeats) {
-      const wait = getEngine().timeToDrop(current.analysis, quantizeBeats);
+      const wait = engine.timeToDrop(current.analysis, quantizeBeats);
       if (wait > 1) setStatus(`dropping on the phrase in ${wait.toFixed(1)}s…`);
+    }
+
+    // stem-aware acapella-in: needs B's vocal stem ready — never block the hop
+    let stemVocal: AudioBuffer | undefined;
+    if (plan.style === "stem_acapella" && s.opts.stems) {
+      try {
+        stemVocal = await Promise.race([
+          loadStem(prepared.trackId, "vocals"),
+          new Promise<undefined>((r) => setTimeout(() => r(undefined), 1500)),
+        ]);
+      } catch {
+        stemVocal = undefined;
+      }
+      if (!stemVocal) {
+        // fail loud (design principle): say what degraded, don't fake it
+        plan.style = "echo_out";
+        setStatus("⚠ stems not ready → echo_out");
+      }
     }
 
     if (s.opts.maxTransitionDur && plan.style !== "cut")
       plan.duration = Math.min(plan.duration, s.opts.maxTransitionDur);
-    plan.outPoint = getEngine().position();
+    plan.outPoint = engine.position();
     setLastPlan(plan);
     s.current = next;
     s.prepared = null;
@@ -287,18 +389,44 @@ export function useAutoMix() {
     setNow(next);
     setNowIdx(s.nowIdx);
     setNextReady(false);
-    getEngine().transition(
-      next.buffer,
-      plan,
-      { from: current.analysis, to: next.analysis },
-      { quantizeBeats }
-    );
-    setStatus("");
-    s.opts.onHop?.({
-      track: s.queue[s.nowIdx],
-      plan,
-      index: s.nowIdx,
-    });
+
+    if (plan.style === "stem_acapella" && stemVocal) {
+      engine.stemSwap(next.buffer, {
+        bVocal: stemVocal,
+        inPoint: plan.inPoint,
+        analyses: { from: current.analysis, to: next.analysis },
+        quantizeBeats,
+      });
+    } else if (prepared.matched) {
+      // key-locked: play the pre-stretched buffer at rate 1 (pitch preserved)
+      engine.transition(
+        prepared.matched.buffer,
+        { ...plan, beatMatch: false, inPoint: prepared.matched.inPoint },
+        { from: current.analysis, to: prepared.matched.analysis },
+        { quantizeBeats }
+      );
+    } else {
+      engine.transition(
+        next.buffer,
+        plan,
+        { from: current.analysis, to: next.analysis },
+        { quantizeBeats }
+      );
+    }
+    if (s.opts.keyLock && prepared.matched) setStatus("🔑 key-locked");
+    else if (plan.style !== "stem_acapella") setStatus("");
+
+    const hopTrack = s.queue[s.nowIdx];
+    if (hopTrack) {
+      s.setLog.push({
+        title: hopTrack.title,
+        artist: hopTrack.artist,
+        style: plan.style,
+        index: s.nowIdx,
+      });
+      setSetLog([...s.setLog]);
+    }
+    s.opts.onHop?.({ track: hopTrack, plan, index: s.nowIdx });
     prepareNext();
     maybeRefill();
   }
@@ -355,6 +483,32 @@ export function useAutoMix() {
     }
   }
 
+  /** Start capturing the live set to a recordable mixtape. */
+  function startRecording(): boolean {
+    if (mix) {
+      URL.revokeObjectURL(mix.url);
+      setMix(null);
+    }
+    const ok = getEngine().startRecording();
+    if (ok) setRecording(true);
+    return ok;
+  }
+
+  /** Stop recording; returns the captured mix (also exposed as `mix`). */
+  async function stopRecording(): Promise<{ url: string; durationSec: number } | null> {
+    if (!getEngine().recording) return null;
+    try {
+      const { blob, durationSec } = await getEngine().stopRecording();
+      const out = { url: URL.createObjectURL(blob), durationSec };
+      setMix(out);
+      return out;
+    } catch {
+      return null;
+    } finally {
+      setRecording(false);
+    }
+  }
+
   return {
     queue,
     setQueue,
@@ -365,6 +519,9 @@ export function useAutoMix() {
     lastPlan,
     position,
     nextReady,
+    setLog,
+    recording,
+    mix,
     start,
     stop,
     hopNow,
@@ -372,5 +529,7 @@ export function useAutoMix() {
     prepareNext,
     prefetch,
     setOptions,
+    startRecording,
+    stopRecording,
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { DJEngine } from "@/lib/audio/engine";
-import { analyzeTrack } from "@/lib/audio/analysis";
+import { analyzeTrack, camelotCompatible } from "@/lib/audio/analysis";
 import type {
   Track,
   TrackAnalysis,
@@ -73,7 +73,7 @@ export async function planTransition(
   from: LoadedTrack,
   to: LoadedTrack,
   position: number,
-  opts?: { timeoutMs?: number }
+  opts?: { timeoutMs?: number; stemsAvailable?: boolean }
 ): Promise<TransitionPlan> {
   const res = await fetch("/api/ai/transition", {
     method: "POST",
@@ -83,6 +83,9 @@ export async function planTransition(
       trackA: {
         title: `${from.meta.title} — ${from.meta.artist}`,
         bpm: from.analysis.bpm,
+        bpmConfidence: from.analysis.bpmConfidence,
+        camelot: from.analysis.camelot,
+        key: from.analysis.keyName,
         duration: Math.round(from.analysis.duration),
         energy: sparseEnergy(from.analysis.energy),
         position: Math.round(position),
@@ -91,28 +94,70 @@ export async function planTransition(
       trackB: {
         title: `${to.meta.title} — ${to.meta.artist}`,
         bpm: to.analysis.bpm,
+        bpmConfidence: to.analysis.bpmConfidence,
+        camelot: to.analysis.camelot,
+        key: to.analysis.keyName,
         duration: Math.round(to.analysis.duration),
         energy: sparseEnergy(to.analysis.energy),
         famousStart: to.meta.famousStart,
       },
+      harmonic: camelotCompatible(from.analysis.camelot, to.analysis.camelot),
+      stemsAvailable: opts?.stemsAvailable ?? false,
     }),
   });
   if (!res.ok) throw new Error("transition planning failed");
   return res.json();
 }
 
-/** Fallback plan when the AI is unavailable: crossfade into the famous part. */
+const stemCache = new Map<string, Promise<AudioBuffer>>();
+
+/** Fetch + decode a demucs stem (vocals|instrumental), cached per id+stem. */
+export function loadStem(
+  id: string,
+  stem: "vocals" | "instrumental"
+): Promise<AudioBuffer> {
+  const key = `${id}-${stem}`;
+  const hit = stemCache.get(key);
+  if (hit) return hit;
+  const p = (async () => {
+    const res = await fetch(`/api/stems/${id}?stem=${stem}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.error ?? `stem ${stem} failed`);
+    }
+    return getEngine().decode(await res.arrayBuffer());
+  })();
+  p.catch(() => stemCache.delete(key));
+  stemCache.set(key, p);
+  return p;
+}
+
+/** True once a stem is cached and resolved (non-blocking readiness check). */
+export function stemReady(id: string, stem: "vocals" | "instrumental"): boolean {
+  return stemCache.has(`${id}-${stem}`);
+}
+
+/**
+ * Fallback plan when the AI is unavailable. Crossfades into the famous part,
+ * but on a harmonic key clash it reaches for echo_out — a feedback tail masks
+ * dissonance where a blend would sound sour.
+ */
 export function heuristicPlan(
   to: LoadedTrack,
-  position: number
+  position: number,
+  from?: LoadedTrack
 ): TransitionPlan {
   const famous = to.meta.famousStart ?? 45;
+  const clash =
+    !!from && !camelotCompatible(from.analysis.camelot, to.analysis.camelot);
   return {
-    style: "crossfade",
+    style: clash ? "echo_out" : "crossfade",
     outPoint: position,
     inPoint: Math.max(0, famous - 8),
-    duration: 8,
+    duration: clash ? 7 : 8,
     beatMatch: false,
-    reasoning: "Heuristic fallback: smooth crossfade into the hook.",
+    reasoning: clash
+      ? `Heuristic: keys clash (${from!.analysis.camelot}→${to.analysis.camelot}), echoing out to mask it.`
+      : "Heuristic fallback: smooth crossfade into the hook.",
   };
 }

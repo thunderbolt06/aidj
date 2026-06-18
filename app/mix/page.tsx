@@ -139,8 +139,13 @@ export default function MixPage() {
                       }
                     />
                     <p className="text-xs text-zinc-500">
-                      {slot.loaded.analysis.bpm} BPM · famous part @{" "}
-                      {slot.loaded.meta.famousStart ?? "?"}s
+                      {slot.loaded.analysis.bpm} BPM
+                      {slot.loaded.analysis.camelot && (
+                        <span className="ml-1 text-sky-400">
+                          · {slot.loaded.analysis.camelot}
+                        </span>
+                      )}{" "}
+                      · famous part @ {slot.loaded.meta.famousStart ?? "?"}s
                     </p>
                   </div>
                 )}

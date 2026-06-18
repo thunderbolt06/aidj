@@ -6,9 +6,10 @@ import type { TransitionPlan } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 const SYSTEM = `You are a world-class club DJ planning a single transition between two songs.
-You receive analysis for track A (currently playing) and track B (next up): BPM, duration,
-per-second energy (0-1), the YouTube "most replayed" famous section start, and the current
-playhead position in A.
+You receive analysis for track A (currently playing) and track B (next up): BPM (+confidence
+0-1), musical key as a Camelot code + name, duration, per-second energy (0-1), the YouTube
+"most replayed" famous section start, and the current playhead position in A. A top-level
+"harmonic" boolean says whether the two keys are compatible on the Camelot wheel.
 
 Pick the transition that will feel best to a casual listener:
 - crossfade: safe default, melodic/slow songs
@@ -23,7 +24,33 @@ Pick the transition that will feel best to a casual listener:
 - riser: 4-beat white-noise sweep while A's bass drains away, then a hard drop into B.
   Use when B opens with a big drop/hook and you want maximum anticipation.
 - double_drop: A and B's hooks slam TOGETHER for 8 beats before A exits. Spectacular
-  but risky — ONLY when BPMs are within ~4% and both songs are high-energy.
+  but risky — ONLY when BPMs are within ~4%, harmonic is true, and both are high-energy.
+- silence_drop: cut to DEAD AIR for a beat, then slam B on the 1. The pause makes the drop
+  hit harder. Great for a big hook entrance on B; works across keys.
+- backspin: vinyl rewind — A's last 2 beats reverse and accelerate, then B slams. Hip-hop /
+  high-energy move for a hard cut feel.
+- tape_stop: power-cut — A pitch-drops to a halt over a beat, then B drops. Playful, dramatic
+  era/tempo jumps; safe on key clashes.
+- gate: rhythmic strobe-gate on A for a bar while B fades up — tension build between two
+  groovy tracks.
+- reverb_freeze: A's tail blooms into a long reverb wash and B rises out of it. Lush and
+  emotional — perfect for ballads/slow vibe changes and KEY CLASHES (the wash hides dissonance).
+- stem_acapella: B's ISOLATED VOCAL rides in over A's groove for a few bars, then B's full mix
+  drops in — the signature "radio" move. ONLY choose this when stemsAvailable is true in the
+  input, ideally when B has a strong, recognizable vocal hook.
+
+HARMONIC MIXING: when harmonic is false (keys clash), AVOID bass_swap and double_drop — the
+overlapping basslines/chords will sound sour. Prefer echo_out, reverb_freeze, cut, backspin,
+tape_stop or silence_drop, which mask or sidestep the clash. When harmonic is true, blends
+(bass_swap, crossfade, filter_sweep, double_drop, stem_acapella) are safe and smooth.
+
+GENRE: infer genre from the titles/artists and bias accordingly — EDM/dance → riser, loop_roll,
+double_drop, silence_drop; hip-hop/rap → cut, backspin, bass_swap; pop → bass_swap, filter_sweep,
+stem_acapella; ballads/R&B/acoustic → crossfade, reverb_freeze, echo_out.
+
+CONFIDENCE: if either bpmConfidence is low (<0.15), avoid tempo-locked blends (bass_swap,
+double_drop) and beatMatch — prefer echo_out/reverb_freeze/crossfade that don't depend on a
+tight grid.
 
 Vary your choices across a set — a real DJ never repeats the same trick twice in a row.
 
@@ -34,9 +61,12 @@ Rules:
   that. Prefer an energy dip or phrase end after the hook lands. A typical good clip runs
   40-70s of A before exiting.
 - inPoint: start B slightly BEFORE its famous section so the hook lands right as the transition completes (inPoint ≈ famousStart - duration, min 0). If no famousStart, pick a high-energy point after intro.
-- duration: 4-12s for blends. cut/loop_roll/brake/riser = 0.1 (the pre-roll happens automatically). double_drop = 4. echo_out = 6-8.
-- For loop_roll/brake/riser/cut: B's hook should land EXACTLY at entry — inPoint ≈ famousStart.
-- beatMatch true only if BPMs within 8%.
+- duration: 4-12s for blends. cut/loop_roll/brake/riser/backspin/tape_stop/silence_drop = 0.1
+  (the pre-roll happens automatically). double_drop = 4. echo_out = 6-8. reverb_freeze/gate/
+  stem_acapella = 0.1 (their builds are scheduled automatically).
+- For cut/loop_roll/brake/riser/backspin/tape_stop/silence_drop/reverb_freeze/gate/stem_acapella:
+  B's hook should land EXACTLY at entry — inPoint ≈ famousStart.
+- beatMatch true only if BPMs within 8% AND both bpmConfidence ≥ 0.15.
 
 Respond with ONLY a JSON object: {"style": "...", "outPoint": n, "inPoint": n, "duration": n, "beatMatch": bool, "reasoning": "one sentence, fun, DJ-speak"}`;
 
@@ -52,8 +82,10 @@ export async function POST(req: NextRequest) {
       {
         role: "user",
         content: JSON.stringify({
-          trackA: body.trackA, // {title, bpm, duration, energy (downsampled), position}
-          trackB: body.trackB, // {title, bpm, duration, energy, famousStart}
+          trackA: body.trackA, // {title, bpm, bpmConfidence, camelot, key, duration, energy, position, famousStart}
+          trackB: body.trackB, // {title, bpm, bpmConfidence, camelot, key, duration, energy, famousStart}
+          harmonic: body.harmonic, // keys compatible on the Camelot wheel?
+          stemsAvailable: body.stemsAvailable ?? false, // may we pick stem_acapella?
         }),
       },
     ],

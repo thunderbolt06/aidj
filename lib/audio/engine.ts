@@ -118,6 +118,9 @@ export class DJEngine {
   private recorder: MediaRecorder | null = null;
   private recChunks: BlobPart[] = [];
   private recDest: MediaStreamAudioDestinationNode | null = null;
+
+  // visualizer tap (master → AnalyserNode, output left unconnected)
+  private analyser: AnalyserNode | null = null;
   private recStartCtxTime = 0;
 
   constructor() {
@@ -166,6 +169,24 @@ export class DJEngine {
 
   position(): number {
     return this.activeDeck.position();
+  }
+
+  /**
+   * Lazily create an FFT analyser tapped off the master bus, for visualizers.
+   * The analyser's output is intentionally left unconnected — an AnalyserNode
+   * analyzes whatever reaches its input regardless, so this taps the full mix
+   * (decks + echo bus) without altering the audible signal path.
+   */
+  getAnalyser(): AnalyserNode {
+    if (!this.analyser) {
+      const a = this.ctx.createAnalyser();
+      a.fftSize = 2048;
+      // low smoothing keeps transients sharp so visualizers can lock to the beat
+      a.smoothingTimeConstant = 0.35;
+      this.master.connect(a);
+      this.analyser = a;
+    }
+    return this.analyser;
   }
 
   stop() {
@@ -270,7 +291,6 @@ export class DJEngine {
     const preRoll =
       plan.style === "loop_roll" ||
       plan.style === "riser" ||
-      plan.style === "reverb_freeze" ||
       plan.style === "gate"
         ? 4 * beatCtx
         : plan.style === "backspin"
@@ -329,6 +349,9 @@ export class DJEngine {
     let aStopAt = end + 3;
 
     switch (plan.style) {
+      // vocal_throw has no word buffer here (that path uses vocalThrow());
+      // forced via transition() it degrades to a clean cut
+      case "vocal_throw":
       case "cut": {
         aGain.setValueAtTime(aGain.value, t0 - 0.01);
         aGain.linearRampToValueAtTime(0, t0 + 0.02);
@@ -519,46 +542,6 @@ export class DJEngine {
         aGain.setValueAtTime(0, t0);
         bGain.setValueAtTime(0, gateStart);
         bGain.linearRampToValueAtTime(1, t0);
-        aStopAt = t0 + 0.1;
-        break;
-      }
-      case "reverb_freeze": {
-        // A's tail blooms into a long-feedback reverb wash; B rises out of it
-        const swellStart = t0 - 4 * beatCtx;
-        const fd = ctx.createDelay(1);
-        fd.delayTime.value = 0.16;
-        const fb = ctx.createGain();
-        fb.gain.value = 0.9;
-        const send = ctx.createGain();
-        send.gain.setValueAtTime(0.0001, swellStart);
-        send.gain.exponentialRampToValueAtTime(0.95, t0);
-        send.gain.setValueAtTime(0, t0 + 0.02); // stop feeding — the tail rings out
-        const wet = ctx.createGain();
-        wet.gain.setValueAtTime(0.9, t0);
-        wet.gain.setTargetAtTime(0, t0 + 0.4, 0.6);
-        A.gain.connect(send);
-        send.connect(fd);
-        fd.connect(fb).connect(fd);
-        fd.connect(wet).connect(this.master);
-        // A dry pulls out across the swell; B fades up out of the wash
-        aGain.setValueAtTime(aGain.value, swellStart);
-        aGain.linearRampToValueAtTime(0, t0);
-        bGain.setValueAtTime(0, t0);
-        bGain.linearRampToValueAtTime(1, t0 + 2 * beatCtx);
-        setTimeout(
-          () => {
-            try {
-              A.gain.disconnect(send);
-            } catch {
-              /* already gone */
-            }
-            send.disconnect();
-            fd.disconnect();
-            fb.disconnect();
-            wet.disconnect();
-          },
-          Math.max(0, (t0 + 3 - now) * 1000)
-        );
         aStopAt = t0 + 0.1;
         break;
       }
@@ -892,6 +875,107 @@ export class DJEngine {
     const end = t0 + 2 * beatCtx;
     setTimeout(() => this.onTransitionEnd?.(), (end - ctx.currentTime) * 1000 + 50);
     return end;
+  }
+
+  /**
+   * Vocal-throw: B cuts in on the grid while A's last sung WORD is thrown over
+   * its intro — a band-passed one-shot fed into a dotted feedback delay so it
+   * echoes and tails out across B's opening bar. `wordBuffer` is a short slice
+   * of A at the sung word (full mix or, cleaner, A's vocal stem).
+   */
+  vocalThrow(
+    bFull: AudioBuffer,
+    opts: {
+      wordBuffer: AudioBuffer;
+      inPoint: number;
+      analyses: { from: TrackAnalysis; to: TrackAnalysis };
+      quantizeBeats?: number;
+    }
+  ): number {
+    const ctx = this.ctx;
+    const A = this.activeDeck;
+    const B = this.nextDeck;
+    const { from, to } = opts.analyses;
+    const aRate = A.rate();
+    const aBeat = from.bpm ? 60 / from.bpm : 0.5;
+    const beatCtx = aBeat / aRate;
+
+    const t0 =
+      opts.quantizeBeats && A.playing
+        ? this.nextGridTime(from, opts.quantizeBeats, 0.08)
+        : ctx.currentTime + 0.12;
+
+    let rate = 1;
+    if (to.bpm > 0) {
+      rate = from.bpm / to.bpm;
+      if (rate < 0.9 || rate > 1.1) rate = 1;
+    }
+    let inPoint = Math.max(0, opts.inPoint);
+    if (to.bpm > 0) {
+      const bAnchor = to.downbeatOffset ?? to.beatOffset;
+      const beat = 60 / to.bpm;
+      inPoint = Math.max(0, bAnchor + Math.round((inPoint - bAnchor) / beat) * beat);
+    }
+
+    B.buffer = bFull;
+    B.resetFx(ctx.currentTime);
+    B.trim.gain.setValueAtTime(trimGainFromLoudness(to.loudness), ctx.currentTime);
+
+    // A cuts out, B slams in on the grid
+    const aGain = A.gain.gain;
+    const bGain = B.gain.gain;
+    const now = ctx.currentTime;
+    aGain.cancelScheduledValues(now);
+    bGain.cancelScheduledValues(now);
+    aGain.setValueAtTime(aGain.value, now);
+    aGain.setValueAtTime(aGain.value, t0 - 0.01);
+    aGain.linearRampToValueAtTime(0, t0 + 0.02);
+    bGain.setValueAtTime(0, now);
+    bGain.setValueAtTime(1, t0);
+    B.play(t0, inPoint, rate);
+
+    // the throw: band-passed word → dotted-eighth feedback delay → master
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1600;
+    bp.Q.value = 0.9;
+    const dly = ctx.createDelay(1);
+    dly.delayTime.value = beatCtx * 0.75; // dotted eighth — classic dub throw
+    const fb = ctx.createGain();
+    fb.gain.value = 0.55;
+    const wet = ctx.createGain();
+    wet.gain.setValueAtTime(0.9, t0);
+    wet.gain.setTargetAtTime(0, t0 + 3 * beatCtx, 0.6);
+    const dry = ctx.createGain();
+    dry.gain.value = 0.9;
+
+    const word = ctx.createBufferSource();
+    word.buffer = opts.wordBuffer;
+    word.connect(bp);
+    bp.connect(dry).connect(this.master);
+    bp.connect(dly);
+    dly.connect(fb).connect(dly);
+    dly.connect(wet).connect(this.master);
+    word.start(t0);
+    word.stop(t0 + Math.max(0.5, opts.wordBuffer.duration) + 0.1);
+
+    setTimeout(
+      () => {
+        for (const n of [bp, dly, fb, wet, dry]) {
+          try {
+            n.disconnect();
+          } catch {
+            /* already gone */
+          }
+        }
+      },
+      Math.max(0, (t0 + 5 - now) * 1000)
+    );
+
+    A.stopSource(t0 + 0.3);
+    this.active = 1 - this.active;
+    setTimeout(() => this.onTransitionEnd?.(), (t0 - now) * 1000 + 80);
+    return t0;
   }
 }
 

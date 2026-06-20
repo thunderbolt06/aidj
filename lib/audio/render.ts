@@ -49,6 +49,104 @@ export async function renderReel(
   return ctx.startRendering();
 }
 
+/**
+ * Render a standalone "wordplay edit" clip (the 50 Cent → Usher "Shorty"
+ * format): a few bars of A leading into the shared word, the word stuttered on
+ * the beat with a rising echo, then B slamming in on its own word. Offline,
+ * faster than realtime. Returns a 2ch AudioBuffer ready for WAV/video export.
+ */
+export async function renderWordplayClip(
+  a: { buffer: AudioBuffer; bpm: number },
+  b: { buffer: AudioBuffer; bpm: number },
+  h: { aWordTime: number; aWordEnd: number; bWordTime: number },
+  opts: { leadBeats?: number; repeats?: number; tailSec?: number } = {}
+): Promise<AudioBuffer> {
+  const sr = 44100;
+  const bpmA = a.bpm > 0 ? a.bpm : 120;
+  const beatA = 60 / bpmA;
+  const wordDur = Math.max(0.12, h.aWordEnd - h.aWordTime);
+  const loopLen = Math.min(
+    0.9,
+    [beatA / 4, beatA / 2, beatA, beatA * 2].find((d) => d >= wordDur * 0.85) ??
+      beatA * 2
+  );
+  const repeats = opts.repeats ?? 4;
+  const leadBeats = opts.leadBeats ?? 16;
+  const tailSec = opts.tailSec ?? 10;
+
+  const leadStart = Math.max(0, h.aWordTime - leadBeats * beatA);
+  const tWord = h.aWordTime - leadStart; // clip-time when the stutter begins
+  const stutterDur = loopLen * repeats;
+  const dropAt = tWord + stutterDur;
+  const total = dropAt + tailSec;
+
+  const ctx = new OfflineAudioContext(2, Math.ceil(total * sr), sr);
+
+  // echo bus for the stutter swell
+  const echo = ctx.createDelay(1);
+  echo.delayTime.value = beatA * 0.375;
+  const fb = ctx.createGain();
+  fb.gain.value = 0.45;
+  echo.connect(fb).connect(echo);
+  echo.connect(ctx.destination);
+  const echoSend = ctx.createGain();
+  echoSend.gain.value = 0;
+  echoSend.connect(echo);
+
+  // A — lead-in up to the word
+  const lead = ctx.createBufferSource();
+  lead.buffer = a.buffer;
+  const gLead = ctx.createGain();
+  lead.connect(gLead).connect(ctx.destination);
+  lead.start(0, leadStart);
+  lead.stop(tWord + 0.03);
+
+  // A — stutter loop of the word, echo rising into the drop
+  const loop = ctx.createBufferSource();
+  loop.buffer = a.buffer;
+  loop.loop = true;
+  loop.loopStart = h.aWordTime;
+  loop.loopEnd = h.aWordTime + loopLen;
+  const gLoop = ctx.createGain();
+  loop.connect(gLoop).connect(ctx.destination);
+  gLoop.connect(echoSend);
+  echoSend.gain.setValueAtTime(0.15, tWord);
+  echoSend.gain.linearRampToValueAtTime(0.7, dropAt);
+  gLoop.gain.setValueAtTime(1, tWord);
+  gLoop.gain.setValueAtTime(1, dropAt - 0.02);
+  gLoop.gain.linearRampToValueAtTime(0, dropAt + 0.06);
+  loop.start(tWord, h.aWordTime);
+  loop.stop(dropAt + 0.06);
+
+  // B — slams in on its own word
+  const bSrc = ctx.createBufferSource();
+  bSrc.buffer = b.buffer;
+  const gB = ctx.createGain();
+  bSrc.connect(gB).connect(ctx.destination);
+  gB.gain.setValueAtTime(0, dropAt - 0.05);
+  gB.gain.setValueAtTime(1, dropAt);
+  bSrc.start(dropAt - 0.05, Math.max(0, h.bWordTime - 0.05));
+
+  return ctx.startRendering();
+}
+
+/** Copy a [startSec, startSec+lenSec) slice of a buffer into a new AudioBuffer. */
+export function sliceAudioBuffer(
+  ctx: BaseAudioContext,
+  buffer: AudioBuffer,
+  startSec: number,
+  lenSec: number
+): AudioBuffer {
+  const sr = buffer.sampleRate;
+  const start = Math.max(0, Math.floor(startSec * sr));
+  const len = Math.min(Math.floor(lenSec * sr), buffer.length - start);
+  const out = ctx.createBuffer(buffer.numberOfChannels, Math.max(1, len), sr);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    out.getChannelData(ch).set(buffer.getChannelData(ch).subarray(start, start + len));
+  }
+  return out;
+}
+
 /** PCM16 WAV encoder. */
 export function audioBufferToWav(buffer: AudioBuffer): Blob {
   const numCh = Math.min(buffer.numberOfChannels, 2);

@@ -101,7 +101,7 @@ Sweep a flanger (short modulated delay) across A as it fades — psychedelic ris
 ### 2.11 Scratch / transformer cut (advanced)
 Short scratch of A's last beat (forward/back slices) gated in transformer rhythm, then drop. Hardest to make musical — gate a reversed/forward slice pair on 16ths.
 
-### 2.12 Vocal-throw (stem-powered)
+### 2.12 Vocal-throw (stem-powered) — ✅ DONE (+ wordplay edit export)
 Throw an echoed one-shot of A's last vocal word (from the demucs vocal stem + Whisper word timing) over B's intro. Ties together stems (§1.5), alignment, and the existing word-stutter machinery.
 
 ### 2.13 FX one-shots / sampler layer
@@ -114,7 +114,7 @@ A small bank of riser/impact/airhorn/vinyl-crackle samples that can be triggered
 ### 3.1 Genre-aware transition profiles — ✅ DONE (planner-side; explicit genre tag/fingerprint still open)
 Detect/tag genre (audio fingerprint or AI from title/artist) and bias the planner: EDM → `riser`/`double_drop`, hip-hop → `cut`/`backspin`, ballads → `crossfade`/`reverb-freeze`. Answers an open README question ("which transition per genre?").
 
-### 3.2 Energy-arc director
+### 3.2 Energy-arc director — ✅ DONE (`/arc` page; paces transitions, clip length + endless refill)
 Let the user set an arc (warm-up → peak → cool-down) and have the AI pace BPM, energy, and transition intensity across the *whole set*, not just the next hop. Extends the `energyArc` field already in [intent/route.ts](../app/api/ai/intent/route.ts).
 
 ### 3.3 BPM-ramp sets
@@ -170,15 +170,18 @@ The 11 lab routes are disconnected. Put them behind one player with a mode switc
 ### 5.5 Collaborative queue
 Multiple people add to one live queue (shared room); AI orders for flow.
 
-### 5.6 AI-generated reactive visuals
+### 5.6 AI-generated reactive visuals — ✅ DONE (`/musicvideo` + Auto-DJ toggle)
 Beat/energy-synced visuals (or AI art per song) for the `/reels` and big-screen modes.
+Shipped as a real-time, **coded** (not pre-rendered) visualizer framework — see pass 4.
 
 ---
 
 ## 6. Infrastructure & reliability
 
-### 6.1 Deployable source layer
+### 6.1 Deployable source layer — 🟡 CODE READY (deploy + proxy pending)
 yt-dlp can't run on Vercel serverless. Stand up a small self-hosted extractor (Fly/Railway + residential proxy) behind `YTDLP_PATH` so the deployed site actually works, not just a UI preview.
+
+Built: a Railway extractor microservice ([extractor/](../extractor/)) exposing `/search`, `/meta/:id`, `/audio/:id`, `/video`; the Next.js routes ([ytdlp.ts](../lib/server/ytdlp.ts), audio/stems/video routes) call it when `EXTRACTOR_URL` is set and fall back to a local `yt-dlp` otherwise. Audio is served by a 302 redirect straight from the extractor (keeps multi-MB files off the Vercel function); stems cache moved to `/tmp` (Vercel read-only FS). Remaining: deploy to Railway, set `EXTRACTOR_URL`/`EXTRACTOR_TOKEN` on Vercel, and add a residential proxy or cookies (`YTDLP_PROXY`/`YTDLP_COOKIES`, already wired) once datacenter-IP blocking kicks in.
 
 ### 6.2 Visible degraded mode ("louder failures") — 🟡 PARTIAL (shaky-BPM badge + "stems not ready → echo_out" surfaced; AI-unavailable + no-quantize states still silent)
 Surface "AI unavailable → heuristic crossfade" and "low BPM confidence → no quantize" in the UI instead of silently falling back.
@@ -222,3 +225,18 @@ Retry/backoff on yt-dlp, graceful handling of region-blocked/age-gated videos, a
 - **§5.1 Recordable mixtapes** — engine taps master → `MediaStreamDestination` → `MediaRecorder` (`startRecording`/`stopRecording`). `useAutoMix` exposes `recording`, `mix` (blob URL + duration) and a `setLog` tracklist accumulated per hop. `/autodj` gets a ● Record button, an inline player, a download link, and a copyable setlist. (Shareable *links* still need the persistence/storage layer — §5.2.)
 - **§1.5 Stem-aware transitions** — new `stem_acapella` style: `DJEngine.stemSwap()` rides B's demucs **vocal stem** over A's groove for 8 beats (A's mids/highs ducked), then drops B's full mix on the phrase and swaps the low end. `loadStem`/`stemReady` in [dj.ts](../lib/client/dj.ts) cache stems; `useAutoMix` pre-warms B's vocal during prepare-ahead and falls back **loudly** to `echo_out` if the stem isn't ready at hop time. Planner may pick it only when `stemsAvailable` is true.
 - **§1.4 Key-lock / master tempo** — [timestretch.ts](../lib/audio/timestretch.ts) does a pitch-preserving OLA time-stretch. With key-lock on, `useAutoMix` pre-stretches B (during prepare-ahead) so playing it at rate 1 lands it at A's tempo *in its own key* — no detune from `playbackRate`. Mild factors only (engages within the ±8% beat-match window). Toggle in `/autodj`.
+
+### Shipped in pass 3 (2026-06-18)
+- **§3.2 Energy-arc director** — [arc.ts](../lib/audio/arc.ts) maps an arc shape (warm-up/build/peak-release/wave/wind-down/flat) + set duration onto a target energy curve → BPM window, clip length, and a transition-style bias. `useAutoMix` samples it continuously (`arcInfo`) and feeds it into transition planning, clip pacing (`armTimer`), and endless refill (`/api/ai/suggest` now steers the whole batch to the target phase). New [/arc](../app/arc/page.tsx) page with a live curve + playhead, phase/BPM readout. Transition + suggest prompts updated.
+- **§2.12 Vocal-throw** — `DJEngine.vocalThrow()`: B cuts in while A's sung word is thrown over the intro through a dotted-eighth feedback delay (band-passed one-shot). New `vocal_throw` style (degrades to `cut` if forced without a word). Wired into Lyric DJ as a "🎤 Vocal-throw" toggle (slices A's Whisper-aligned word live).
+- **Wordplay edit export** — `renderWordplayClip()` ([render.ts](../lib/audio/render.ts)) offline-renders a standalone "50 Cent → Usher Shorty" clip (A leads in → word stutters → B drops on the word). Per-handoff **🎬 Export this edit** button in Lyric DJ renders it to a vertical mp4 with the **trigger word burned in as a caption** (drawtext, graceful font fallback; WAV fallback if video fails).
+- **Deploy-completeness** — added an extractor `/clip` endpoint (16kHz mono window) so `/api/align` (Whisper) works in remote mode; video caption support mirrored in the extractor (`fonts-dejavu-core` added to its build).
+
+### Shipped in pass 4 (2026-06-18)
+- **§5.6 Real-time music-video visualizer framework** — a coded (never pre-rendered) beat & chord-reactive animation layer.
+  - **Audio tap**: `DJEngine.getAnalyser()` lazily taps an `AnalyserNode` off the master bus (output unconnected, doesn't touch the audible path).
+  - **Driver** ([lib/viz/driver.ts](../lib/viz/driver.ts)): turns the FFT + the track's beat grid into a per-frame `VizFrame` — band energies (low/mid/high), spectral-flux **onset** (kick) detection, a 12-bin **chroma** (live "chord"), a predictive **beat/bar clock** (pulses land on the beat between audio frames, RGB-keyboard style), and a key→hue palette (`keyToHue`).
+  - **Templates** ([lib/viz/templates.ts](../lib/viz/templates.ts)): 8 Canvas2D frameworks — **Piano Stairs** (default; the "ball drop on piano stairs" genre. **Continuous gravity bounce** — the ball is always mid-parabola, never paused; tempo (octave-folded into a natural cadence) sets the bounce period and the music's onset STRENGTH sets each launch — hard hits arc higher, leap two steps, flash brighter, throw more sparks; organically wandering path with mixed object types — slabs / wide platforms / tall pillars at varied sizes; a companion ball trails the lead. Detailing: framed edge-lit blocks with inset top panels, front sheen and contact shadows; glossy spinning balls with env-tint, inner glow, fresnel rim, twin speculars, squash-on-contact and a motion trail; persistent colored trail, depth fog, bokeh, gentle camera sway), Beads-on-a-String, WMP-style Nebula feedback, Radial Spectrum, Oscilloscope, Particle Bursts, Starfield Warp, Synthwave Grid — + 3 GLSL shaders (Plasma Warp, Kaleido Tunnel, Aurora Ribbons) via a minimal Shadertoy-style runner ([lib/viz/shader.ts](../lib/viz/shader.ts)) exposing audio uniforms (`iLevel/iLow/iMid/iHigh/iBeat/iBeatPulse/iOnset/iHue/iKeyColor/iChroma[12]`, `fft()/wave()`).
+  - **Bring your own framework**: users can paste a GLSL `mainImage` body or a Canvas2D draw body; saved to localStorage and selectable like a built-in.
+  - **AI director** ([/api/ai/visualizer](../app/api/ai/visualizer/route.ts)): given the song + a free-text vibe prompt, Claude either picks & themes a built-in template or **writes a new fragment shader** matching the mood, returning a palette/intensity directive.
+  - **UI**: `<MusicVisualizer>` ([components/MusicVisualizer.tsx](../components/MusicVisualizer.tsx)) with template chips, look sliders, AI prompt, custom-code editor, fullscreen. Toggle **🎬 Music video** in `/autodj` (experiment alongside a set) and a dedicated immersive [/musicvideo](../app/musicvideo/page.tsx) page.

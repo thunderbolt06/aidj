@@ -1,18 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { unlink, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import OpenAI from "openai";
-import { getAudioFile } from "@/lib/server/ytdlp";
+import { EXTRACTOR, getAudioFile } from "@/lib/server/ytdlp";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const exec = promisify(execFile);
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
+const EXTRACTOR_TOKEN = process.env.EXTRACTOR_TOKEN || "";
+
+/**
+ * Produce a 16kHz mono mp3 window for Whisper — from the extractor's /clip
+ * endpoint when remote (no ffmpeg on Vercel), or local ffmpeg otherwise.
+ */
+async function makeClip(
+  id: string,
+  windowStart: number,
+  windowDur: number,
+  out: string
+): Promise<void> {
+  if (EXTRACTOR) {
+    const res = await fetch(
+      `${EXTRACTOR}/clip?id=${id}&start=${Math.max(0, windowStart)}&dur=${windowDur}`,
+      EXTRACTOR_TOKEN
+        ? { headers: { Authorization: `Bearer ${EXTRACTOR_TOKEN}` } }
+        : undefined
+    );
+    if (!res.ok) throw new Error(`extractor clip failed (${res.status})`);
+    await writeFile(out, Buffer.from(await res.arrayBuffer()));
+    return;
+  }
+  const file = await getAudioFile(id);
+  await exec(
+    FFMPEG,
+    ["-y", "-ss", String(Math.max(0, windowStart)), "-t", String(windowDur),
+     "-i", file, "-ac", "1", "-ar", "16000", "-b:a", "48k", out],
+    { timeout: 30_000 }
+  );
+}
 
 interface WordHit {
   word: string;
@@ -44,13 +75,7 @@ export async function POST(req: NextRequest) {
 
   const slice = path.join(tmpdir(), `align-${id}-${Date.now()}.mp3`);
   try {
-    const file = await getAudioFile(id);
-    await exec(
-      FFMPEG,
-      ["-y", "-ss", String(Math.max(0, windowStart)), "-t", String(windowDur),
-       "-i", file, "-ac", "1", "-ar", "16000", "-b:a", "48k", slice],
-      { timeout: 30_000 }
-    );
+    await makeClip(id, windowStart, windowDur, slice);
 
     const openai = new OpenAI();
     const tr = (await openai.audio.transcriptions.create({

@@ -1,0 +1,15 @@
+# Railway/Nixpacks build for the extractor.
+# Installs ffmpeg (apt) and the self-contained yt-dlp_linux binary (no python
+# runtime needed). Set Railway service "Root Directory" to `extractor`.
+
+[phases.setup]
+aptPkgs = ["ffmpeg", "curl", "fonts-dejavu-core"]
+
+[phases.install]
+cmds = [
+  "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /app/yt-dlp",
+  "chmod +x /app/yt-dlp",
+]
+
+[start]
+cmd = "node server.js"

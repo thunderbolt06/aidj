@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
   try {
     const client = new Anthropic();
     const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5",
       max_tokens: 300,
       system: `You connect two songs for a DJ transition using their numbered lyric lines.
 Pick the single best pair — one line index from A (mid-to-late, never the final line), one

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -10,6 +11,31 @@ export const maxDuration = 300;
 
 const exec = promisify(execFile);
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
+const EXTRACTOR = (process.env.EXTRACTOR_URL || "").replace(/\/+$/, "");
+const EXTRACTOR_TOKEN = process.env.EXTRACTOR_TOKEN || "";
+
+const FONT_CANDIDATES = [
+  process.env.FONT_PATH,
+  "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+  "/System/Library/Fonts/Supplemental/Arial.ttf",
+  "/Library/Fonts/Arial.ttf",
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+].filter(Boolean) as string[];
+
+/** A centered, bold burned-in caption filter — or "" if no usable font. */
+function captionFilter(caption?: string): string {
+  if (!caption) return "";
+  const font = FONT_CANDIDATES.find((f) => existsSync(f));
+  if (!font) return "";
+  const safe = caption.replace(/[^\p{L}\p{N} '!?-]/gu, "").slice(0, 40);
+  if (!safe) return "";
+  return (
+    `drawtext=fontfile='${font}':text='${safe}':` +
+    `fontcolor=white:fontsize=110:borderw=7:bordercolor=black@0.85:` +
+    `x=(w-text_w)/2:y=h*0.74`
+  );
+}
 
 /**
  * Mux a rendered reel into a vertical 1080x1920 mp4 for Insta/YouTube Shorts.
@@ -18,8 +44,33 @@ const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 export async function POST(req: NextRequest) {
   const metaRaw = req.nextUrl.searchParams.get("meta");
   if (!metaRaw) return NextResponse.json({ error: "missing meta" }, { status: 400 });
+
+  // remote mode: ffmpeg can't run on Vercel — forward to the extractor
+  if (EXTRACTOR) {
+    const body = await req.arrayBuffer();
+    const res = await fetch(
+      `${EXTRACTOR}/video?meta=${encodeURIComponent(metaRaw)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "audio/wav",
+          ...(EXTRACTOR_TOKEN ? { Authorization: `Bearer ${EXTRACTOR_TOKEN}` } : {}),
+        },
+        body,
+      }
+    );
+    return new NextResponse(res.body, {
+      status: res.status,
+      headers: {
+        "Content-Type": res.headers.get("Content-Type") ?? "video/mp4",
+        "Content-Disposition": 'attachment; filename="aidj-reel.mp4"',
+      },
+    });
+  }
+
   const meta = JSON.parse(metaRaw) as {
     clips: { image: string; duration: number }[];
+    caption?: string;
   };
   const wav = Buffer.from(await req.arrayBuffer());
   if (!wav.length) return NextResponse.json({ error: "missing audio" }, { status: 400 });
@@ -52,9 +103,12 @@ export async function POST(req: NextRequest) {
           `crop=1080:1920,setsar=1,fps=30[v${i}]`
       )
       .join(";");
+    // optional burned-in trigger-word caption (the viral callout)
+    const cap = captionFilter(meta.caption);
     const concat =
       meta.clips.map((_, i) => `[v${i}]`).join("") +
-      `concat=n=${meta.clips.length}:v=1:a=0[vout]`;
+      `concat=n=${meta.clips.length}:v=1:a=0` +
+      (cap ? `[vbase];[vbase]${cap}[vout]` : `[vout]`);
     const out = path.join(dir, "reel.mp4");
     args.push(
       "-filter_complex",

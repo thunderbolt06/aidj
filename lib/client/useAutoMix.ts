@@ -11,7 +11,15 @@ import {
   searchTracks,
   type LoadedTrack,
 } from "@/lib/client/dj";
+import { camelotCompatible } from "@/lib/audio/analysis";
 import { timeStretchBuffer } from "@/lib/audio/timestretch";
+import {
+  arcEnergyAt,
+  arcTargetAt,
+  clipLenForEnergy,
+  type ArcShape,
+  type ArcTarget,
+} from "@/lib/audio/arc";
 import type { TrackAnalysis } from "@/lib/types";
 
 export interface AutoMixOptions {
@@ -41,6 +49,12 @@ export interface AutoMixOptions {
    * isn't ready at hop time.
    */
   stems?: boolean;
+  /**
+   * Energy-arc director: pace the WHOLE set along a curve (warm-up → peak →
+   * cool-down) over `durationMin` minutes. Biases transition intensity, clip
+   * length, and endless-refill song selection toward the current target.
+   */
+  arc?: { shape: ArcShape; durationMin: number };
   /** Called after every completed hop. */
   onHop?: (info: { track: Track; plan: TransitionPlan; index: number }) => void;
 }
@@ -88,6 +102,61 @@ function buildMatched(
 }
 
 /**
+ * Beat detectors routinely lock onto half- or double-time, so a 128 BPM track
+ * can read as 64 or 256. Fold a detected BPM into the same octave as the arc's
+ * target center before comparing, so an octave error doesn't wreck the match.
+ */
+function foldBpm(bpm: number, center: number): number {
+  if (!bpm || bpm <= 0 || center <= 0) return center;
+  let b = bpm;
+  while (b < center * 0.72) b *= 2;
+  while (b > center * 1.4) b /= 2;
+  return b;
+}
+
+interface ArcScoreCtx {
+  /** Target BPM center for the arc at the (look-ahead) play time. */
+  center: number;
+  /** Currently-playing track's BPM (for tempo-direction reasoning). */
+  curBpm: number;
+  /** Currently-playing track's Camelot key (for harmonic continuity). */
+  curCamelot: string | null;
+  /**
+   * Energy slope of the arc right now: >0 climbing (want faster), <0 cooling
+   * (want slower), ~0 holding (just match the center).
+   */
+  trend: number;
+}
+
+/**
+ * Score a candidate's analysis against the arc target. Higher is better.
+ * Combines three things a DJ weighs when picking the next record:
+ *  1. tempo proximity to where the arc wants to be (octave-folded),
+ *  2. moving the tempo in the RIGHT DIRECTION — up while building, down while
+ *     winding down (so it works for every arc shape, rising or falling),
+ *  3. harmonic continuity with the current track.
+ */
+function scoreCandidateForArc(a: TrackAnalysis, ctx: ArcScoreCtx): number {
+  const b = foldBpm(a.bpm, ctx.center);
+  // 1. closeness to target center, normalized (0 = bullseye, negative = off)
+  let score = -Math.abs(b - ctx.center) / ctx.center;
+
+  // 2. tempo direction relative to the current track
+  const rel = (b - ctx.curBpm) / Math.max(ctx.curBpm, 1);
+  if (ctx.trend > 0.02) {
+    // building: reward a step up, penalize dropping the tempo
+    score += rel >= 0 ? Math.min(rel, 0.1) : rel * 0.5;
+  } else if (ctx.trend < -0.02) {
+    // winding down: reward a step down, penalize speeding up
+    score += rel <= 0 ? Math.min(-rel, 0.1) : -rel * 0.5;
+  }
+
+  // 3. harmonic continuity bonus
+  if (ctx.curCamelot && camelotCompatible(ctx.curCamelot, a.camelot)) score += 0.15;
+  return score;
+}
+
+/**
  * Shared auto-mix loop, prepare-ahead edition.
  *
  * Core principle (user feedback): NOTHING loads or thinks at the moment of
@@ -106,6 +175,7 @@ export function useAutoMix() {
   const [setLog, setSetLog] = useState<HopLogEntry[]>([]);
   const [recording, setRecording] = useState(false);
   const [mix, setMix] = useState<{ url: string; durationSec: number } | null>(null);
+  const [arcInfo, setArcInfo] = useState<ArcTarget | null>(null);
 
   const st = useRef({
     queue: [] as Track[],
@@ -119,11 +189,86 @@ export function useAutoMix() {
     refilling: false,
     hopping: false,
     setLog: [] as HopLogEntry[],
+    arcStartedAt: 0,
   });
+
+  /** Sample the energy-arc director at the current set time (null if no arc). */
+  function currentArc(): ArcTarget | null {
+    const { arc } = st.current.opts;
+    if (!arc || !st.current.arcStartedAt) return null;
+    const elapsedMin = (Date.now() - st.current.arcStartedAt) / 60000;
+    return arcTargetAt(arc.shape, elapsedMin / Math.max(1, arc.durationMin));
+  }
+
+  /**
+   * Arc-aware song selection. Without this, the queue plays strictly FIFO and
+   * the actual BPM of the next track is whatever the suggester/search happened
+   * to land on — so a "build" set could hop to a slower song. Here we look at
+   * the next few unplayed candidates, ANALYZE them (cached/prefetched), score
+   * each against where the arc is headed — including the tempo DIRECTION, so it
+   * climbs on a build and eases off on a wind-down — and pull the best fit to
+   * the front of the upcoming queue. Tracks that don't fit now stay in the
+   * queue for a phase where they will. No-op when no arc is running.
+   */
+  async function reorderNextForArc(): Promise<void> {
+    const s = st.current;
+    const arc = s.opts.arc;
+    if (!arc || !s.arcStartedAt || !s.current) return;
+    const startIdx = s.nowIdx + 1;
+    const window = s.queue.slice(startIdx, startIdx + 4);
+    if (window.length < 2) return; // nothing to choose between
+
+    // Sample the arc a little AHEAD — at roughly when this hop will land — so a
+    // moving target (build/wind-down) is matched to the future, not the present.
+    const elapsedMin = (Date.now() - s.arcStartedAt) / 60000;
+    const dur = Math.max(1, arc.durationMin);
+    const aheadMin = 0.75;
+    const p = (elapsedMin + aheadMin) / dur;
+    const target = arcTargetAt(arc.shape, p);
+    const trend = arcEnergyAt(arc.shape, Math.min(1, p + 0.05)) - arcEnergyAt(arc.shape, p);
+    const ctx: ArcScoreCtx = {
+      center: (target.bpm[0] + target.bpm[1]) / 2,
+      curBpm: s.current.analysis.bpm,
+      curCamelot: s.current.analysis.camelot,
+      trend,
+    };
+
+    // Load+analyze candidates (cached/prefetched); cap the wait so prepare-ahead
+    // never stalls on a slow download — unresolved candidates are simply skipped.
+    const loaded = await Promise.all(
+      window.map((t) =>
+        Promise.race([
+          loadTrack(t.id)
+            .then((lt) => ({ track: t, analysis: lt.analysis }))
+            .catch(() => null),
+          new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+        ])
+      )
+    );
+    const scored = loaded
+      .filter((x): x is { track: Track; analysis: TrackAnalysis } => !!x)
+      .map((x) => ({ track: x.track, score: scoreCandidateForArc(x.analysis, ctx) }));
+    if (scored.length < 2) return;
+
+    scored.sort((a, b) => b.score - a.score);
+    const bestId = scored[0].track.id;
+    const bestIdx = st.current.queue.findIndex((t) => t.id === bestId);
+    if (bestIdx > startIdx) {
+      setQueue((q) => {
+        const copy = q.slice();
+        const [item] = copy.splice(bestIdx, 1);
+        copy.splice(startIdx, 0, item);
+        return copy;
+      });
+    }
+  }
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => setPosition(getEngine().position()), 250);
+    const id = setInterval(() => {
+      setPosition(getEngine().position());
+      if (st.current.opts.arc && st.current.running) setArcInfo(currentArc());
+    }, 250);
     return () => clearInterval(id);
   }, []);
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -159,6 +304,8 @@ export function useAutoMix() {
     setRunning(true);
     st.current.setLog = [];
     setSetLog([]);
+    st.current.arcStartedAt = Date.now();
+    setArcInfo(currentArc());
     const first = await loadTrack(q[0].id, setStatus);
     if (!st.current.running) return;
     st.current.current = first;
@@ -184,17 +331,29 @@ export function useAutoMix() {
    * the current song plays. Arms the auto-hop timer once the plan is known.
    */
   function prepareNext(track?: Track): Promise<Prepared | null> {
-    const { queue, nowIdx, current } = st.current;
-    const target = track ?? queue[(nowIdx + 1) % queue.length];
-    if (!target || !current || queue.length < 1) return Promise.resolve(null);
-    if (st.current.prepared?.trackId === target.id)
-      return Promise.resolve(st.current.prepared);
+    if (!st.current.current || st.current.queue.length < 1)
+      return Promise.resolve(null);
 
-    setNextReady(false);
     const token = {};
     st.current.prepToken = token;
     const job = (async (): Promise<Prepared | null> => {
       try {
+        // arc-aware selection: pull the best-fitting upcoming track to the
+        // front of the queue before we lock onto a target (auto-advance only —
+        // an explicit user pick is honored as-is).
+        if (!track) await reorderNextForArc();
+        if (st.current.prepToken !== token) return st.current.prepared; // superseded
+
+        // re-read state AFTER the reorder, which may have spliced the queue
+        const s = st.current;
+        const current = s.current;
+        if (!current) return null;
+        const target = track ?? s.queue[(s.nowIdx + 1) % s.queue.length];
+        if (!target) return null;
+        // already prepared & armed for this target — leave it (and nextReady) be
+        if (s.prepared?.trackId === target.id) return s.prepared;
+
+        setNextReady(false);
         const next = await loadTrack(target.id);
         let plan: TransitionPlan;
         if (st.current.opts.useAi) {
@@ -203,6 +362,11 @@ export function useAutoMix() {
             plan = await planTransition(current, next, getEngine().position(), {
               timeoutMs: 5000,
               stemsAvailable: st.current.opts.stems,
+              arc: currentArc(),
+              recentStyles: st.current.setLog
+                .slice(-3)
+                .map((e) => e.style)
+                .reverse(),
             });
           } catch {
             plan = heuristicPlan(next, getEngine().position(), current);
@@ -269,6 +433,14 @@ export function useAutoMix() {
       target = Math.min(target, dur - 12);
       // floor 25s so every song registers, cap 150s so the set keeps moving
       waitSec = Math.min(Math.max(target - pos, 25), 150);
+      // arc director: peak sections hop faster (rapid-fire hooks), chill
+      // sections linger — pace the clip length to the current target energy
+      const arc = currentArc();
+      if (arc) {
+        const arcClip = clipLenForEnergy(arc.energy);
+        waitSec = Math.min(waitSec, Math.max(arcClip, famousEnd - pos));
+        waitSec = Math.max(waitSec, 22);
+      }
     } else {
       waitSec = clipLen;
     }
@@ -441,11 +613,23 @@ export function useAutoMix() {
     try {
       const currentTrack = s.queue[s.nowIdx];
       if (!currentTrack) return;
+      // arc director: refill with songs that match where the curve is HEADED,
+      // looking a little ahead so the next batch lands at the right energy
+      const arc = s.opts.arc
+        ? arcTargetAt(
+            s.opts.arc.shape,
+            ((Date.now() - s.arcStartedAt) / 60000 + 2) /
+              Math.max(1, s.opts.arc.durationMin)
+          )
+        : null;
       const res = await fetch("/api/ai/suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           current: `${currentTrack.title} — ${currentTrack.artist}`,
+          arc: arc
+            ? { energy: +arc.energy.toFixed(2), phase: arc.phase, bpm: arc.bpm }
+            : undefined,
         }),
       });
       if (!res.ok) return;
@@ -522,6 +706,7 @@ export function useAutoMix() {
     setLog,
     recording,
     mix,
+    arcInfo,
     start,
     stop,
     hopNow,

@@ -33,26 +33,34 @@ Pick the transition that will feel best to a casual listener:
   era/tempo jumps; safe on key clashes.
 - gate: rhythmic strobe-gate on A for a bar while B fades up — tension build between two
   groovy tracks.
-- reverb_freeze: A's tail blooms into a long reverb wash and B rises out of it. Lush and
-  emotional — perfect for ballads/slow vibe changes and KEY CLASHES (the wash hides dissonance).
 - stem_acapella: B's ISOLATED VOCAL rides in over A's groove for a few bars, then B's full mix
   drops in — the signature "radio" move. ONLY choose this when stemsAvailable is true in the
   input, ideally when B has a strong, recognizable vocal hook.
 
 HARMONIC MIXING: when harmonic is false (keys clash), AVOID bass_swap and double_drop — the
-overlapping basslines/chords will sound sour. Prefer echo_out, reverb_freeze, cut, backspin,
-tape_stop or silence_drop, which mask or sidestep the clash. When harmonic is true, blends
+overlapping basslines/chords will sound sour. Prefer echo_out, cut, backspin, tape_stop,
+silence_drop or gate, which mask or sidestep the clash. When harmonic is true, blends
 (bass_swap, crossfade, filter_sweep, double_drop, stem_acapella) are safe and smooth.
 
 GENRE: infer genre from the titles/artists and bias accordingly — EDM/dance → riser, loop_roll,
 double_drop, silence_drop; hip-hop/rap → cut, backspin, bass_swap; pop → bass_swap, filter_sweep,
-stem_acapella; ballads/R&B/acoustic → crossfade, reverb_freeze, echo_out.
+stem_acapella; ballads/R&B/acoustic → crossfade, echo_out, filter_sweep.
 
 CONFIDENCE: if either bpmConfidence is low (<0.15), avoid tempo-locked blends (bass_swap,
-double_drop) and beatMatch — prefer echo_out/reverb_freeze/crossfade that don't depend on a
+double_drop) and beatMatch — prefer echo_out/crossfade/filter_sweep that don't depend on a
 tight grid.
 
-Vary your choices across a set — a real DJ never repeats the same trick twice in a row.
+ENERGY ARC: if an "arc" object is present, the set is being paced along an energy curve.
+arc.phase is the current target ("chill" | "groovy" | "hype" | "peak") and arc.styleBias lists
+several tricks that fit it, roughly ordered safest→boldest. Pick a style FROM arc.styleBias, but
+ROTATE through the list — do NOT keep choosing the first/same entry every hop. chill → gentle
+blends, peak → big dramatic drops. This makes the whole set feel like a journey, not a string of
+unrelated hops.
+
+VARIETY (important): "recentStyles" lists the last few tricks already used, most recent first.
+NEVER pick a style that appears in recentStyles unless every other sensible option is ruled out
+by harmonic/confidence/genre constraints. A real DJ never repeats the same trick twice in a row,
+and rarely reuses one within a handful of hops — actively reach for a fresh move each time.
 
 Rules:
 - outPoint: a natural exit in A — never before the current position, and CRITICALLY: let A's
@@ -62,9 +70,9 @@ Rules:
   40-70s of A before exiting.
 - inPoint: start B slightly BEFORE its famous section so the hook lands right as the transition completes (inPoint ≈ famousStart - duration, min 0). If no famousStart, pick a high-energy point after intro.
 - duration: 4-12s for blends. cut/loop_roll/brake/riser/backspin/tape_stop/silence_drop = 0.1
-  (the pre-roll happens automatically). double_drop = 4. echo_out = 6-8. reverb_freeze/gate/
-  stem_acapella = 0.1 (their builds are scheduled automatically).
-- For cut/loop_roll/brake/riser/backspin/tape_stop/silence_drop/reverb_freeze/gate/stem_acapella:
+  (the pre-roll happens automatically). double_drop = 4. echo_out = 6-8. gate/stem_acapella = 0.1
+  (their builds are scheduled automatically).
+- For cut/loop_roll/brake/riser/backspin/tape_stop/silence_drop/gate/stem_acapella:
   B's hook should land EXACTLY at entry — inPoint ≈ famousStart.
 - beatMatch true only if BPMs within 8% AND both bpmConfidence ≥ 0.15.
 
@@ -75,7 +83,7 @@ export async function POST(req: NextRequest) {
   const client = new Anthropic();
 
   const msg = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5",
     max_tokens: 400,
     system: SYSTEM,
     messages: [
@@ -86,6 +94,8 @@ export async function POST(req: NextRequest) {
           trackB: body.trackB, // {title, bpm, bpmConfidence, camelot, key, duration, energy, famousStart}
           harmonic: body.harmonic, // keys compatible on the Camelot wheel?
           stemsAvailable: body.stemsAvailable ?? false, // may we pick stem_acapella?
+          arc: body.arc, // { energy, phase, styleBias } when an arc set is running
+          recentStyles: body.recentStyles ?? [], // tricks just used — avoid repeating
         }),
       },
     ],

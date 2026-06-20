@@ -1,0 +1,13 @@
+{
+  "name": "aidj-extractor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "yt-dlp + ffmpeg extractor microservice for AIDJ Lab (runs on Railway).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

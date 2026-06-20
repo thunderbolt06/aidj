@@ -57,9 +57,9 @@ export type TransitionStyle =
   | "silence_drop" // cut everything for a beat (dead air), then slam B on the 1
   | "backspin" // vinyl rewind: A's last 2 beats reverse-accelerate, B slams
   | "tape_stop" // power-cut: A pitch-drops to a halt over ~1 beat, then B drops
-  | "reverb_freeze" // A's tail swells into a reverb wash, B rises out of it
   | "gate" // rhythmic strobe-gate on A for a bar while B fades up underneath
-  | "stem_acapella"; // B's isolated vocal rides over A, then B's full mix drops in
+  | "stem_acapella" // B's isolated vocal rides over A, then B's full mix drops in
+  | "vocal_throw"; // A's last sung word is thrown (echoed) over B's intro
 
 export interface TransitionPlan {
   style: TransitionStyle;

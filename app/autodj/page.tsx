@@ -5,6 +5,7 @@ import type { TransitionStyle } from "@/lib/types";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { MusicVisualizer } from "@/components/MusicVisualizer";
 
 const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
   { value: "", label: "🤖 AI picks the trick" },
@@ -20,7 +21,6 @@ const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
   { value: "silence_drop", label: "🤫 Silence drop (dead air → slam)" },
   { value: "backspin", label: "⏪ Backspin" },
   { value: "tape_stop", label: "📼 Tape stop" },
-  { value: "reverb_freeze", label: "❄️ Reverb freeze" },
   { value: "gate", label: "🔲 Gate / strobe" },
   { value: "stem_acapella", label: "🎤 Acapella-in (stems)" },
 ];
@@ -34,6 +34,7 @@ export default function AutoDjPage() {
   const [keyLock, setKeyLock] = useState(true);
   const [stems, setStems] = useState(false);
   const [trick, setTrick] = useState<TransitionStyle | "">("");
+  const [musicVideo, setMusicVideo] = useState(false);
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
@@ -149,6 +150,17 @@ export default function AutoDjPage() {
           />
           🎤 Stems
         </label>
+        <label
+          className="flex items-center gap-2 text-sm text-zinc-300"
+          title="Real-time, beat & chord-reactive music video — coded, not pre-rendered"
+        >
+          <input
+            type="checkbox"
+            checked={musicVideo}
+            onChange={(e) => setMusicVideo(e.target.checked)}
+          />
+          🎬 Music video
+        </label>
         <select
           value={trick}
           onChange={(e) => {
@@ -249,6 +261,17 @@ export default function AutoDjPage() {
             </p>
           )}
         </div>
+      )}
+
+      {musicVideo && (
+        <MusicVisualizer
+          analysis={mix.now?.analysis ?? null}
+          track={
+            mix.now ? { title: mix.now.meta.title, artist: mix.now.meta.artist } : null
+          }
+          arc={mix.arcInfo ? { energy: mix.arcInfo.energy, phase: mix.arcInfo.phase } : null}
+          active={mix.running}
+        />
       )}
 
       {mix.mix && (

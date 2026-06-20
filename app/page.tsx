@@ -20,6 +20,12 @@ const experiments = [
     status: "ready",
   },
   {
+    href: "/arc",
+    title: "Energy-Arc Director",
+    desc: "Set a journey — chill → peak → cool-down — over 20 min. AI paces the whole set.",
+    status: "ready",
+  },
+  {
     href: "/grid",
     title: "9-Grid Next Song",
     desc: "Tap one of 9 suggested songs to transition into it.",
@@ -59,6 +65,12 @@ const experiments = [
     href: "/reels",
     title: "Reels Feed",
     desc: "Vertical swipe feed of famous parts — the swipe IS the transition.",
+    status: "ready",
+  },
+  {
+    href: "/musicvideo",
+    title: "Music Video Lab",
+    desc: "Real-time, beat & chord-reactive visuals — pick a framework or let AI code one from a prompt.",
     status: "ready",
   },
   {

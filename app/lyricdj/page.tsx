@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { LyricLine, Track } from "@/lib/types";
 import { getEngine, loadTrack, searchTracks, type LoadedTrack } from "@/lib/client/dj";
+import {
+  audioBufferToWav,
+  renderWordplayClip,
+  sliceAudioBuffer,
+} from "@/lib/audio/render";
 import { SearchPicker } from "@/components/SearchPicker";
 
 interface ChainStop {
@@ -116,6 +121,9 @@ export default function LyricDjPage() {
   const [building, setBuilding] = useState(false);
   const [playingIdx, setPlayingIdx] = useState(-1);
   const [position, setPosition] = useState(0);
+  const [throwMode, setThrowMode] = useState(false);
+  const [exporting, setExporting] = useState<number | null>(null);
+  const [exportMsg, setExportMsg] = useState("");
   const playState = useRef({ idx: -1, fired: false });
 
   useEffect(() => {
@@ -313,23 +321,40 @@ export default function LyricDjPage() {
     if (h.sharedWord) {
       if (position >= h.aWordTime - 0.05) {
         ps.fired = true;
-        // loop the WORD itself: its real duration snapped up to the nearest
-        // beat subdivision so the stutter stays in the groove
-        const beat = 60 / Math.max(stop.loaded.analysis.bpm, 60);
-        const wordDur = Math.max(0.12, h.aWordEnd - h.aWordTime);
-        const loopLen =
-          [beat / 4, beat / 2, beat, beat * 2].find((d) => d >= wordDur * 0.85) ??
-          beat * 2;
-        setStatus(
-          `✨ looping “${h.sharedWord}” ×4${h.aligned ? " (whisper-aligned)" : ""}…`
-        );
         getEngine().onTransitionEnd = advance;
-        getEngine().stutterTransition(next.loaded.buffer, {
-          loopStart: h.aWordTime,
-          loopLen: Math.min(loopLen, 0.9),
-          repeats: 4,
-          inPoint: h.bWordTime,
-        });
+        if (throwMode) {
+          // vocal-throw: B cuts in and A's word echoes over its intro
+          const wordBuffer = sliceAudioBuffer(
+            getEngine().ctx,
+            stop.loaded.buffer,
+            h.aWordTime,
+            Math.min(1.2, Math.max(0.35, h.aWordEnd - h.aWordTime + 0.35))
+          );
+          setStatus(`✨ throwing “${h.sharedWord}” over the drop…`);
+          getEngine().vocalThrow(next.loaded.buffer, {
+            wordBuffer,
+            inPoint: h.bWordTime,
+            analyses: { from: stop.loaded.analysis, to: next.loaded.analysis },
+            quantizeBeats: 16,
+          });
+        } else {
+          // loop the WORD itself: its real duration snapped up to the nearest
+          // beat subdivision so the stutter stays in the groove
+          const beat = 60 / Math.max(stop.loaded.analysis.bpm, 60);
+          const wordDur = Math.max(0.12, h.aWordEnd - h.aWordTime);
+          const loopLen =
+            [beat / 4, beat / 2, beat, beat * 2].find((d) => d >= wordDur * 0.85) ??
+            beat * 2;
+          setStatus(
+            `✨ looping “${h.sharedWord}” ×4${h.aligned ? " (whisper-aligned)" : ""}…`
+          );
+          getEngine().stutterTransition(next.loaded.buffer, {
+            loopStart: h.aWordTime,
+            loopLen: Math.min(loopLen, 0.9),
+            repeats: 4,
+            inPoint: h.bWordTime,
+          });
+        }
       }
     } else {
       const FADE = 0.8;
@@ -346,7 +371,56 @@ export default function LyricDjPage() {
         });
       }
     }
-  }, [position, chain]);
+  }, [position, chain, throwMode]);
+
+  /**
+   * Export a single handoff as a standalone shareable clip (the "50 Cent →
+   * Usher Shorty" format): A leads into the word, it stutters, B drops on the
+   * same word — rendered to a vertical mp4 with the trigger word captioned.
+   */
+  async function exportHandoff(i: number) {
+    const stop = chain[i];
+    const next = chain[i + 1];
+    const h = stop?.handoff;
+    if (!next || !h || !h.sharedWord) return;
+    setExporting(i);
+    setExportMsg("rendering the edit…");
+    try {
+      const buf = await renderWordplayClip(
+        { buffer: stop.loaded.buffer, bpm: stop.loaded.analysis.bpm },
+        { buffer: next.loaded.buffer, bpm: next.loaded.analysis.bpm },
+        { aWordTime: h.aWordTime, aWordEnd: h.aWordEnd, bWordTime: h.bWordTime }
+      );
+      const wav = audioBufferToWav(buf);
+      setExportMsg("building the vertical video…");
+      const meta = {
+        clips: [
+          { image: stop.track.thumbnail, duration: buf.duration * 0.62 },
+          { image: next.track.thumbnail, duration: buf.duration * 0.45 },
+        ],
+        caption: h.sharedWord,
+      };
+      const res = await fetch(
+        `/api/video?meta=${encodeURIComponent(JSON.stringify(meta))}`,
+        { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }
+      );
+      const a = document.createElement("a");
+      if (res.ok) {
+        a.href = URL.createObjectURL(await res.blob());
+        a.download = `wordplay-${h.sharedWord}.mp4`;
+      } else {
+        a.href = URL.createObjectURL(wav);
+        a.download = `wordplay-${h.sharedWord}.wav`;
+        setExportMsg("video failed — downloaded audio instead");
+      }
+      a.click();
+      setExportMsg("");
+    } catch (e) {
+      setExportMsg(e instanceof Error ? e.message : "export failed");
+    } finally {
+      setExporting(null);
+    }
+  }
 
   const active = chain[playingIdx];
   const currentLine =
@@ -420,6 +494,15 @@ export default function LyricDjPage() {
                       </span>
                     </p>
                   )}
+                  {stop.handoff?.sharedWord && (
+                    <button
+                      onClick={() => exportHandoff(i)}
+                      disabled={exporting !== null}
+                      className="mt-2 rounded-lg border border-emerald-700 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-950/40 disabled:opacity-40"
+                    >
+                      {exporting === i ? "rendering…" : "🎬 Export this edit"}
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -454,7 +537,21 @@ export default function LyricDjPage() {
             >
               New chain
             </button>
+            <label
+              className="flex items-center gap-2 text-sm text-zinc-300"
+              title="Throw the word over the drop (echoed) instead of stuttering it"
+            >
+              <input
+                type="checkbox"
+                checked={throwMode}
+                onChange={(e) => setThrowMode(e.target.checked)}
+              />
+              🎤 Vocal-throw
+            </label>
           </div>
+          {exportMsg && (
+            <p className="animate-pulse text-xs text-amber-400">{exportMsg}</p>
+          )}
           {active && currentLine && (
             <p className="rounded-xl border border-zinc-800 p-6 text-center text-xl font-bold text-fuchsia-200">
               {currentLine.text}

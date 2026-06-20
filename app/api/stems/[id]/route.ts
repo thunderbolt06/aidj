@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import Replicate from "replicate";
-import { getAudioFile } from "@/lib/server/ytdlp";
+import { getAudioBytes } from "@/lib/server/ytdlp";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
 
-const STEMS_DIR = path.join(process.cwd(), ".cache", "stems");
+// On Vercel only /tmp is writable; locally this is still fine. Cache is a
+// best-effort speed-up (Replicate is the source of truth), so ephemeral is ok.
+const STEMS_DIR = path.join(tmpdir(), "aidj-stems");
 
 /**
  * Real stem separation via Replicate demucs (htdemucs, two-stem mode).
@@ -35,8 +38,7 @@ export async function GET(
   }
 
   try {
-    const file = await getAudioFile(id);
-    const audio = await readFile(file);
+    const audio = await getAudioBytes(id);
     const replicate = new Replicate();
 
     // resolve latest version of the demucs model at call time

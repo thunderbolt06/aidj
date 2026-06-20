@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
-import { getAudioFile } from "@/lib/server/ytdlp";
+import { EXTRACTOR, extractorAudioUrl, getAudioFile } from "@/lib/server/ytdlp";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  // remote mode: hand the browser straight to the extractor so the (multi-MB)
+  // audio never round-trips through the Vercel function
+  if (EXTRACTOR) return NextResponse.redirect(extractorAudioUrl(id), 302);
   try {
     const file = await getAudioFile(id);
     const ext = file.split(".").pop() ?? "m4a";

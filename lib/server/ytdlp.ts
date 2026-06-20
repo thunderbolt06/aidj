@@ -12,12 +12,42 @@ const META_DIR = path.join(CACHE_DIR, "meta");
 
 const YTDLP = process.env.YTDLP_PATH || "yt-dlp";
 
+/**
+ * When set, the heavy yt-dlp/ffmpeg work runs on the remote extractor service
+ * (Railway) instead of locally — Vercel serverless can't run native binaries.
+ * Unset (e.g. local dev with yt-dlp installed) → use the local binary.
+ */
+export const EXTRACTOR = (process.env.EXTRACTOR_URL || "").replace(/\/+$/, "");
+const EXTRACTOR_TOKEN = process.env.EXTRACTOR_TOKEN || "";
+
+/** Public, browser-facing audio URL on the extractor (Vercel redirects here). */
+export function extractorAudioUrl(id: string): string {
+  return `${EXTRACTOR}/audio/${id}`;
+}
+
+function extractorFetch(pathname: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${EXTRACTOR}${pathname}`, {
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      ...(EXTRACTOR_TOKEN ? { Authorization: `Bearer ${EXTRACTOR_TOKEN}` } : {}),
+    },
+  });
+}
+
 async function ensureDirs() {
   await mkdir(AUDIO_DIR, { recursive: true });
   await mkdir(META_DIR, { recursive: true });
 }
 
 export async function searchYouTube(query: string, limit = 8): Promise<Track[]> {
+  if (EXTRACTOR) {
+    const res = await extractorFetch(
+      `/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+    if (!res.ok) throw new Error(`extractor search failed (${res.status})`);
+    return (await res.json()).tracks as Track[];
+  }
   const { stdout } = await exec(
     YTDLP,
     [
@@ -57,6 +87,11 @@ function famousStartFromHeatmap(heatmap: HeatmapPoint[]): number | null {
 }
 
 export async function getTrackMeta(id: string): Promise<TrackMeta> {
+  if (EXTRACTOR) {
+    const res = await extractorFetch(`/meta/${id}`);
+    if (!res.ok) throw new Error(`extractor meta failed (${res.status})`);
+    return (await res.json()) as TrackMeta;
+  }
   await ensureDirs();
   const metaPath = path.join(META_DIR, `${id}.json`);
   try {
@@ -99,23 +134,48 @@ export async function getAudioFile(id: string): Promise<string> {
   );
   if (existing) return path.join(AUDIO_DIR, existing);
 
-  await exec(
-    YTDLP,
-    [
-      `https://www.youtube.com/watch?v=${id}`,
-      "-f",
-      "bestaudio[ext=m4a]/bestaudio",
-      "-x",
-      "--audio-format",
-      "m4a",
-      "-o",
-      path.join(AUDIO_DIR, "%(id)s.%(ext)s"),
-      "--no-warnings",
-    ],
-    { maxBuffer: 8 * 1024 * 1024, timeout: 180_000 }
-  );
+  try {
+    await exec(
+      YTDLP,
+      [
+        `https://www.youtube.com/watch?v=${id}`,
+        "-f",
+        "bestaudio[ext=m4a]/bestaudio",
+        "-x",
+        "--audio-format",
+        "m4a",
+        "-o",
+        path.join(AUDIO_DIR, "%(id)s.%(ext)s"),
+        "--no-warnings",
+      ],
+      { maxBuffer: 8 * 1024 * 1024, timeout: 180_000 }
+    );
+  } catch (e) {
+    // yt-dlp breaks often (YouTube changes, missing deno for JS challenges,
+    // PATH issues) — surface its stderr so the failure is diagnosable.
+    const err = e as { stderr?: string; message?: string; code?: string };
+    const reason =
+      err.code === "ENOENT"
+        ? `'${YTDLP}' not found on PATH (set YTDLP_PATH)`
+        : (err.stderr || err.message || "yt-dlp failed").split("\n").filter(Boolean).slice(-2).join(" ");
+    throw new Error(reason);
+  }
 
   const file = (await readdir(AUDIO_DIR)).find((f) => f.startsWith(`${id}.`));
   if (!file) throw new Error(`extraction produced no file for ${id}`);
   return path.join(AUDIO_DIR, file);
+}
+
+/**
+ * Audio bytes for `id`, regardless of mode — fetched from the extractor when
+ * remote, read off local disk otherwise. Used by the stems route (which feeds
+ * the audio to Replicate).
+ */
+export async function getAudioBytes(id: string): Promise<Buffer> {
+  if (EXTRACTOR) {
+    const res = await extractorFetch(`/audio/${id}`);
+    if (!res.ok) throw new Error(`extractor audio failed (${res.status})`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+  return readFile(await getAudioFile(id));
 }

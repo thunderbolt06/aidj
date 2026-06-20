@@ -38,7 +38,15 @@ export function loadTrack(
 
     onStatus?.("extracting audio…");
     const audioRes = await fetch(`/api/audio/${id}`);
-    if (!audioRes.ok) throw new Error("audio extraction failed");
+    if (!audioRes.ok) {
+      // surface the real reason (yt-dlp stderr) instead of a generic message
+      const detail = await audioRes
+        .clone()
+        .json()
+        .then((j) => j?.error)
+        .catch(() => null);
+      throw new Error(`audio extraction failed: ${detail || `HTTP ${audioRes.status}`}`);
+    }
     const data = await audioRes.arrayBuffer();
 
     onStatus?.("decoding…");
@@ -73,7 +81,12 @@ export async function planTransition(
   from: LoadedTrack,
   to: LoadedTrack,
   position: number,
-  opts?: { timeoutMs?: number; stemsAvailable?: boolean }
+  opts?: {
+    timeoutMs?: number;
+    stemsAvailable?: boolean;
+    arc?: { energy: number; phase: string; styleBias: string[] } | null;
+    recentStyles?: string[];
+  }
 ): Promise<TransitionPlan> {
   const res = await fetch("/api/ai/transition", {
     method: "POST",
@@ -103,6 +116,14 @@ export async function planTransition(
       },
       harmonic: camelotCompatible(from.analysis.camelot, to.analysis.camelot),
       stemsAvailable: opts?.stemsAvailable ?? false,
+      arc: opts?.arc
+        ? {
+            energy: opts.arc.energy,
+            phase: opts.arc.phase,
+            styleBias: opts.arc.styleBias,
+          }
+        : undefined,
+      recentStyles: opts?.recentStyles ?? [],
     }),
   });
   if (!res.ok) throw new Error("transition planning failed");

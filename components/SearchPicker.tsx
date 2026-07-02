@@ -23,7 +23,7 @@ export function SearchPicker({
     try {
       setResults(await searchTracks(q));
     } catch {
-      setError("Search failed , is yt-dlp installed and reachable?");
+      setError("Search failed - is yt-dlp installed and reachable?");
     } finally {
       setBusy(false);
     }
@@ -37,12 +37,12 @@ export function SearchPicker({
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
           placeholder={placeholder}
-          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-fuchsia-500"
+          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-cyan-500"
         />
         <button
           onClick={go}
           disabled={busy}
-          className="rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50 px-4 py-2 text-sm font-medium"
+          className="rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 px-4 py-2 text-sm font-medium"
         >
           {busy ? "…" : "Search"}
         </button>

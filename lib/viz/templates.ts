@@ -16,7 +16,7 @@ function specAt(f: VizFrame, x: number): number {
   return f.spectrum[Math.min(f.spectrum.length - 1, Math.floor(x * n))] / 255;
 }
 
-/** Combined beat "hit" , grid when trusted, live audio when the BPM is shaky.
+/** Combined beat "hit" - grid when trusted, live audio when the BPM is shaky.
  * Computed once in the driver (see BeatInfo.hit) so canvas + shader agree. */
 function pulse(f: VizFrame): number {
   return f.beat.hit;
@@ -24,7 +24,7 @@ function pulse(f: VizFrame): number {
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-/** Rounded-rect path (no fill/stroke) , used by the stairs blocks. */
+/** Rounded-rect path (no fill/stroke) - used by the stairs blocks. */
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   r = Math.min(r, w / 2, h / 2);
   ctx.moveTo(x + r, y);
@@ -67,7 +67,7 @@ function stepKind(i: number): StepKind {
   const r = h2(i);
   return r < 0.6 ? "slab" : r < 0.8 ? "platform" : r < 0.93 ? "pillar" : "wide";
 }
-/** Per-step size factors {width, frontHeight, topDepth} , varied so the
+/** Per-step size factors {width, frontHeight, topDepth} - varied so the
  *  staircase looks hand-placed, not stamped from one mould. */
 function stepDims(i: number): { wf: number; hf: number; df: number } {
   const t = stepKind(i);
@@ -81,7 +81,7 @@ function stepDims(i: number): { wf: number; hf: number; df: number } {
 /**
  * Bouncing ball on glowing piano stairs (the "ball drop on piano stairs" genre).
  *
- * The ball is ALWAYS in flight , a continuous gravity bounce, never paused ,
+ * The ball is ALWAYS in flight - a continuous gravity bounce, never paused ,
  * and BEAT-SYNCED: its bounce phase is the audio beat phase, so it lands on
  * each beat and advances one block per beat (the block it lands on lights up).
  * Onset strength sets how HARD each bounce launches: a strong hit arcs higher,
@@ -102,7 +102,7 @@ const stairs: CanvasTemplate = {
     const FALLOFF = 0.87;
     const hueOf = (i: number) => f.key.hue + i * (params.hueRange / 16) + pitchClassHue(f.chromaRoot) * 0.5;
     // SMOOTH wander for the continuous camera; the per-step random jitter (h1)
-    // is added ONLY at integer step indices , evaluating h1 on a continuous
+    // is added ONLY at integer step indices - evaluating h1 on a continuous
     // value is high-frequency noise and was what made the whole scene shake.
     const pathSmooth = (t: number) => Math.sin(t * 0.4) * 0.55 + Math.sin(t * 0.17 + 1.1) * 0.33;
     const pathStep = (i: number) => pathSmooth(i) + (h1(i) - 0.5) * 0.6;
@@ -129,13 +129,13 @@ const stairs: CanvasTemplate = {
     };
 
     // CONTINUOUS PHYSICS: octave-fold the tempo into a natural bounce cadence,
-    // then keep the ball in an unbroken chain of parabolas , each flight starts
+    // then keep the ball in an unbroken chain of parabolas - each flight starts
     // exactly where the last landed, so it never rests. Onset strength sampled
     // at each landing sets that bounce's height, distance and flash.
     st.onsetPk = Math.max(st.onsetPk * 0.9, f.onset); // peak onset since last beat
 
     // BEAT-SYNCED bounce: the bounce phase IS the audio beat phase, so the ball
-    // lands EXACTLY on each beat (continuous parabola , never resting). It
+    // lands EXACTLY on each beat (continuous parabola - never resting). It
     // advances exactly ONE step (one block) per beat. Falls back to a free-run
     // tempo only when there's no trustworthy grid.
     const hasBeat = f.beat.bpm > 0 && f.beat.confidence >= 0.05;
@@ -172,7 +172,7 @@ const stairs: CanvasTemplate = {
     st.punch *= 0.9;
     // CONTINUOUS top-surface point for a fractional position. We LERP between
     // the two adjacent steps' surfaces (not snap to the rounded step) so the
-    // resting height never jumps as the ball crosses a half-step , that snap
+    // resting height never jumps as the ball crosses a half-step - that snap
     // was the residual jitter.
     const surfFrac = (fp: number) => {
       const i0 = Math.floor(fp);
@@ -216,7 +216,7 @@ const stairs: CanvasTemplate = {
       if (v.e < 0.02 && k < cur - 1) st.lit.delete(k);
     }
 
-    // a detailed, framed, edge-lit 3D block , sized/typed per step
+    // a detailed, framed, edge-lit 3D block - sized/typed per step
     const block = (i: number) => {
       const lit = st.lit.get(i);
       const e = lit ? lit.e : 0;
@@ -265,7 +265,7 @@ const stairs: CanvasTemplate = {
       ctx.fillStyle = hsl(hue, sat, L(1.1));
       ctx.fill();
       ctx.shadowBlur = 0;
-      // inset top panel , a framed "key" surface
+      // inset top panel - a framed "key" surface
       const ins = 0.7;
       ctx.beginPath();
       ctx.moveTo(lerp(mx, x - W / 2, ins), lerp(my, y, ins));
@@ -394,7 +394,7 @@ const stairs: CanvasTemplate = {
       ball(s.x, s.y - r * 0.75 - HOP * a, r, hue, a, alpha, spin);
     };
 
-    // the ball , rides the continuous position so it never jumps/jitters
+    // the ball - rides the continuous position so it never jumps/jitters
     const spin = fi * 2.4;
     const s0 = surfFrac(fi);
     const r = baseW * 0.27 * s0.s;
@@ -433,7 +433,7 @@ const stairs: CanvasTemplate = {
   },
 };
 
-/** Beads threaded on undulating strings , the "beads with tune" look. */
+/** Beads threaded on undulating strings - the "beads with tune" look. */
 const beads: CanvasTemplate = {
   id: "beads",
   name: "Beads on a String",
@@ -486,7 +486,7 @@ const beads: CanvasTemplate = {
 const nebula: CanvasTemplate = {
   id: "nebula",
   name: "Nebula (WMP feedback)",
-  blurb: "the old-school trippy fractal , feedback zoom blooms on the beat",
+  blurb: "the old-school trippy fractal - feedback zoom blooms on the beat",
   kind: "canvas2d",
   clearEachFrame: false,
   draw(ctx, f) {
@@ -528,7 +528,7 @@ const nebula: CanvasTemplate = {
   },
 };
 
-/** Radial spectrum , like the RGB lights on a keyboard, around a ring. */
+/** Radial spectrum - like the RGB lights on a keyboard, around a ring. */
 const radial: CanvasTemplate = {
   id: "radial",
   name: "Radial Spectrum",
@@ -715,7 +715,7 @@ const starfield: CanvasTemplate = {
 const synthwave: CanvasTemplate = {
   id: "synthwave",
   name: "Synthwave Grid",
-  blurb: "retro neon horizon , grid scrolls with the bass, sun glows by key",
+  blurb: "retro neon horizon - grid scrolls with the bass, sun glows by key",
   kind: "canvas2d",
   draw(ctx, f) {
     const { w, h, params } = f;
@@ -771,7 +771,7 @@ const synthwave: CanvasTemplate = {
 };
 
 /* ------------------------------------------------------------------ *
- * Shader templates (GLSL ES 1.00 , define mainImage; see SHADER_PRELUDE)
+ * Shader templates (GLSL ES 1.00 - define mainImage; see SHADER_PRELUDE)
  * ------------------------------------------------------------------ */
 
 const plasma: ShaderTemplate = {
@@ -872,7 +872,7 @@ interface StoredTemplate {
 
 /**
  * Compile a user canvas-template body into a draw function. The body runs with
- * (ctx, f, state, helpers) in scope. This executes user-authored JS , fine for
+ * (ctx, f, state, helpers) in scope. This executes user-authored JS - fine for
  * a local experimentation lab; templates are only ever loaded from this
  * device's localStorage, never from the network.
  */

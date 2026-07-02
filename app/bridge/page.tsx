@@ -9,7 +9,7 @@ import { HeatmapBar } from "@/components/HeatmapBar";
 
 /**
  * Generated-bridge mode: instead of blending A into B, an AI-composed clip
- * (Claude prompt → MusicGen) is inserted between them , starts in A's world,
+ * (Claude prompt → MusicGen) is inserted between them - starts in A's world,
  * ends in B's. Generation takes ~30-90s, so it renders while A plays.
  */
 export default function BridgePage() {
@@ -76,7 +76,7 @@ export default function BridgePage() {
       bridge = await getEngine().decode(await res.arrayBuffer());
       bridgeBuf.current = bridge;
     } catch (e) {
-      // LOUD failure , the user must know no bridge was generated
+      // LOUD failure - the user must know no bridge was generated
       setFallback(
         `NO BRIDGE GENERATED: ${e instanceof Error ? e.message : "unknown error"}. ` +
           `Playing a plain crossfade instead.`
@@ -86,7 +86,7 @@ export default function BridgePage() {
       return;
     }
 
-    setStatus("bridge ready , dropping it in…");
+    setStatus("bridge ready - dropping it in…");
     const bridgeAnalysis = await analyzeTrack(bridge);
     getEngine().onTransitionEnd = null;
     // fast 1.2s entry so nearly the whole generated clip is heard in the clear
@@ -163,7 +163,7 @@ export default function BridgePage() {
         <button
           onClick={go}
           disabled={!a || !b || phase === "A" || phase === "bridge"}
-          className="rounded-lg bg-fuchsia-600 px-5 py-2 font-semibold hover:bg-fuchsia-500 disabled:opacity-40"
+          className="rounded-lg bg-cyan-600 px-5 py-2 font-semibold hover:bg-cyan-500 disabled:opacity-40"
         >
           🌉 Play A → bridge → B
         </button>
@@ -179,7 +179,7 @@ export default function BridgePage() {
         </button>
         {phase !== "idle" && (
           <span className="self-center text-sm text-zinc-400">
-            phase: <b className="text-fuchsia-300">{phase}</b>
+            phase: <b className="text-cyan-300">{phase}</b>
           </span>
         )}
       </div>
@@ -196,13 +196,13 @@ export default function BridgePage() {
         </div>
       )}
       {phase === "bridge" && (
-        <div className="animate-pulse rounded-xl border-2 border-fuchsia-500 bg-fuchsia-950/40 p-4 text-center text-lg font-bold text-fuchsia-200">
+        <div className="animate-pulse rounded-xl border-2 border-cyan-500 bg-cyan-950/40 p-4 text-center text-lg font-bold text-cyan-200">
           🌉 GENERATED BRIDGE PLAYING
         </div>
       )}
 
       {prompt && (
-        <div className="rounded-xl border border-fuchsia-900/50 bg-fuchsia-950/20 p-4 text-sm">
+        <div className="rounded-xl border border-cyan-900/50 bg-cyan-950/20 p-4 text-sm">
           <p className="text-xs uppercase text-zinc-500">bridge brief</p>
           <p className="text-zinc-300">{prompt}</p>
         </div>

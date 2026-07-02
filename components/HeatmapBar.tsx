@@ -75,7 +75,7 @@ export function HeatmapBar({
               width: `${Math.max(0.5, ((p.end - p.start) / d) * 100)}%`,
               height: `${Math.max(8, p.value * 100)}%`,
             }}
-            className="absolute bottom-0 bg-fuchsia-700/70"
+            className="absolute bottom-0 bg-cyan-700/70"
           />
         ))}
       </div>
@@ -96,9 +96,9 @@ export function HeatmapBar({
       {dragFrac !== null && (
         <div
           style={{ left: `${dragFrac * 100}%` }}
-          className="absolute top-0 h-full w-0.5 bg-fuchsia-300"
+          className="absolute top-0 h-full w-0.5 bg-cyan-300"
         >
-          <span className="absolute -top-0.5 left-1.5 rounded bg-zinc-950/90 px-1 text-[9px] tabular-nums text-fuchsia-300">
+          <span className="absolute -top-0.5 left-1.5 rounded bg-zinc-950/90 px-1 text-[9px] tabular-nums text-cyan-300">
             {Math.floor((dragFrac * d) / 60)}:
             {String(Math.floor((dragFrac * d) % 60)).padStart(2, "0")}
           </span>

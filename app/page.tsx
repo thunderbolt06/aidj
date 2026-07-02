@@ -5,6 +5,12 @@ import Link from "next/link";
 import type { Track } from "@/lib/types";
 import { getEngine, loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
+import {
+  TOP_LANGUAGES,
+  MORE_LANGUAGES,
+  getSelectedLanguageLabels,
+  useLanguagePrefs,
+} from "@/lib/client/langPrefs";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { BeatTapButton } from "@/components/BeatTapPulse";
@@ -29,15 +35,96 @@ interface Suggestion {
 const tagColor = {
   safe: "border-emerald-700",
   shift: "border-amber-600",
-  wild: "border-fuchsia-600",
+  wild: "border-violet-500",
 };
 
-const VIBE_CHIPS = [
+// every situation someone reaches for audio - shuffled a chunk at a time so
+// the hero doesn't turn into a wall of pills; "🔀 more" resamples the pool.
+// Not just songs: genres, game/movie scores, and spoken-word all work too -
+// the AI picks real, findable content matching whatever the chip asks for.
+const VIBE_CHIP_POOL = [
   "singable road trip",
+  "study focus session",
+  "high session",
+  "background for a house party",
+  "chill music while we chat",
+  "fashion store playlist",
+  "jam session with friends",
   "sangeet bangers",
   "2010s pop anthems",
   "late night chill",
+  "love time, slow and romantic",
+  "movie dialogues mashup",
+  "reels time - short viral hooks",
+  "meme time - funny songs",
+  "bhajan time",
+  "gym workout time",
+  "sad boi hours",
+  "breakup healing",
+  "rainy day mood",
+  "morning routine energizer",
+  "cooking in the kitchen",
+  "pre-game hype",
+  "long night drive",
+  "coffee shop acoustic",
+  "yoga and meditation",
+  "cleaning the house",
+  "shower singing",
+  "exam stress relief",
+  "airport lounge / traveling",
+  "garba and dandiya night",
+  "diwali party",
+  "holi splash",
+  "office lo-fi background",
+  "birthday party bangers",
+  "late night coding",
+  "wedding baraat",
+  "anime opening hype",
+  "retro 90s bollywood",
+  "k-drama feels",
+  "poolside chill",
+  // genres
+  "afrobeats",
+  "techno",
+  "EDM festival set",
+  "deep house",
+  "trance journey",
+  "drum and bass",
+  "dubstep bass drops",
+  "reggae and dancehall",
+  "funk and disco",
+  "city pop",
+  "flamenco",
+  "sufi and qawwali",
+  "carnatic classical",
+  "old school hip hop",
+  "trap bangers",
+  "synthwave",
+  "ambient soundscapes",
+  // non-song audio
+  "motivational speeches",
+  "true crime podcast",
+  "comedy podcast clips",
+  "famous game soundtracks",
+  "movie score iconic themes",
+  "TED talk highlights",
+  "standup comedy clips",
+  "ASMR and rain sounds",
+  "white noise for sleep",
+  "nature and forest sounds",
 ];
+
+// how many chips show on the hero at once before you have to hit "more"
+const CHIP_DISPLAY_COUNT = 16;
+
+function sampleChips(n: number): string[] {
+  const copy = [...VIBE_CHIP_POOL];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
 
 const HOLD_MS = 350; // press shorter than this = tap, longer = hold
 
@@ -55,10 +142,32 @@ export default function HomePage() {
   const [holding, setHolding] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [moreLangOpen, setMoreLangOpen] = useState(false);
+  const { selected: langSelected, toggle: toggleLang } = useLanguagePrefs();
+  // deterministic on first paint (matches SSR), reshuffled client-side after
+  // mount so refreshing/tapping shuffle surfaces different situations
+  const [vibeChips, setVibeChips] = useState(() =>
+    VIBE_CHIP_POOL.slice(0, CHIP_DISPLAY_COUNT)
+  );
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdingRef = useRef(false);
   const dragFrom = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setVibeChips(sampleChips(CHIP_DISPLAY_COUNT));
+  }, []);
+
+  // settings dropdown closes when you click anywhere else
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const close = (e: PointerEvent) => {
+      if (!settingsRef.current?.contains(e.target as Node)) setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [settingsOpen]);
 
   // spacebar: quick tap extends interest, hold+release transitions
   useEffect(() => {
@@ -98,6 +207,49 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mix.running, tapToExtend]);
 
+  // hardware/OS media keys (headphones, keyboard, lock screen, car stereo):
+  // play/pause → our pause toggle, next → NEXT's plain-skip tap, and — since
+  // there's no "previous song" here (it's a one-way DJ set) — back → the clap
+  // button, so the physical back button becomes "keep this one going".
+  const mixRef = useRef(mix);
+  mixRef.current = mix;
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    if (!mix.running) return;
+    const ms = navigator.mediaSession;
+    ms.setActionHandler("play", () => mixRef.current.togglePause());
+    ms.setActionHandler("pause", () => mixRef.current.togglePause());
+    ms.setActionHandler("nexttrack", () => mixRef.current.hopNow());
+    ms.setActionHandler("previoustrack", () => mixRef.current.tapInterest());
+    return () => {
+      ms.setActionHandler("play", null);
+      ms.setActionHandler("pause", null);
+      ms.setActionHandler("nexttrack", null);
+      ms.setActionHandler("previoustrack", null);
+    };
+  }, [mix.running]);
+
+  // keep the OS-level playback state and now-playing card in sync
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = !mix.running
+      ? "none"
+      : mix.paused
+        ? "paused"
+        : "playing";
+  }, [mix.running, mix.paused]);
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    if (!mix.now) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: mix.now.meta.title,
+      artist: mix.now.meta.artist,
+      artwork: mix.now.meta.thumbnail
+        ? [{ src: mix.now.meta.thumbnail, sizes: "512x512", type: "image/jpeg" }]
+        : [],
+    });
+  }, [mix.now]);
+
   // NEXT button: quick tap = skip now; press & hold = tension builds,
   // release = drop (same contract as spacebar-hold).
   function nextDown() {
@@ -126,7 +278,10 @@ export default function HomePage() {
       const res = await fetch("/api/ai/suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: `${current.title} - ${current.artist}` }),
+        body: JSON.stringify({
+          current: `${current.title} - ${current.artist}`,
+          languages: getSelectedLanguageLabels(),
+        }),
       });
       if (!res.ok) return;
       const { suggestions } = (await res.json()) as {
@@ -164,7 +319,7 @@ export default function HomePage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({ prompt: text, languages: getSelectedLanguageLabels() }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
       const plan = (await res.json()) as { queries: string[] };
@@ -211,39 +366,81 @@ export default function HomePage() {
   // top bar shared by both layouts: logo left, settings + features right
   const cornerNav = (
     <div className="fixed inset-x-4 top-4 z-30 flex items-center justify-between gap-2">
-      <Link href="/" className="text-lg font-bold">
-        Ever<span className="text-fuchsia-500">play</span>
+      <Link href="/" className="flex items-center gap-1.5 text-lg font-bold">
+        <span className="text-2xl leading-none text-cyan-400 [text-shadow:0_0_12px_rgba(34,211,238,0.8)]">
+          ∞
+        </span>
+        Ever<span className="text-cyan-400">play</span>
       </Link>
       <div className="flex items-center gap-2">
-        <div className="relative">
+        <div className="relative" ref={settingsRef}>
           <button
             onClick={() => setSettingsOpen((o) => !o)}
-            className="rounded-full border border-zinc-700 bg-zinc-950/80 px-4 py-1.5 text-sm text-zinc-300 backdrop-blur transition hover:border-fuchsia-600 hover:text-fuchsia-300"
+            className="rounded-full border border-zinc-700 bg-zinc-950/80 px-4 py-1.5 text-sm text-zinc-300 backdrop-blur transition hover:border-cyan-600 hover:text-cyan-300"
           >
             ⚙ Settings
           </button>
           {settingsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/95 p-4 text-sm text-zinc-300 shadow-xl backdrop-blur">
-              <label
-                className="flex items-center gap-2"
-                title="Off = no clap-along button; songs run on AI timing only"
-              >
-                <input
-                  type="checkbox"
-                  checked={tapToExtend}
-                  onChange={(e) => setTapToExtend(e.target.checked)}
-                />
-                👏 Tap to extend
-              </label>
+            <div className="absolute right-0 top-full mt-2 w-80 space-y-4 rounded-xl border border-zinc-800 bg-zinc-950/95 p-4 text-sm text-zinc-300 shadow-xl backdrop-blur">
               <p className="text-xs text-zinc-500">
                 space: tap = keep · hold = drop
               </p>
+
+              <div className="space-y-2 border-t border-zinc-800 pt-3">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                  title="Biases every AI song pick (vibe prompts, 9-grid, Sing-It Showdown) toward these languages. None selected = no constraint."
+                >
+                  🌐 Song languages
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TOP_LANGUAGES.map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => toggleLang(l.code)}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                        langSelected.includes(l.code)
+                          ? "border-cyan-500 bg-cyan-600/20 text-cyan-300"
+                          : "border-zinc-700 text-zinc-400 hover:border-cyan-700"
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setMoreLangOpen((o) => !o)}
+                    className="rounded-full border border-dashed border-zinc-700 px-2.5 py-1 text-xs text-zinc-500 hover:border-cyan-700 hover:text-cyan-300"
+                  >
+                    {moreLangOpen ? "− less" : "+ more"}
+                  </button>
+                </div>
+                {moreLangOpen && (
+                  <div className="flex flex-wrap gap-1.5 border-t border-zinc-900 pt-2">
+                    {MORE_LANGUAGES.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => toggleLang(l.code)}
+                        className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                          langSelected.includes(l.code)
+                            ? "border-cyan-500 bg-cyan-600/20 text-cyan-300"
+                            : "border-zinc-700 text-zinc-400 hover:border-cyan-700"
+                        }`}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {langSelected.length === 0 && (
+                  <p className="text-[11px] text-zinc-600">none selected - mixes everything</p>
+                )}
+              </div>
             </div>
           )}
         </div>
         <Link
           href="/features"
-          className="rounded-full border border-zinc-700 bg-zinc-950/80 px-4 py-1.5 text-sm text-zinc-300 backdrop-blur transition hover:border-fuchsia-600 hover:text-fuchsia-300"
+          className="rounded-full border border-zinc-700 bg-zinc-950/80 px-4 py-1.5 text-sm text-zinc-300 backdrop-blur transition hover:border-cyan-600 hover:text-cyan-300"
         >
           ⚗ Features
         </Link>
@@ -258,8 +455,11 @@ export default function HomePage() {
         {/* idle hero: prompt-first, like a streaming app's search-first home */}
         <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center">
           <div>
-            <h1 className="text-4xl font-bold">
-              Ever<span className="text-fuchsia-500">play</span>
+            <p className="text-6xl leading-none text-cyan-400 [text-shadow:0_0_28px_rgba(34,211,238,0.9)]">
+              ∞
+            </p>
+            <h1 className="mt-2 text-4xl font-bold">
+              Ever<span className="text-cyan-400">play</span>
             </h1>
             <p className="mt-2 max-w-md text-sm text-zinc-400">
               Tell it a vibe. It plays only the famous parts, transitions like
@@ -273,25 +473,33 @@ export default function HomePage() {
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && buildVibe(prompt)}
               placeholder="What are we in the mood for?"
-              className="flex-1 rounded-full border border-zinc-700 bg-zinc-900 px-5 py-3 outline-none focus:border-fuchsia-500"
+              className="flex-1 rounded-full border border-zinc-700 bg-zinc-900 px-5 py-3 outline-none focus:border-cyan-500"
             />
             <button
               onClick={() => buildVibe(prompt)}
-              className="rounded-full bg-fuchsia-600 px-6 py-3 font-semibold hover:bg-fuchsia-500"
+              disabled={!!busy}
+              className="rounded-full bg-cyan-600 px-6 py-3 font-semibold shadow-[0_0_20px_rgba(34,211,238,0.35)] transition hover:bg-cyan-500 disabled:opacity-50 disabled:shadow-none"
             >
-              Mix it
+              {busy ? "…" : "Mix it"}
             </button>
           </div>
-          <div className="flex flex-wrap justify-center gap-2">
-            {VIBE_CHIPS.map((c) => (
+          <div className="flex max-w-2xl flex-wrap justify-center gap-2">
+            {vibeChips.map((c) => (
               <button
                 key={c}
                 onClick={() => buildVibe(c)}
-                className="rounded-full border border-zinc-800 px-4 py-1.5 text-sm text-zinc-400 transition hover:border-fuchsia-600 hover:text-fuchsia-300"
+                className="rounded-full border border-zinc-800 px-4 py-1.5 text-sm text-zinc-400 transition hover:border-cyan-600 hover:text-cyan-300"
               >
                 {c}
               </button>
             ))}
+            <button
+              onClick={() => setVibeChips(sampleChips(CHIP_DISPLAY_COUNT))}
+              title="Show different vibes"
+              className="rounded-full border border-dashed border-zinc-700 px-4 py-1.5 text-sm text-zinc-500 transition hover:border-cyan-600 hover:text-cyan-300"
+            >
+              🔀 more
+            </button>
           </div>
           {busy && <p className="animate-pulse text-sm text-amber-400">{busy}</p>}
         </div>
@@ -303,7 +511,7 @@ export default function HomePage() {
   // shrinks to fit above the dock via flexbox, and the 9-grid fills whatever
   // space is left via a real grid-template (pure CSS, reflows on any resize).
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-zinc-950">
+    <div className="fixed inset-0 flex flex-col overflow-hidden">
       {cornerNav}
 
       <div className="mx-auto flex w-full max-w-3xl min-h-0 flex-1 flex-col gap-3 overflow-hidden px-6 pb-3 pt-16">
@@ -318,11 +526,11 @@ export default function HomePage() {
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && buildVibe(prompt)}
             placeholder="Change the vibe mid-set…"
-            className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-fuchsia-500"
+            className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-cyan-500"
           />
           <button
             onClick={() => buildVibe(prompt)}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-fuchsia-600"
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-cyan-600"
           >
             Re-vibe
           </button>
@@ -402,12 +610,12 @@ export default function HomePage() {
                   <span className="ml-1.5">· {mix.now.analysis.bpm} BPM</span>
                 )}
                 {mix.now?.analysis.camelot && (
-                  <span className="ml-1 text-sky-500">
+                  <span className="ml-1 text-violet-400">
                     · {mix.now.analysis.camelot}
                   </span>
                 )}
                 {mix.lastPlan && (
-                  <span className="ml-1.5 text-fuchsia-400">
+                  <span className="ml-1.5 text-cyan-400">
                     · {mix.lastPlan.style}
                   </span>
                 )}
@@ -433,7 +641,7 @@ export default function HomePage() {
               {/* NEXT: tap = skip · hold = tension builds · release = drop */}
               <span className="relative">
                 {holding && (
-                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] text-fuchsia-400">
+                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] text-cyan-400">
                     release to drop
                   </span>
                 )}
@@ -444,8 +652,8 @@ export default function HomePage() {
                   onPointerLeave={() => nextUp(false)}
                   className={`select-none rounded-full px-5 py-2.5 text-sm font-bold transition ${
                     holding
-                      ? "animate-pulse bg-fuchsia-500"
-                      : "bg-fuchsia-600 hover:bg-fuchsia-500"
+                      ? "animate-pulse bg-cyan-500 shadow-[0_0_28px_rgba(34,211,238,0.7)]"
+                      : "bg-cyan-600 shadow-[0_0_16px_rgba(34,211,238,0.3)] hover:bg-cyan-500"
                   }`}
                   title="Tap to skip - or hold to build tension and release to drop"
                 >
@@ -460,7 +668,7 @@ export default function HomePage() {
             <div className="max-h-56 space-y-2 overflow-y-auto border-t border-zinc-900 py-3">
               <SearchPicker
                 placeholder="Add a song to the playlist…"
-                onPick={(t) => mix.setQueue((q) => [...q, t])}
+                onPick={(t) => mix.addNext(t)}
               />
               <ul className="space-y-1 text-sm">
                 {mix.queue.map((t, i) => (
@@ -476,7 +684,7 @@ export default function HomePage() {
                     }}
                     className={`flex items-center justify-between gap-2 rounded px-3 py-1.5 ${
                       i === mix.nowIdx
-                        ? "bg-fuchsia-950/40 text-fuchsia-300"
+                        ? "bg-cyan-950/40 text-cyan-300"
                         : "bg-zinc-900"
                     }`}
                   >

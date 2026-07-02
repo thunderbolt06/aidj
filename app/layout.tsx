@@ -15,7 +15,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Everplay",
-  description: "Intent-based music with AI-generated transitions",
+  description: "Tell it a vibe. It plays only the famous parts, transitions like a DJ, and never stops.",
+  openGraph: {
+    title: "Everplay",
+    description: "Tell it a vibe. It plays only the famous parts, transitions like a DJ, and never stops.",
+    siteName: "Everplay",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Everplay",
+    description: "Tell it a vibe. It plays only the famous parts, transitions like a DJ, and never stops.",
+  },
 };
 
 export const viewport: Viewport = {

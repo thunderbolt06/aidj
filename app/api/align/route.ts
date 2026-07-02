@@ -16,7 +16,7 @@ const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const EXTRACTOR_TOKEN = process.env.EXTRACTOR_TOKEN || "";
 
 /**
- * Produce a 16kHz mono mp3 window for Whisper , from the extractor's /clip
+ * Produce a 16kHz mono mp3 window for Whisper - from the extractor's /clip
  * endpoint when remote (no ffmpeg on Vercel), or local ffmpeg otherwise.
  */
 async function makeClip(

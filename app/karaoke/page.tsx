@@ -48,7 +48,7 @@ export default function KaraokePage() {
       .catch((e) => {
         setStemStatus("failed");
         setStatus(
-          `⚠ vocal stripping failed (${e instanceof Error ? e.message : e}) , you can still sing over the original`
+          `⚠ vocal stripping failed (${e instanceof Error ? e.message : e}) - you can still sing over the original`
         );
       });
   }
@@ -61,7 +61,7 @@ export default function KaraokePage() {
     setStemStatus("idle");
     setPlaying(false);
     getEngine().stop();
-    warmInstrumental(t.id); // start the slow job first , it dominates the wait
+    warmInstrumental(t.id); // start the slow job first - it dominates the wait
     const [l, ly] = await Promise.all([
       loadTrack(t.id, setStatus).catch(() => null),
       fetchLyrics(t),
@@ -69,7 +69,7 @@ export default function KaraokePage() {
     setLoaded(l);
     setLyrics(ly.lines);
     setSynced(ly.synced);
-    setStatus(ly.lines.length ? "" : "no lyrics found , try another version");
+    setStatus(ly.lines.length ? "" : "no lyrics found - try another version");
   }
 
   /** The buffer we should be singing over right now. */
@@ -109,9 +109,9 @@ export default function KaraokePage() {
       <header>
         <h1 className="text-2xl font-bold">Karaoke</h1>
         <p className="text-sm text-zinc-400">
-          Real karaoke: the vocals are stripped off, the lyrics stay on screen ,
+          Real karaoke: the vocals are stripped off, the lyrics stay on screen,
           you are the singer. Want songs chained by their lyrics? That moved to{" "}
-          <Link href="/lyricdj" className="text-fuchsia-400 underline">
+          <Link href="/lyricdj" className="text-cyan-400 underline">
             Lyric DJ
           </Link>
           .
@@ -139,7 +139,7 @@ export default function KaraokePage() {
         <button
           onClick={() => play(0)}
           disabled={!loaded || !lyrics.length || waitingOnStem}
-          className="rounded-lg bg-fuchsia-600 px-5 py-2 font-semibold hover:bg-fuchsia-500 disabled:opacity-40"
+          className="rounded-lg bg-cyan-600 px-5 py-2 font-semibold hover:bg-cyan-500 disabled:opacity-40"
         >
           {waitingOnStem ? "⏳ preparing karaoke…" : "▶ Sing"}
         </button>
@@ -185,7 +185,7 @@ export default function KaraokePage() {
               onClick={() => play(l.time)}
               className={`cursor-pointer text-lg transition ${
                 currentLine?.time === l.time
-                  ? "scale-105 font-bold text-fuchsia-300"
+                  ? "scale-105 font-bold text-cyan-300"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >

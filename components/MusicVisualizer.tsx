@@ -78,7 +78,7 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
 
   // resolve + prepare the active template whenever the selection changes.
   // setShaderError here surfaces the result of an external system (the WebGL
-  // compile) into React , a legitimate effect→setState sync.
+  // compile) into React - a legitimate effect→setState sync.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const t = getTemplate(templateId);
@@ -278,8 +278,8 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
                 title={t.blurb}
                 className={`rounded-full px-3 py-1 text-xs ${
                   t.id === templateId
-                    ? "bg-fuchsia-600 text-white"
-                    : "border border-zinc-700 text-zinc-300 hover:border-fuchsia-600"
+                    ? "bg-cyan-600 text-white"
+                    : "border border-zinc-700 text-zinc-300 hover:border-cyan-600"
                 }`}
               >
                 {t.kind === "shader" ? "◆" : "●"} {t.name}
@@ -317,13 +317,13 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !aiBusy && generateAI()}
-              placeholder="Describe a vibe , 'neon city rain', 'psychedelic 70s', 'deep space'…"
+              placeholder="Describe a vibe - 'neon city rain', 'psychedelic 70s', 'deep space'…"
               className="min-w-[200px] flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
             />
             <button
               onClick={generateAI}
               disabled={aiBusy}
-              className="rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+              className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {aiBusy ? "composing…" : "🎬 Generate"}
             </button>
@@ -335,7 +335,7 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
             </button>
           </div>
           {aiError && <p className="text-xs text-red-400">{aiError}</p>}
-          {reasoning && <p className="text-xs text-fuchsia-300">{reasoning}</p>}
+          {reasoning && <p className="text-xs text-cyan-300">{reasoning}</p>}
 
           {editorOpen && (
             <CustomEditor
@@ -367,13 +367,13 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full accent-fuchsia-500"
+        className="w-full accent-cyan-500"
       />
     </label>
   );
 }
 
-const SHADER_STARTER = `// GLSL ES 1.00 , define mainImage. Uniforms available:
+const SHADER_STARTER = `// GLSL ES 1.00 - define mainImage. Uniforms available:
 //   iResolution, iTime, iLevel, iLow, iMid, iHigh,
 //   iBeat, iBeatPulse, iBar, iOnset, iHue, iKeyColor,
 //   iChroma[12], and fft(x)/wave(x) (x in 0..1).
@@ -384,7 +384,7 @@ void mainImage(out vec4 o, in vec2 fc){
   o = vec4(col + iKeyColor*iLow*0.4, 1.0);
 }`;
 
-const CANVAS_STARTER = `// Canvas2D , 'ctx' (2D context), 'f' (VizFrame), 'state' (your object),
+const CANVAS_STARTER = `// Canvas2D - 'ctx' (2D context), 'f' (VizFrame), 'state' (your object),
 // 'helpers' = { hsl, pitchClassHue, specAt, pulse }. Coords are CSS pixels.
 const { hsl } = helpers;
 const cx = f.w/2, cy = f.h/2;

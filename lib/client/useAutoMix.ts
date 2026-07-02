@@ -12,6 +12,7 @@ import {
   type LoadedTrack,
 } from "@/lib/client/dj";
 import { camelotCompatible } from "@/lib/audio/analysis";
+import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { timeStretchBuffer } from "@/lib/audio/timestretch";
 import {
   arcEnergyAt,
@@ -138,7 +139,7 @@ interface ArcScoreCtx {
  * Score a candidate's analysis against the arc target. Higher is better.
  * Combines three things a DJ weighs when picking the next record:
  *  1. tempo proximity to where the arc wants to be (octave-folded),
- *  2. moving the tempo in the RIGHT DIRECTION , up while building, down while
+ *  2. moving the tempo in the RIGHT DIRECTION - up while building, down while
  *     winding down (so it works for every arc shape, rising or falling),
  *  3. harmonic continuity with the current track.
  */
@@ -217,10 +218,10 @@ export function useAutoMix() {
   /**
    * Arc-aware song selection. Without this, the queue plays strictly FIFO and
    * the actual BPM of the next track is whatever the suggester/search happened
-   * to land on , so a "build" set could hop to a slower song. Here we look at
+   * to land on - so a "build" set could hop to a slower song. Here we look at
    * the next few unplayed candidates, ANALYZE them (cached/prefetched), score
-   * each against where the arc is headed , including the tempo DIRECTION, so it
-   * climbs on a build and eases off on a wind-down , and pull the best fit to
+   * each against where the arc is headed - including the tempo DIRECTION, so it
+   * climbs on a build and eases off on a wind-down - and pull the best fit to
    * the front of the upcoming queue. Tracks that don't fit now stay in the
    * queue for a phase where they will. No-op when no arc is running.
    */
@@ -232,7 +233,7 @@ export function useAutoMix() {
     const window = s.queue.slice(startIdx, startIdx + 4);
     if (window.length < 2) return; // nothing to choose between
 
-    // Sample the arc a little AHEAD , at roughly when this hop will land , so a
+    // Sample the arc a little AHEAD - at roughly when this hop will land - so a
     // moving target (build/wind-down) is matched to the future, not the present.
     const elapsedMin = (Date.now() - s.arcStartedAt) / 60000;
     const dur = Math.max(1, arc.durationMin);
@@ -248,7 +249,7 @@ export function useAutoMix() {
     };
 
     // Load+analyze candidates (cached/prefetched); cap the wait so prepare-ahead
-    // never stalls on a slow download , unresolved candidates are simply skipped.
+    // never stalls on a slow download - unresolved candidates are simply skipped.
     const loaded = await Promise.all(
       window.map((t) =>
         Promise.race([
@@ -288,11 +289,34 @@ export function useAutoMix() {
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setQueue(q: Track[] | ((prev: Track[]) => Track[])) {
-    // st.current.queue must update synchronously , pages call start()
+    // st.current.queue must update synchronously - pages call start()
     // right after setQueue, before React flushes state
     const next = typeof q === "function" ? q(st.current.queue) : q;
     st.current.queue = next;
     setQueueState(next);
+  }
+
+  /**
+   * Add a track as the very next song (right after the one playing now),
+   * not tacked onto the end - searching for a song mid-set means "play this
+   * next", not "queue it for eventually". Before a set has started there's no
+   * "next" yet, so it just appends in search order like before.
+   */
+  function addNext(track: Track) {
+    const s = st.current;
+    if (!s.running || s.nowIdx < 0) {
+      setQueue((q) => [...q, track]);
+      return;
+    }
+    setQueue((q) => {
+      const copy = q.slice();
+      copy.splice(s.nowIdx + 1, 0, track);
+      return copy;
+    });
+    // whatever was prepared as "next" is now one slot further out - re-target
+    // prepare-ahead (and the auto-hop timer) at the newly-inserted track
+    s.prepared = null;
+    prepareNext();
   }
 
   function stop() {
@@ -395,7 +419,7 @@ export function useAutoMix() {
         if (!current) return null;
         const target = track ?? s.queue[(s.nowIdx + 1) % s.queue.length];
         if (!target) return null;
-        // already prepared & armed for this target , leave it (and nextReady) be
+        // already prepared & armed for this target - leave it (and nextReady) be
         if (s.prepared?.trackId === target.id) return s.prepared;
 
         setNextReady(false);
@@ -428,7 +452,7 @@ export function useAutoMix() {
         const prepared: Prepared = { trackId: target.id, next, plan };
 
         // key-lock: pre-stretch B (pitch-preserved) to A's tempo so beat-match
-        // doesn't detune it , done now, during prepare-ahead, never at hop time
+        // doesn't detune it - done now, during prepare-ahead, never at hop time
         if (st.current.opts.keyLock && plan.beatMatch) {
           const m = buildMatched(
             getEngine().ctx,
@@ -484,7 +508,7 @@ export function useAutoMix() {
       // cap 150s so the set keeps moving; floor at the remaining time to minPlay
       waitSec = Math.min(Math.max(target - pos, minPlay - pos, 20), 150);
       // arc director: peak sections hop faster (rapid-fire hooks), chill
-      // sections linger , pace the clip length to the current target energy
+      // sections linger - pace the clip length to the current target energy
       const arc = currentArc();
       if (arc) {
         const arcClip = clipLenForEnergy(arc.energy);
@@ -495,7 +519,7 @@ export function useAutoMix() {
     } else {
       waitSec = clipLen;
     }
-    // interest taps: the user claimed more of this song , never hop inside it
+    // interest taps: the user claimed more of this song - never hop inside it
     waitSec = Math.max(waitSec, st.current.interestUntil - pos);
     st.current.hopTargetPos = pos + waitSec;
     timer.current = setTimeout(() => hopNow(), waitSec * 1000);
@@ -504,7 +528,7 @@ export function useAutoMix() {
   /**
    * "I like this one" tap (spacebar/button): guarantee at least `minMoreSec`
    * more of the current song. Tapping at 5s extends the floor to 20s, at 10s
-   * to 25s, and so on , an armed auto-hop inside the window is pushed back.
+   * to 25s, and so on - an armed auto-hop inside the window is pushed back.
    */
   function tapInterest(minMoreSec = 15) {
     const s = st.current;
@@ -549,7 +573,7 @@ export function useAutoMix() {
       }
       await executeHop(prepared);
     } catch (e) {
-      setStatus(`hop failed: ${e instanceof Error ? e.message : e} , skipping`);
+      setStatus(`hop failed: ${e instanceof Error ? e.message : e} - skipping`);
       // never stall the set: drop the bad track and prepare the following one
       const s2 = st.current;
       const badIdx = (s2.nowIdx + 1) % s2.queue.length;
@@ -595,7 +619,7 @@ export function useAutoMix() {
     const { next, plan } = prepared;
     const engine = getEngine();
 
-    // beat-grid quantization is handled INSIDE the engine now , every ramp
+    // beat-grid quantization is handled INSIDE the engine now - every ramp
     // and source start is scheduled on the AudioContext clock against the
     // next phrase boundary, so drops land sample-accurate (no timer drift)
     const quantizeBeats = s.opts.quantize ? (s.opts.quantizeBeats ?? 16) : undefined;
@@ -604,7 +628,7 @@ export function useAutoMix() {
       if (wait > 1) setStatus(`dropping on the phrase in ${wait.toFixed(1)}s…`);
     }
 
-    // stem-aware acapella-in: needs B's vocal stem ready , never block the hop
+    // stem-aware acapella-in: needs B's vocal stem ready - never block the hop
     let stemVocal: AudioBuffer | undefined;
     if (plan.style === "stem_acapella" && s.opts.stems) {
       try {
@@ -624,7 +648,7 @@ export function useAutoMix() {
 
     if (s.opts.maxTransitionDur && plan.style !== "cut")
       plan.duration = Math.min(plan.duration, s.opts.maxTransitionDur);
-    // interest taps apply to the song they were tapped on , reset for the next
+    // interest taps apply to the song they were tapped on - reset for the next
     s.interestUntil = 0;
     setInterestUntil(0);
     plan.outPoint = engine.position();
@@ -686,7 +710,7 @@ export function useAutoMix() {
     const remaining = s.queue.length - 1 - s.nowIdx;
     if (remaining >= 4) return;
     // 1-song start: with nothing else queued, prepare-ahead locked onto the
-    // current song itself , remember so we can re-aim it at the fresh tracks
+    // current song itself - remember so we can re-aim it at the fresh tracks
     const wasStarved = remaining <= 0;
     s.refilling = true;
     try {
@@ -705,10 +729,11 @@ export function useAutoMix() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          current: `${currentTrack.title} , ${currentTrack.artist}`,
+          current: `${currentTrack.title} - ${currentTrack.artist}`,
           arc: arc
             ? { energy: +arc.energy.toFixed(2), phase: arc.phase, bpm: arc.bpm }
             : undefined,
+          languages: getSelectedLanguageLabels(),
         }),
       });
       if (!res.ok) return;
@@ -818,6 +843,7 @@ export function useAutoMix() {
   return {
     queue,
     setQueue,
+    addNext,
     running,
     paused,
     nowIdx,

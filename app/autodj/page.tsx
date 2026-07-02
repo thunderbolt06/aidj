@@ -68,7 +68,7 @@ export default function AutoDjPage() {
 
       <SearchPicker
         placeholder="Add songs to the queue…"
-        onPick={(t) => mix.setQueue((q) => [...q, t])}
+        onPick={(t) => mix.addNext(t)}
       />
 
       {mix.queue.length > 0 && (
@@ -78,7 +78,7 @@ export default function AutoDjPage() {
               key={`${t.id}-${i}`}
               className={`flex items-center justify-between rounded px-3 py-1.5 ${
                 i === mix.nowIdx
-                  ? "bg-fuchsia-950/40 text-fuchsia-300"
+                  ? "bg-cyan-950/40 text-cyan-300"
                   : "bg-zinc-900"
               }`}
             >
@@ -109,7 +109,7 @@ export default function AutoDjPage() {
             onClick={() => setClipLen(len)}
             className={`rounded-lg px-4 py-2 text-sm ${
               clipLen === len
-                ? "bg-fuchsia-600"
+                ? "bg-cyan-600"
                 : "border border-zinc-700 text-zinc-300"
             }`}
           >
@@ -170,7 +170,7 @@ export default function AutoDjPage() {
         </label>
         <label
           className="flex items-center gap-2 text-sm text-zinc-300"
-          title="Tap spacebar (or the pad) on the beat to keep a song you like playing , each tap guarantees 15 more seconds. Turn off for smooth hands-free listening."
+          title="Tap spacebar (or the pad) on the beat to keep a song you like playing - each tap guarantees 15 more seconds. Turn off for smooth hands-free listening."
         >
           <input
             type="checkbox"
@@ -181,7 +181,7 @@ export default function AutoDjPage() {
         </label>
         <label
           className="flex items-center gap-2 text-sm text-zinc-300"
-          title="Real-time, beat & chord-reactive music video , coded, not pre-rendered"
+          title="Real-time, beat & chord-reactive music video - coded, not pre-rendered"
         >
           <input
             type="checkbox"
@@ -278,7 +278,7 @@ export default function AutoDjPage() {
               setMinPlaySec(v);
               mix.setOptions({ minPlaySec: v }); // applies live mid-set
             }}
-            className="grow accent-fuchsia-600"
+            className="grow accent-cyan-600"
           />
           <span className="w-12 shrink-0 text-right tabular-nums text-zinc-100">
             {minPlaySec}s
@@ -306,14 +306,14 @@ export default function AutoDjPage() {
           <p className="text-xs text-zinc-500">
             {mix.now.analysis.bpm} BPM
             {mix.now.analysis.camelot && (
-              <span className="ml-1 text-sky-400">· {mix.now.analysis.camelot}</span>
+              <span className="ml-1 text-violet-400">· {mix.now.analysis.camelot}</span>
             )}
             {mix.now.analysis.keyName && (
               <span className="ml-1">({mix.now.analysis.keyName})</span>
             )}
             {" · "}famous @ {mix.now.meta.famousStart ?? "?"}s
             {mix.now.analysis.bpmConfidence < 0.15 && (
-              <span className="ml-2 text-amber-400" title="low tempo confidence , quantize off">
+              <span className="ml-2 text-amber-400" title="low tempo confidence - quantize off">
                 · ⚠ shaky BPM
               </span>
             )}
@@ -322,7 +322,7 @@ export default function AutoDjPage() {
             )}
           </p>
           {mix.lastPlan && (
-            <p className="text-xs text-fuchsia-300">
+            <p className="text-xs text-cyan-300">
               last hop: {mix.lastPlan.style}
               {mix.lastPlan.beatMatch ? " (beat-matched)" : ""} ,{" "}
               {mix.lastPlan.reasoning}
@@ -361,7 +361,7 @@ export default function AutoDjPage() {
                 const lines = mix.setLog
                   .map(
                     (e, i) =>
-                      `${i + 1}. ${e.title} , ${e.artist}${
+                      `${i + 1}. ${e.title} - ${e.artist}${
                         i === 0 ? "" : `  (${e.style})`
                       }`
                   )
@@ -386,7 +386,7 @@ export default function AutoDjPage() {
               <li
                 key={`${e.index}-${i}`}
                 className={`flex items-baseline justify-between gap-2 ${
-                  i === mix.setLog.length - 1 ? "text-fuchsia-300" : "text-zinc-300"
+                  i === mix.setLog.length - 1 ? "text-cyan-300" : "text-zinc-300"
                 }`}
               >
                 <span className="truncate">

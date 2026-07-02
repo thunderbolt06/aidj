@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { Track } from "@/lib/types";
 import { getEngine, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
+import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
@@ -38,7 +39,7 @@ export default function TalkingDjPage() {
           userSaid,
         }),
       });
-      if (!res.ok) throw new Error("DJ brain offline , ANTHROPIC_API_KEY?");
+      if (!res.ok) throw new Error("DJ brain offline - ANTHROPIC_API_KEY?");
       const { speech, action } = await res.json();
       setTranscript((t) => [...t, { who: "dj", text: speech }]);
 
@@ -58,7 +59,7 @@ export default function TalkingDjPage() {
       } else {
         setTranscript((t) => [
           ...t,
-          { who: "dj", text: "(voice offline , SMALLEST_API_KEY missing, text only)" },
+          { who: "dj", text: "(voice offline - SMALLEST_API_KEY missing, text only)" },
         ]);
       }
 
@@ -67,7 +68,10 @@ export default function TalkingDjPage() {
         const intentRes = await fetch("/api/ai/intent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: action.prompt }),
+          body: JSON.stringify({
+            prompt: action.prompt,
+            languages: getSelectedLanguageLabels(),
+          }),
         });
         if (intentRes.ok) {
           const plan = await intentRes.json();
@@ -114,14 +118,14 @@ export default function TalkingDjPage() {
         <h1 className="text-2xl font-bold">Talking DJ</h1>
         <p className="text-sm text-zinc-400">
           MC Fable spins your queue, talks between songs (music ducks under the
-          voice), and listens when you talk back , ask for a vibe change
+          voice), and listens when you talk back - ask for a vibe change
           mid-set.
         </p>
       </header>
 
       <SearchPicker
         placeholder="Queue songs for the DJ…"
-        onPick={(t) => mix.setQueue((q) => [...q, t])}
+        onPick={(t) => mix.addNext(t)}
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -149,7 +153,7 @@ export default function TalkingDjPage() {
           <>
             <button
               onClick={() => djSpeak()}
-              className="rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-medium"
+              className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium"
             >
               🎤 DJ, say something
             </button>
@@ -185,7 +189,7 @@ export default function TalkingDjPage() {
       {transcript.length > 0 && (
         <div className="space-y-2 text-sm">
           {transcript.slice(-8).map((m, i) => (
-            <p key={i} className={m.who === "dj" ? "text-fuchsia-300" : "text-zinc-300"}>
+            <p key={i} className={m.who === "dj" ? "text-cyan-300" : "text-zinc-300"}>
               <b>{m.who === "dj" ? "MC Fable" : "You"}:</b> {m.text}
             </p>
           ))}

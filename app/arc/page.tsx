@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
+import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { ARC_SHAPES, arcEnergyAt, type ArcShape } from "@/lib/audio/arc";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
@@ -78,9 +79,12 @@ export default function ArcPage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: `${text} (energy arc: ${shape})` }),
+        body: JSON.stringify({
+          prompt: `${text} (energy arc: ${shape})`,
+          languages: getSelectedLanguageLabels(),
+        }),
       });
-      if (!res.ok) throw new Error("intent failed , is ANTHROPIC_API_KEY set?");
+      if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
       const plan: { queries: string[] } = await res.json();
       setBusy("finding the opening songs…");
       const found = await Promise.all(
@@ -112,7 +116,7 @@ export default function ArcPage() {
     chill: "text-sky-300",
     groovy: "text-emerald-300",
     hype: "text-amber-300",
-    peak: "text-fuchsia-300",
+    peak: "text-cyan-300",
   };
 
   return (
@@ -120,7 +124,7 @@ export default function ArcPage() {
       <header>
         <h1 className="text-2xl font-bold">Energy-Arc Director</h1>
         <p className="text-sm text-zinc-400">
-          Set a journey , chill → peak → cool-down , over a chosen length. The AI
+          Set a journey - chill → peak → cool-down - over a chosen length. The AI
           paces BPM, energy, transition intensity, and song picks across the
           whole set, not just the next hop.
         </p>
@@ -135,7 +139,7 @@ export default function ArcPage() {
                 onClick={() => setShape(s.id)}
                 className={`rounded-lg border p-3 text-left text-sm ${
                   shape === s.id
-                    ? "border-fuchsia-600 bg-fuchsia-950/30"
+                    ? "border-cyan-600 bg-cyan-950/30"
                     : "border-zinc-800 hover:border-zinc-700"
                 }`}
               >
@@ -157,7 +161,7 @@ export default function ArcPage() {
                 onClick={() => setDurationMin(d)}
                 className={`rounded-lg px-4 py-2 text-sm ${
                   durationMin === d
-                    ? "bg-fuchsia-600"
+                    ? "bg-cyan-600"
                     : "border border-zinc-700 text-zinc-300"
                 }`}
               >
@@ -170,12 +174,12 @@ export default function ArcPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && startJourney()}
-            placeholder='Seed vibe , e.g. "house party", "bollywood night", "gym session"'
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 outline-none focus:border-fuchsia-500"
+            placeholder='Seed vibe - e.g. "house party", "bollywood night", "gym session"'
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 outline-none focus:border-cyan-500"
           />
           <button
             onClick={startJourney}
-            className="rounded-lg bg-fuchsia-600 px-5 py-2 font-semibold hover:bg-fuchsia-500"
+            className="rounded-lg bg-cyan-600 px-5 py-2 font-semibold hover:bg-cyan-500"
           >
             ▶ Start the journey
           </button>
@@ -212,7 +216,7 @@ export default function ArcPage() {
               <p className="text-xs text-zinc-500">
                 {mix.now.analysis.bpm} BPM
                 {mix.now.analysis.camelot && (
-                  <span className="ml-1 text-sky-400">
+                  <span className="ml-1 text-violet-400">
                     · {mix.now.analysis.camelot}
                   </span>
                 )}
@@ -220,8 +224,8 @@ export default function ArcPage() {
             </>
           )}
           {mix.lastPlan && (
-            <p className="text-xs text-fuchsia-300">
-              last hop: {mix.lastPlan.style} , {mix.lastPlan.reasoning}
+            <p className="text-xs text-cyan-300">
+              last hop: {mix.lastPlan.style} - {mix.lastPlan.reasoning}
             </p>
           )}
           <div className="flex gap-2">

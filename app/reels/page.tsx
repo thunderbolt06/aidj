@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Track } from "@/lib/types";
 import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
+import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
 /**
@@ -28,9 +29,9 @@ export default function ReelsPage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: seed }),
+        body: JSON.stringify({ prompt: seed, languages: getSelectedLanguageLabels() }),
       });
-      if (!res.ok) throw new Error("intent failed , ANTHROPIC_API_KEY?");
+      if (!res.ok) throw new Error("intent failed - ANTHROPIC_API_KEY?");
       const plan = await res.json();
       const found = await Promise.all(
         (plan.queries as string[]).map((q) =>
@@ -58,8 +59,9 @@ export default function ReelsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          current: `${current.title} , ${current.artist}`,
+          current: `${current.title} - ${current.artist}`,
           vibe: seed,
+          languages: getSelectedLanguageLabels(),
         }),
       });
       if (!res.ok) return;
@@ -145,11 +147,11 @@ export default function ReelsPage() {
             onChange={(e) => setSeed(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && buildFeed()}
             placeholder='e.g. "2010s party anthems"'
-            className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 outline-none focus:border-fuchsia-500"
+            className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 outline-none focus:border-cyan-500"
           />
           <button
             onClick={buildFeed}
-            className="rounded-lg bg-fuchsia-600 px-4 py-2 font-medium"
+            className="rounded-lg bg-cyan-600 px-4 py-2 font-medium"
           >
             Build feed
           </button>
@@ -195,8 +197,8 @@ export default function ReelsPage() {
                 <div className="mt-3 space-y-1">
                   <HeatmapBar meta={mix.now.meta} position={mix.position} />
                   {mix.lastPlan && (
-                    <p className="text-xs text-fuchsia-300">
-                      {mix.lastPlan.style} , {mix.lastPlan.reasoning}
+                    <p className="text-xs text-cyan-300">
+                      {mix.lastPlan.style} - {mix.lastPlan.reasoning}
                     </p>
                   )}
                 </div>

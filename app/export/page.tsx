@@ -55,7 +55,7 @@ export default function ExportPage() {
       } else {
         const err = await res.json().catch(() => null);
         setStatus(
-          `video failed (${err?.error ?? res.status}) , WAV is still ready below`
+          `video failed (${err?.error ?? res.status}) - WAV is still ready below`
         );
       }
     } catch (e) {
@@ -110,7 +110,7 @@ export default function ExportPage() {
             onClick={() => setClipSec(s)}
             className={`rounded-lg px-4 py-2 text-sm ${
               clipSec === s
-                ? "bg-fuchsia-600"
+                ? "bg-cyan-600"
                 : "border border-zinc-700 text-zinc-300"
             }`}
           >
@@ -121,7 +121,7 @@ export default function ExportPage() {
         <button
           onClick={render}
           disabled={tracks.length < 2 || rendering}
-          className="rounded-lg bg-fuchsia-600 px-5 py-2 font-semibold hover:bg-fuchsia-500 disabled:opacity-40"
+          className="rounded-lg bg-cyan-600 px-5 py-2 font-semibold hover:bg-cyan-500 disabled:opacity-40"
         >
           {rendering ? "rendering…" : "🎬 Render reel"}
         </button>

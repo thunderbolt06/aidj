@@ -17,14 +17,14 @@ interface ChainStop {
   /** Lyric-matched handoff to the NEXT stop (null for the last song). */
   handoff: {
     outTime: number; // when A's matched line starts
-    outLineEnd: number; // when A's matched line ends , the cut moment
+    outLineEnd: number; // when A's matched line ends - the cut moment
     outLine: string;
     inTime: number; // where the next song enters (its matched line)
     inLine: string;
     sharedWord: string | null; // exact word both songs sing (null = semantic match)
-    aWordTime: number; // moment A sings the word , the loop point
-    aWordEnd: number; // word release in A , sets the natural loop length
-    bWordTime: number; // moment B sings it , the drop point
+    aWordTime: number; // moment A sings the word - the loop point
+    aWordEnd: number; // word release in A - sets the natural loop length
+    bWordTime: number; // moment B sings it - the drop point
     aligned: boolean; // true = Whisper-verified transients, false = estimate
     reasoning: string;
   } | null;
@@ -89,7 +89,7 @@ async function alignWord(
 
 /**
  * Estimate when a specific word is sung within its line. LRC lyrics only
- * timestamp lines, so we place the word proportionally by its position ,
+ * timestamp lines, so we place the word proportionally by its position,
  * crude, but close enough to catch the word in a one-beat loop.
  */
 function estimateWordTime(
@@ -110,8 +110,8 @@ function estimateWordTime(
 }
 
 /**
- * Lyric DJ: the ENTIRE set is computed before playback , songs found, audio
- * loaded, lyric lines matched , then it just plays. (User feedback: no
+ * Lyric DJ: the ENTIRE set is computed before playback - songs found, audio
+ * loaded, lyric lines matched - then it just plays. (User feedback: no
  * thinking during the show.)
  */
 export default function LyricDjPage() {
@@ -145,7 +145,7 @@ export default function LyricDjPage() {
         fetchLyrics(t),
       ]);
       if (!seedLyrics.length)
-        throw new Error("no synced lyrics for the seed , try another song");
+        throw new Error("no synced lyrics for the seed - try another song");
 
       setStatus("AI building the lyric chain…");
       const chainRes = await fetch("/api/ai/lyricchain", {
@@ -157,7 +157,7 @@ export default function LyricDjPage() {
           famousStart: seedLoaded.meta.famousStart,
         }),
       });
-      if (!chainRes.ok) throw new Error("chain failed , ANTHROPIC_API_KEY?");
+      if (!chainRes.ok) throw new Error("chain failed - ANTHROPIC_API_KEY?");
       const { chain: picks } = (await chainRes.json()) as {
         chain: { query: string; sharedWord: string | null; connection: string }[];
       };
@@ -207,10 +207,10 @@ export default function LyricDjPage() {
               a: { title: stop.track.title, lines: stop.lyrics },
               b: { title: next.track.title, lines: next.lyrics },
               bFamous: next.loaded.meta.famousStart,
-              // prefer handoff words sung in A's hook , that's the part
+              // prefer handoff words sung in A's hook - that's the part
               // people recognize and sing along to
               aFamous: stop.loaded.meta.famousStart,
-              // the chain AI picked this song FOR this word , try it first
+              // the chain AI picked this song FOR this word - try it first
               preferWord: next.preferWord ?? null,
             }),
           });
@@ -376,7 +376,7 @@ export default function LyricDjPage() {
   /**
    * Export a single handoff as a standalone shareable clip (the "50 Cent →
    * Usher Shorty" format): A leads into the word, it stutters, B drops on the
-   * same word , rendered to a vertical mp4 with the trigger word captioned.
+   * same word - rendered to a vertical mp4 with the trigger word captioned.
    */
   async function exportHandoff(i: number) {
     const stop = chain[i];
@@ -411,7 +411,7 @@ export default function LyricDjPage() {
       } else {
         a.href = URL.createObjectURL(wav);
         a.download = `wordplay-${h.sharedWord}.wav`;
-        setExportMsg("video failed , downloaded audio instead");
+        setExportMsg("video failed - downloaded audio instead");
       }
       a.click();
       setExportMsg("");
@@ -432,7 +432,7 @@ export default function LyricDjPage() {
         <h1 className="text-2xl font-bold">Lyric DJ</h1>
         <p className="text-sm text-zinc-400">
           Pick a seed song. The AI builds a whole setlist where each song hands
-          an <b>exact sung word</b> to the next , all computed before a single
+          an <b>exact sung word</b> to the next - all computed before a single
           note plays.
         </p>
       </header>
@@ -444,7 +444,7 @@ export default function LyricDjPage() {
       {!building && status && (
         <p
           className={`text-sm ${
-            playingIdx >= 0 ? "font-semibold text-fuchsia-300" : "text-red-400"
+            playingIdx >= 0 ? "font-semibold text-cyan-300" : "text-red-400"
           }`}
         >
           {status}
@@ -459,7 +459,7 @@ export default function LyricDjPage() {
                 <div
                   className={`rounded-xl border p-3 text-sm ${
                     i === playingIdx
-                      ? "border-fuchsia-600 bg-fuchsia-950/30"
+                      ? "border-cyan-600 bg-cyan-950/30"
                       : "border-zinc-800"
                   }`}
                 >
@@ -471,7 +471,7 @@ export default function LyricDjPage() {
                       {stop.handoff.sharedWord ? (
                         <>
                           hands off the word{" "}
-                          <span className="rounded bg-fuchsia-900/60 px-1 font-bold text-fuchsia-200">
+                          <span className="rounded bg-cyan-900/60 px-1 font-bold text-cyan-200">
                             {stop.handoff.sharedWord}
                           </span>
                           {stop.handoff.aligned && (
@@ -485,11 +485,11 @@ export default function LyricDjPage() {
                           ,{" "}
                         </>
                       ) : null}
-                      <span className="text-fuchsia-300">
+                      <span className="text-cyan-300">
                         “{stop.handoff.outLine}”
                       </span>{" "}
                       →{" "}
-                      <span className="text-fuchsia-300">
+                      <span className="text-cyan-300">
                         “{stop.handoff.inLine}”
                       </span>
                     </p>
@@ -511,7 +511,7 @@ export default function LyricDjPage() {
             <button
               onClick={play}
               disabled={playingIdx >= 0}
-              className="rounded-lg bg-fuchsia-600 px-5 py-2 font-semibold hover:bg-fuchsia-500 disabled:opacity-40"
+              className="rounded-lg bg-cyan-600 px-5 py-2 font-semibold hover:bg-cyan-500 disabled:opacity-40"
             >
               ▶ Play the set
             </button>
@@ -553,7 +553,7 @@ export default function LyricDjPage() {
             <p className="animate-pulse text-xs text-amber-400">{exportMsg}</p>
           )}
           {active && currentLine && (
-            <p className="rounded-xl border border-zinc-800 p-6 text-center text-xl font-bold text-fuchsia-200">
+            <p className="rounded-xl border border-zinc-800 p-6 text-center text-xl font-bold text-cyan-200">
               {currentLine.text}
             </p>
           )}

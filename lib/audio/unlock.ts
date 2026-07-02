@@ -8,7 +8,7 @@
  *     from inside a user gesture.
  *  2. Web Audio alone is treated as "ambient" sound, which the physical
  *     ringer/mute switch silences. Playing ANY <audio> element (even silent)
- *     , or opting in via navigator.audioSession , promotes the page to the
+ *     - or opting in via navigator.audioSession - promotes the page to the
  *     "playback" category, which ignores the mute switch.
  *
  * This module installs capture-phase gesture listeners that do both, plus
@@ -41,7 +41,7 @@ function silentWavUrl(): string {
   v.setUint16(34, 16, true);
   str(36, "data");
   v.setUint32(40, samples * 2, true);
-  // samples are already zero , silence
+  // samples are already zero - silence
   return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
 }
 
@@ -58,7 +58,7 @@ function beMediaPlayback() {
   if (!silentEl) {
     silentEl = new Audio(silentWavUrl());
     silentEl.loop = true;
-    // volume 0 gets optimized away on some iOS versions , keep it inaudible
+    // volume 0 gets optimized away on some iOS versions - keep it inaudible
     silentEl.volume = 0.01;
     silentEl.setAttribute("playsinline", "");
   }
@@ -86,7 +86,7 @@ export function installAudioUnlock(getCtx: () => AudioContext) {
       src.connect(ctx.destination);
       src.start(0);
     } catch {
-      /* context not ready yet , the next gesture retries */
+      /* context not ready yet - the next gesture retries */
     }
   };
 
@@ -95,7 +95,7 @@ export function installAudioUnlock(getCtx: () => AudioContext) {
     window.addEventListener(ev, unlock, { capture: true, passive: true });
 
   // iOS suspends the context on interruptions (calls, Siri) and sometimes on
-  // tab switches , resume as soon as we're visible/interrupted-ended again.
+  // tab switches - resume as soon as we're visible/interrupted-ended again.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       const ctx = getCtx();

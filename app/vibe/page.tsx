@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
+import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
 interface VibePlan {
@@ -43,9 +44,10 @@ export default function VibePage() {
         body: JSON.stringify({
           prompt: text,
           history: history.current.join(" → ") || undefined,
+          languages: getSelectedLanguageLabels(),
         }),
       });
-      if (!res.ok) throw new Error("intent failed , is ANTHROPIC_API_KEY set?");
+      if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
       const p: VibePlan = await res.json();
       setPlan(p);
       history.current.push(p.vibe);
@@ -100,7 +102,7 @@ export default function VibePage() {
       <header>
         <h1 className="text-2xl font-bold">Vibe Prompt</h1>
         <p className="text-sm text-zinc-400">
-          Tell the DJ what you want , typed or spoken. Change the vibe mid-set
+          Tell the DJ what you want - typed or spoken. Change the vibe mid-set
           and it transitions over.
         </p>
       </header>
@@ -111,11 +113,11 @@ export default function VibePage() {
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && buildVibe(prompt)}
           placeholder='e.g. "singable road trip", "sangeet bangers", "high"'
-          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 outline-none focus:border-fuchsia-500"
+          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 outline-none focus:border-cyan-500"
         />
         <button
           onClick={() => buildVibe(prompt)}
-          className="rounded-lg bg-fuchsia-600 px-4 py-2 font-medium hover:bg-fuchsia-500"
+          className="rounded-lg bg-cyan-600 px-4 py-2 font-medium hover:bg-cyan-500"
         >
           Mix it
         </button>
@@ -138,9 +140,9 @@ export default function VibePage() {
       )}
 
       {plan && (
-        <div className="rounded-xl border border-fuchsia-900/50 bg-fuchsia-950/20 p-4 text-sm">
+        <div className="rounded-xl border border-cyan-900/50 bg-cyan-950/20 p-4 text-sm">
           <p>
-            <span className="font-semibold text-fuchsia-300">{plan.vibe}</span>{" "}
+            <span className="font-semibold text-cyan-300">{plan.vibe}</span>{" "}
             · arc: {plan.energyArc} · style: {plan.transitionStyleHint}
           </p>
         </div>
@@ -153,7 +155,7 @@ export default function VibePage() {
               key={`${t.id}-${i}`}
               className={`truncate rounded px-3 py-1.5 ${
                 i === mix.nowIdx
-                  ? "bg-fuchsia-950/40 text-fuchsia-300"
+                  ? "bg-cyan-950/40 text-cyan-300"
                   : "bg-zinc-900"
               }`}
             >
@@ -168,8 +170,8 @@ export default function VibePage() {
           <p className="font-semibold">{mix.now.meta.title}</p>
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           {mix.lastPlan && (
-            <p className="text-xs text-fuchsia-300">
-              {mix.lastPlan.style} , {mix.lastPlan.reasoning}
+            <p className="text-xs text-cyan-300">
+              {mix.lastPlan.style} - {mix.lastPlan.reasoning}
             </p>
           )}
           <div className="flex gap-2">

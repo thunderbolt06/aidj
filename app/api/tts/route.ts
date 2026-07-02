@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Lightning v3.1 , smallest.ai's fastest TTS model (sub-100ms), sync REST API.
+// Lightning v3.1 - smallest.ai's fastest TTS model (sub-100ms), sync REST API.
 const SMALLEST_URL = "https://api.smallest.ai/waves/v1/tts";
 const VOICE_ID = "Edward";
 const MODEL = "lightning_v3.1";

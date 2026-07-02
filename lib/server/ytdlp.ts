@@ -14,7 +14,7 @@ const YTDLP = process.env.YTDLP_PATH || "yt-dlp";
 
 /**
  * Force IPv4. Many networks advertise IPv6 but have a broken/blackholed route
- * to Google/YouTube , yt-dlp then tries IPv6 first on every connection and
+ * to Google/YouTube - yt-dlp then tries IPv6 first on every connection and
  * stalls ~per-request until it times out and falls back to IPv4. Those stalls
  * stack across the search + per-result fetches into 80–160s hangs that blow
  * past our exec timeouts. `-4` skips IPv6 entirely (search drops to ~1s).
@@ -23,7 +23,7 @@ const YTDLP_BASE = ["-4", "--no-warnings"];
 
 /**
  * When set, the heavy yt-dlp/ffmpeg work runs on the remote extractor service
- * (Railway) instead of locally , Vercel serverless can't run native binaries.
+ * (Railway) instead of locally - Vercel serverless can't run native binaries.
  * Unset (e.g. local dev with yt-dlp installed) → use the local binary.
  */
 export const EXTRACTOR = (process.env.EXTRACTOR_URL || "").replace(/\/+$/, "");
@@ -161,7 +161,7 @@ export async function getAudioFile(id: string): Promise<string> {
     );
   } catch (e) {
     // yt-dlp breaks often (YouTube changes, missing deno for JS challenges,
-    // PATH issues) , surface its stderr so the failure is diagnosable.
+    // PATH issues) - surface its stderr so the failure is diagnosable.
     const err = e as { stderr?: string; message?: string; code?: string };
     const reason =
       err.code === "ENOENT"
@@ -176,7 +176,7 @@ export async function getAudioFile(id: string): Promise<string> {
 }
 
 /**
- * Audio bytes for `id`, regardless of mode , fetched from the extractor when
+ * Audio bytes for `id`, regardless of mode - fetched from the extractor when
  * remote, read off local disk otherwise. Used by the stems route (which feeds
  * the audio to Replicate).
  */

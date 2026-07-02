@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractJson } from "@/lib/server/extractJson";
+import { languageHint } from "@/lib/server/langHint";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,7 @@ const SYSTEM = `You pick songs for a 2-team party game: the instrumental plays a
 the lyrics to prove they know the song. The user gives a vibe prompt (possibly Hinglish).
 
 Rules for your picks:
-- Singable, popular PARTY songs fitting the vibe , songs where a room full of people
+- Singable, popular PARTY songs fitting the vibe - songs where a room full of people
   plausibly knows the chorus words.
 - Order them EASY → HARD. Easy = mega-famous, everyone can sing the hook instantly.
   Hard = still known, but only real fans can produce the lyrics.
@@ -24,12 +25,12 @@ Respond with ONLY JSON:
 Return 14-18 songs, difficulty as integers 1 (easiest) to 10 (hardest), sorted ascending.`;
 
 export async function POST(req: NextRequest) {
-  const { prompt } = await req.json();
+  const { prompt, languages } = await req.json();
   const client = new Anthropic();
   const msg = await client.messages.create({
     model: "claude-haiku-4-5",
     max_tokens: 1200,
-    system: SYSTEM,
+    system: SYSTEM + languageHint(languages),
     messages: [{ role: "user", content: prompt || "singable party songs" }],
   });
   const text = msg.content[0].type === "text" ? msg.content[0].text : "{}";

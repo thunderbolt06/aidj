@@ -11,7 +11,7 @@ export function BackNav() {
     <nav className="mx-auto w-full max-w-3xl px-6 pt-4">
       <Link
         href="/"
-        className="inline-flex items-center gap-1 rounded-lg border border-zinc-800 px-3 py-1.5 text-sm text-zinc-400 transition hover:border-fuchsia-600 hover:text-fuchsia-300"
+        className="inline-flex items-center gap-1 rounded-lg border border-zinc-800 px-3 py-1.5 text-sm text-zinc-400 transition hover:border-cyan-600 hover:text-cyan-300"
       >
         ← Back
       </Link>

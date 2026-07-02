@@ -12,7 +12,7 @@ interface Design {
 
 const MODES = [
   { key: "prompt", label: "✍️ Prompt", placeholder: "e.g. 'sad bollywood vocals over french house'", template: (v: string) => v },
-  { key: "singer", label: "🎤 Singer", placeholder: "e.g. 'Taylor Swift'", template: (v: string) => `An endless mashup of ${v} songs , all songs by ${v}.` },
+  { key: "singer", label: "🎤 Singer", placeholder: "e.g. 'Taylor Swift'", template: (v: string) => `An endless mashup of ${v} songs - all songs by ${v}.` },
   { key: "year", label: "📅 Year", placeholder: "e.g. '2014'", template: (v: string) => `A nostalgia mashup of famous songs from around ${v}.` },
   { key: "theme", label: "🎭 Theme", placeholder: "e.g. 'rain', 'heartbreak', 'driving at night'", template: (v: string) => `A mashup of songs about: ${v}.` },
 ] as const;
@@ -24,7 +24,7 @@ const ROTATE_BARS = 8;
  * Only ONE vocal plays at any moment:
  *  - Hook Rotation (default): every song's hook, beat-matched to ONE anchor
  *    tempo, bass-swapped every 8 bars. Feels like one continuous track.
- *  - Stems Layer: real demucs separation , one song's instrumental as the bed,
+ *  - Stems Layer: real demucs separation - one song's instrumental as the bed,
  *    the OTHER song's isolated vocal on top, vocals rotating song to song.
  */
 export default function MashupPage() {
@@ -90,7 +90,7 @@ export default function MashupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
-      if (!res.ok) throw new Error("design failed , ANTHROPIC_API_KEY?");
+      if (!res.ok) throw new Error("design failed - ANTHROPIC_API_KEY?");
       const d = (await res.json()) as Design & { structure?: string };
       if (!d.songs || d.songs.length < 2) throw new Error("AI returned too few songs");
       setDesign(d);
@@ -218,7 +218,7 @@ export default function MashupPage() {
         topperOffset: Math.max(0, (firstVox.meta.famousStart ?? 40) - 2),
         rate,
         topperGain: 1.1,
-        carve: false, // real stems , no EQ fakery needed
+        carve: false, // real stems - no EQ fakery needed
       });
       scheduleVocalRotation();
       topUpPreloaded();
@@ -226,7 +226,7 @@ export default function MashupPage() {
     } catch (e) {
       setStemError(
         `STEMS FAILED: ${e instanceof Error ? e.message : "unknown"}. ` +
-          `Likely missing Replicate credit , falling back to Hook Rotation.`
+          `Likely missing Replicate credit - falling back to Hook Rotation.`
       );
       setMashMode("rotation");
       setStatus("");
@@ -275,7 +275,7 @@ export default function MashupPage() {
             });
             setNowTitle(next.meta.title);
           } catch {
-            setStatus("vocal stem failed , keeping current vocal");
+            setStatus("vocal stem failed - keeping current vocal");
           }
         }
         tick();
@@ -302,7 +302,7 @@ export default function MashupPage() {
             key={m.key}
             onClick={() => setMode(m.key)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
-              mode === m.key ? "bg-fuchsia-600" : "border border-zinc-700 text-zinc-300"
+              mode === m.key ? "bg-cyan-600" : "border border-zinc-700 text-zinc-300"
             }`}
           >
             {m.label}
@@ -315,19 +315,19 @@ export default function MashupPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && aiDesign()}
           placeholder={MODES.find((m) => m.key === mode)!.placeholder}
-          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-fuchsia-500"
+          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-cyan-500"
         />
         <button
           onClick={aiDesign}
-          className="rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-medium hover:bg-fuchsia-500"
+          className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium hover:bg-cyan-500"
         >
           Design
         </button>
       </div>
 
       {design && (
-        <div className="rounded-xl border border-fuchsia-900/50 bg-fuchsia-950/20 p-4 text-sm">
-          <p className="font-semibold text-fuchsia-300">“{design.title}”</p>
+        <div className="rounded-xl border border-cyan-900/50 bg-cyan-950/20 p-4 text-sm">
+          <p className="font-semibold text-cyan-300">“{design.title}”</p>
           <p className="mt-1 text-xs text-zinc-400">{design.reasoning}</p>
           <p className="mt-1 text-xs text-zinc-500">
             {design.songs.length} songs queued · endless
@@ -346,7 +346,7 @@ export default function MashupPage() {
             key={k}
             onClick={() => setMashMode(k)}
             className={`rounded-lg px-4 py-2 text-sm ${
-              mashMode === k ? "bg-fuchsia-600" : "border border-zinc-700 text-zinc-300"
+              mashMode === k ? "bg-cyan-600" : "border border-zinc-700 text-zinc-300"
             }`}
           >
             {label}
@@ -384,11 +384,11 @@ export default function MashupPage() {
               <p className="truncate font-semibold">{bedTitle}</p>
             </div>
           )}
-          <div className="rounded-xl border border-fuchsia-900 p-3 text-sm">
+          <div className="rounded-xl border border-cyan-900 p-3 text-sm">
             <p className="text-xs uppercase text-zinc-500">
               {mashMode === "stems" ? "vocal on top" : "now playing"}
             </p>
-            <p className="truncate font-semibold text-fuchsia-300">{nowTitle}</p>
+            <p className="truncate font-semibold text-cyan-300">{nowTitle}</p>
           </div>
         </div>
       )}

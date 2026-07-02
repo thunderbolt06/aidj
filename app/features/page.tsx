@@ -22,13 +22,13 @@ const experiments = [
   {
     href: "/vibe",
     title: "Vibe Prompt",
-    desc: "Type or speak an intent , 'singable road trip' , AI builds the mix.",
+    desc: "Type or speak an intent - 'singable road trip' - AI builds the mix.",
     status: "ready",
   },
   {
     href: "/arc",
     title: "Energy-Arc Director",
-    desc: "Set a journey , chill → peak → cool-down , over 20 min. AI paces the whole set.",
+    desc: "Set a journey - chill → peak → cool-down - over 20 min. AI paces the whole set.",
     status: "ready",
   },
   {
@@ -46,7 +46,7 @@ const experiments = [
   {
     href: "/karaoke",
     title: "Karaoke",
-    desc: "Vocals stripped off, synced lyrics on screen , you are the singer.",
+    desc: "Vocals stripped off, synced lyrics on screen - you are the singer.",
     status: "ready",
   },
   {
@@ -58,7 +58,7 @@ const experiments = [
   {
     href: "/lyricdj",
     title: "Lyric DJ",
-    desc: "A whole setlist chained by connecting lyric lines , computed before playback.",
+    desc: "A whole setlist chained by connecting lyric lines - computed before playback.",
     status: "ready",
   },
   {
@@ -76,13 +76,13 @@ const experiments = [
   {
     href: "/reels",
     title: "Reels Feed",
-    desc: "Vertical swipe feed of famous parts , the swipe IS the transition.",
+    desc: "Vertical swipe feed of famous parts - the swipe IS the transition.",
     status: "ready",
   },
   {
     href: "/musicvideo",
     title: "Music Video Lab",
-    desc: "Real-time, beat & chord-reactive visuals , pick a framework or let AI code one from a prompt.",
+    desc: "Real-time, beat & chord-reactive visuals - pick a framework or let AI code one from a prompt.",
     status: "ready",
   },
   {
@@ -102,27 +102,28 @@ const experiments = [
 export default function FeaturesPage() {
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-3xl font-bold">
-        Ever<span className="text-fuchsia-500">play</span> Lab
+      <h1 className="flex items-center gap-2 text-3xl font-bold">
+        <span className="text-cyan-400 [text-shadow:0_0_16px_rgba(34,211,238,0.8)]">∞</span>
+        Ever<span className="text-cyan-400">play</span> Lab
       </h1>
       <p className="mt-1 text-zinc-400">
-        Every card is an experiment , try them all, keep what slaps.
+        Every card is an experiment - try them all, keep what slaps.
       </p>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {experiments.map((e) => (
           <Link
             key={e.href}
             href={e.href}
-            className="group rounded-xl border border-zinc-800 p-4 transition hover:border-fuchsia-600"
+            className="group rounded-xl border border-zinc-800 p-4 transition hover:border-cyan-600"
           >
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold group-hover:text-fuchsia-400">
+              <h2 className="font-semibold group-hover:text-cyan-400">
                 {e.title}
               </h2>
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
                   e.status === "home"
-                    ? "bg-fuchsia-900/60 text-fuchsia-300"
+                    ? "bg-cyan-900/60 text-cyan-300"
                     : e.status === "ready"
                       ? "bg-emerald-900/60 text-emerald-300"
                       : "bg-zinc-800 text-zinc-400"

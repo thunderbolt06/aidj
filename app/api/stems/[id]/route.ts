@@ -15,7 +15,7 @@ const STEMS_DIR = path.join(tmpdir(), "aidj-stems");
 /**
  * Real stem separation via Replicate demucs (htdemucs, two-stem mode).
  * ?stem=vocals returns the vocal stem, ?stem=instrumental the rest.
- * Slow (1-4 min uncached) and needs Replicate credit , results are cached.
+ * Slow (1-4 min uncached) and needs Replicate credit - results are cached.
  */
 export async function GET(
   req: NextRequest,
@@ -66,7 +66,7 @@ export async function GET(
         return (o as { url: () => URL }).url().toString();
       return null;
     };
-    // one demucs run yields BOTH stems , cache both so the sibling request
+    // one demucs run yields BOTH stems - cache both so the sibling request
     // (e.g. instrumental after vocals) is free
     const instKey =
       ["no_vocals", "accompaniment", "other", "instrumental"].find(

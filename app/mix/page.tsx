@@ -101,7 +101,7 @@ export default function MixPage() {
       <header>
         <h1 className="text-2xl font-bold">2-Song Mix</h1>
         <p className="text-sm text-zinc-400">
-          Pick two songs. Play A, then hit <b>AI Transition</b> , Claude reads
+          Pick two songs. Play A, then hit <b>AI Transition</b> - Claude reads
           both tracks&apos; BPM, energy and famous-part data and renders the blend
           live in your browser.
         </p>
@@ -116,7 +116,7 @@ export default function MixPage() {
             key={label}
             className="rounded-xl border border-zinc-800 p-4 space-y-3"
           >
-            <h2 className="font-semibold text-fuchsia-400">Deck {label}</h2>
+            <h2 className="font-semibold text-cyan-400">Deck {label}</h2>
             <SearchPicker onPick={onPick} />
             {slot.track && (
               <div className="text-sm">
@@ -141,7 +141,7 @@ export default function MixPage() {
                     <p className="text-xs text-zinc-500">
                       {slot.loaded.analysis.bpm} BPM
                       {slot.loaded.analysis.camelot && (
-                        <span className="ml-1 text-sky-400">
+                        <span className="ml-1 text-violet-400">
                           · {slot.loaded.analysis.camelot}
                         </span>
                       )}{" "}
@@ -166,7 +166,7 @@ export default function MixPage() {
         <button
           onClick={doTransition}
           disabled={!b.loaded || playing !== "A"}
-          className="rounded-lg bg-fuchsia-600 px-5 py-2.5 font-semibold hover:bg-fuchsia-500 disabled:opacity-40"
+          className="rounded-lg bg-cyan-600 px-5 py-2.5 font-semibold hover:bg-cyan-500 disabled:opacity-40"
         >
           ⚡ AI Transition → B
           {playing === "A" && (planReady ? " (ready)" : " (planning…)")}
@@ -186,8 +186,8 @@ export default function MixPage() {
       </div>
 
       {plan && (
-        <div className="rounded-xl border border-fuchsia-900/50 bg-fuchsia-950/20 p-4 text-sm">
-          <p className="font-semibold text-fuchsia-300">
+        <div className="rounded-xl border border-cyan-900/50 bg-cyan-950/20 p-4 text-sm">
+          <p className="font-semibold text-cyan-300">
             {plan.style} · {plan.duration}s
             {plan.beatMatch ? " · beat-matched" : ""}
           </p>

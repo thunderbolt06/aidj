@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractJson } from "@/lib/server/extractJson";
+import { languageHint } from "@/lib/server/langHint";
 
 export const dynamic = "force-dynamic";
 
 const SYSTEM = `You suggest the next song for a live DJ set. Given the currently playing song
-(and optionally a vibe), return 9 real, popular songs that would each transition well from it ,
+(and optionally a vibe), return 9 real, popular songs that would each transition well from it,
 EXACTLY this spread, in this order: 5 same-vibe safe picks, then 3 moderate energy shifts
 (up or down), then 1 wildcard genre/era jump that still flows.
 
@@ -16,15 +17,15 @@ high-energy crowd-pleasers, "peak" → festival/club bangers and drops. Bias all
 (keep the 1 wildcard, but still at the target energy).
 
 Respond ONLY with JSON:
-{"suggestions": [{"query": "artist - song name", "tag": "safe|shift|wild"} x9 , 5 safe, 3 shift, 1 wild]}`;
+{"suggestions": [{"query": "artist - song name", "tag": "safe|shift|wild"} x9 - 5 safe, 3 shift, 1 wild]}`;
 
 export async function POST(req: NextRequest) {
-  const { current, vibe, arc } = await req.json();
+  const { current, vibe, arc, languages } = await req.json();
   const client = new Anthropic();
   const msg = await client.messages.create({
     model: "claude-haiku-4-5",
     max_tokens: 700,
-    system: SYSTEM,
+    system: SYSTEM + languageHint(languages),
     messages: [
       {
         role: "user",

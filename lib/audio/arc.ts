@@ -6,7 +6,7 @@ import type { TransitionStyle } from "@/lib/types";
  * A real DJ paces a whole set, not just the next hop: warm the room, build,
  * peak, release. This module turns a chosen arc shape + set duration into a
  * target ENERGY (0..1) at any progress point, and maps that energy onto the
- * knobs the rest of the app already has , BPM target, clip length, and a bias
+ * knobs the rest of the app already has - BPM target, clip length, and a bias
  * over transition tricks. The director in useAutoMix samples it continuously.
  */
 
@@ -22,7 +22,7 @@ export const ARC_SHAPES: { id: ArcShape; label: string; blurb: string }[] = [
   { id: "warmup", label: "Warm-up", blurb: "ease in, settle at a steady groove" },
   { id: "build", label: "Build", blurb: "slow climb that peaks at the very end" },
   { id: "peak_release", label: "Peak & release", blurb: "classic set: rise → peak → cool down" },
-  { id: "wave", label: "Waves", blurb: "ride up and down , keeps it dynamic" },
+  { id: "wave", label: "Waves", blurb: "ride up and down - keeps it dynamic" },
   { id: "winddown", label: "Wind-down", blurb: "start hot, bring it home soft" },
   { id: "flat", label: "Flat", blurb: "hold one steady vibe throughout" },
 ];
@@ -77,7 +77,7 @@ export function clipLenForEnergy(energy: number): number {
 }
 
 /**
- * Transition tricks that fit the current energy , a bias, not a hard rule.
+ * Transition tricks that fit the current energy - a bias, not a hard rule.
  * Each phase offers several distinct options so the planner can keep varying
  * (and never lock onto one signature move across a whole stretch of the set).
  * Ordered loosely from "safest blend" to "boldest" within the phase.

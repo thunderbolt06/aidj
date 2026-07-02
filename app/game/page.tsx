@@ -9,12 +9,13 @@ import {
   searchTracks,
   type LoadedTrack,
 } from "@/lib/client/dj";
+import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 
 /**
  * Sing-It: 2-team party game.
  *
  * A vibe prompt builds a singable playlist ordered easy → hard. Each turn the
- * INSTRUMENTAL of a mystery song plays , the team must sing the actual lyrics.
+ * INSTRUMENTAL of a mystery song plays - the team must sing the actual lyrics.
  * The mic listens and auto-detects a correct sing-along (manual ✓ backup).
  * Miss for 30s and the song is thrown to the other team for half a point
  * (15s), else it skips. First to the points cap wins. The further ahead a
@@ -172,13 +173,13 @@ const GUESS_SEC = 60;
 const STEAL_SEC = 15;
 /** How many rounds ahead to warm audio + demucs stems for. */
 const PREFETCH_DEPTH = 3;
-/** Cap simultaneous stem-separation jobs , demucs is slow, don't flood it. */
+/** Cap simultaneous stem-separation jobs - demucs is slow, don't flood it. */
 const PREFETCH_MAX = 6;
 
 export default function GamePage() {
   const [, force] = useReducer((x: number) => x + 1, 0);
   // all game state lives in a ref: timers + speech callbacks mutate it and
-  // call force() , no stale-closure hazards
+  // call force() - no stale-closure hazards
   const g = useRef({
     phase: "setup" as Phase,
     teams: ["Team A", "Team B"],
@@ -258,7 +259,7 @@ export default function GamePage() {
         force();
       }
     };
-    // recognition dies on its own regularly , keep it alive during a round
+    // recognition dies on its own regularly - keep it alive during a round
     rec.onend = () => {
       if ((g.phase === "guess" || g.phase === "steal") && mic.current === rec) {
         try {
@@ -306,9 +307,9 @@ export default function GamePage() {
       const res = await fetch("/api/ai/game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, languages: getSelectedLanguageLabels() }),
       });
-      if (!res.ok) throw new Error("game planning failed , is ANTHROPIC_API_KEY set?");
+      if (!res.ok) throw new Error("game planning failed - is ANTHROPIC_API_KEY set?");
       const plan = (await res.json()) as {
         gameName?: string;
         songs?: { query: string; difficulty: number }[];
@@ -327,7 +328,7 @@ export default function GamePage() {
       g.songs = songs.filter(
         (s, i) => songs.findIndex((x) => x.track.id === s.track.id) === i
       );
-      if (g.songs.length < 4) throw new Error("couldn't find enough songs , try another vibe");
+      if (g.songs.length < 4) throw new Error("couldn't find enough songs - try another vibe");
       g.scores = [0, 0];
       g.roundNo = 0;
       g.banner = "";
@@ -342,7 +343,7 @@ export default function GamePage() {
   /**
    * Which songs are likely to come up over the next `PREFETCH_DEPTH` rounds.
    * The primary team always alternates regardless of who wins (see
-   * `nextRound`), so that part is deterministic , only the SCORE driving
+   * `nextRound`), so that part is deterministic - only the SCORE driving
    * difficulty is uncertain. Branch each round on the three outcomes (primary
    * wins, other team steals, nobody gets it) and collect the song each
    * resulting state would pick, closest rounds first.
@@ -392,7 +393,7 @@ export default function GamePage() {
   /** Warm audio + stems for songs likely to come up over the next few rounds. */
   function prefetchUpcoming() {
     const targets = collectPrefetchIndices(PREFETCH_DEPTH);
-    // stem separation is slow (1-4 min) , stagger so we don't fire a pile of
+    // stem separation is slow (1-4 min) - stagger so we don't fire a pile of
     // concurrent demucs jobs; the closest rounds (front of the list) go first
     targets.forEach((idx, i) => {
       const id = g.songs[idx].track.id;
@@ -407,7 +408,7 @@ export default function GamePage() {
   async function startRound(primary: TeamIdx) {
     const idx = pickSongFor(g.scores[primary], g.songs, g.settings.maxPoints);
     if (idx < 0) {
-      endGame(); // playlist exhausted , highest score wins
+      endGame(); // playlist exhausted - highest score wins
       return;
     }
     const song = g.songs[idx];
@@ -447,12 +448,12 @@ export default function GamePage() {
       say(`${g.teams[primary]}, sing it!`);
       if (g.settings.autoDetect && ly.lines.length) startMic();
       if (!ly.lines.length)
-        g.banner = "⚠ no lyrics found for this one , use the ✓ button when they nail it";
+        g.banner = "⚠ no lyrics found for this one - use the ✓ button when they nail it";
       force();
     } catch (e) {
       // stem/audio failed (missing REPLICATE_API_TOKEN, extraction error…):
       // fail loud and move on rather than stalling the party
-      g.banner = `⚠ song unavailable (${e instanceof Error ? e.message : e}) , skipping`;
+      g.banner = `⚠ song unavailable (${e instanceof Error ? e.message : e}) - skipping`;
       force();
       await startRound(primary);
     }
@@ -474,7 +475,7 @@ export default function GamePage() {
       stopMic();
       getEngine().stop();
       g.phase = "skipped";
-      g.banner = `nobody got it , it was “${r.loaded.meta.title}”`;
+      g.banner = `nobody got it - it was “${r.loaded.meta.title}”`;
       force();
       prefetchUpcoming(); // re-aim now that the round is settled
     }
@@ -501,7 +502,7 @@ export default function GamePage() {
       return;
     }
     force();
-    prefetchUpcoming(); // scores just changed , re-aim the lookahead
+    prefetchUpcoming(); // scores just changed - re-aim the lookahead
   }
 
   function endGame() {
@@ -547,13 +548,13 @@ export default function GamePage() {
     <main className="mx-auto max-w-3xl p-6 space-y-6">
       <header>
         <h1 className="text-2xl font-bold">
-          Sing-It <span className="text-fuchsia-500">Showdown</span>
+          Sing-It <span className="text-cyan-500">Showdown</span>
           {g.gameName && g.phase !== "setup" && (
             <span className="ml-2 text-base font-normal text-zinc-400">· {g.gameName}</span>
           )}
         </h1>
         <p className="text-sm text-zinc-400">
-          The instrumental plays , your team sings the words. Nail a line and
+          The instrumental plays - your team sings the words. Nail a line and
           the full song drops in. 60s or it flips to the other team for half a
           point. Leaders get harder songs.
         </p>
@@ -571,7 +572,7 @@ export default function GamePage() {
                   force();
                 }}
                 placeholder={`Team ${i === 0 ? "A" : "B"}`}
-                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-fuchsia-500"
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-cyan-500"
               />
             ))}
           </div>
@@ -579,8 +580,8 @@ export default function GamePage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && buildGame()}
-            placeholder='Vibe for tonight , e.g. "2010s bollywood sangeet", "pop anthems"'
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 outline-none focus:border-fuchsia-500"
+            placeholder='Vibe for tonight - e.g. "2010s bollywood sangeet", "pop anthems"'
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 outline-none focus:border-cyan-500"
           />
           <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-300">
             <label className="flex items-center gap-2">
@@ -599,7 +600,7 @@ export default function GamePage() {
             </label>
             <label
               className="flex items-center gap-2"
-              title="The mic listens and awards the point automatically when the team sings a correct lyric line. Turn off if detection misfires , the ✓ button always works."
+              title="The mic listens and awards the point automatically when the team sings a correct lyric line. Turn off if detection misfires - the ✓ button always works."
             >
               <input
                 type="checkbox"
@@ -628,7 +629,7 @@ export default function GamePage() {
           </div>
           <button
             onClick={buildGame}
-            className="rounded-lg bg-fuchsia-600 px-5 py-2 font-semibold hover:bg-fuchsia-500"
+            className="rounded-lg bg-cyan-600 px-5 py-2 font-semibold hover:bg-cyan-500"
           >
             ▶ Start game
           </button>
@@ -644,14 +645,14 @@ export default function GamePage() {
                 key={i}
                 className={`rounded-xl border p-4 text-center transition ${
                   activeTeam === i
-                    ? "border-fuchsia-500 bg-fuchsia-950/40"
+                    ? "border-cyan-500 bg-cyan-950/40"
                     : "border-zinc-800"
                 }`}
               >
                 <p className="truncate text-sm text-zinc-400">{g.teams[i]}</p>
                 <p className="text-3xl font-bold tabular-nums">{g.scores[i]}</p>
                 {activeTeam === i && (
-                  <p className="animate-pulse text-xs text-fuchsia-300">
+                  <p className="animate-pulse text-xs text-cyan-300">
                     {g.phase === "steal" ? "steal it! (½ point)" : "singing…"}
                   </p>
                 )}
@@ -680,14 +681,14 @@ export default function GamePage() {
               <p className="text-4xl font-bold">🎵 ??? 🎵</p>
               <p
                 className={`text-5xl font-bold tabular-nums ${
-                  timeLeft <= 5 ? "animate-pulse text-red-400" : "text-fuchsia-300"
+                  timeLeft <= 5 ? "animate-pulse text-red-400" : "text-cyan-300"
                 }`}
               >
                 {Math.ceil(timeLeft)}
               </p>
               {!g.micAvailable && (
                 <p className="text-xs text-amber-400">
-                  ⚠ speech recognition unavailable in this browser , award with ✓
+                  ⚠ speech recognition unavailable in this browser - award with ✓
                 </p>
               )}
               {g.heard.length > 0 && (
@@ -699,7 +700,7 @@ export default function GamePage() {
                 <button
                   onClick={succeed}
                   className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold hover:bg-emerald-500"
-                  title="Manual award , for when the mic didn't catch a clearly-correct sing-along"
+                  title="Manual award - for when the mic didn't catch a clearly-correct sing-along"
                 >
                   ✓ They got it!
                 </button>
@@ -724,11 +725,11 @@ export default function GamePage() {
               <p className="text-xl font-bold">{r.loaded.meta.title}</p>
               <p className="text-sm text-zinc-400">{r.loaded.meta.artist}</p>
               {g.matchedLine && (
-                <p className="text-sm text-fuchsia-300">“{g.matchedLine}”</p>
+                <p className="text-sm text-cyan-300">“{g.matchedLine}”</p>
               )}
               <button
                 onClick={nextRound}
-                className="rounded-lg bg-fuchsia-600 px-6 py-2 font-semibold hover:bg-fuchsia-500"
+                className="rounded-lg bg-cyan-600 px-6 py-2 font-semibold hover:bg-cyan-500"
               >
                 Next song → ({g.teams[(1 - r.primary) as TeamIdx]} is up)
               </button>
@@ -736,7 +737,7 @@ export default function GamePage() {
           )}
 
           {g.phase === "over" && (
-            <div className="space-y-4 rounded-xl border border-fuchsia-800 bg-fuchsia-950/20 p-6 text-center">
+            <div className="space-y-4 rounded-xl border border-cyan-800 bg-cyan-950/20 p-6 text-center">
               <p className="text-2xl font-bold">{g.banner}</p>
               <button
                 onClick={resetGame}

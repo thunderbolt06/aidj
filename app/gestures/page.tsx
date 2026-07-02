@@ -41,7 +41,7 @@ export default function GesturesPage() {
     if (!holding) return;
     setHolding(false);
     if (release === "transition") {
-      // keep the tension through the drop , the transition resets deck FX
+      // keep the tension through the drop - the transition resets deck FX
       mix.hopNow();
     } else {
       getEngine().tension(false);
@@ -53,14 +53,14 @@ export default function GesturesPage() {
       <header>
         <h1 className="text-2xl font-bold">Gestures</h1>
         <p className="text-sm text-zinc-400">
-          Hold the pad , the track tenses up. Let go , it drops into the next
+          Hold the pad - the track tenses up. Let go - it drops into the next
           song. Swipe up for an instant transition.
         </p>
       </header>
 
       <SearchPicker
         placeholder="Queue songs…"
-        onPick={(t) => mix.setQueue((q) => [...q, t])}
+        onPick={(t) => mix.addNext(t)}
       />
 
       {mix.queue.length > 0 && !mix.running && (
@@ -69,7 +69,7 @@ export default function GesturesPage() {
           disabled={mix.queue.length < 2}
           className="rounded-lg bg-zinc-100 px-5 py-2 font-semibold text-zinc-900 disabled:opacity-40"
         >
-          ▶ Start ({mix.queue.length} queued , need ≥2)
+          ▶ Start ({mix.queue.length} queued - need ≥2)
         </button>
       )}
       {mix.status && (
@@ -81,7 +81,7 @@ export default function GesturesPage() {
           <div
             className={`flex h-72 select-none items-center justify-center rounded-2xl border-4 text-center transition-colors ${
               holding
-                ? "animate-pulse border-fuchsia-500 bg-fuchsia-950/40"
+                ? "animate-pulse border-cyan-500 bg-cyan-950/40"
                 : "border-zinc-700 bg-zinc-900"
             }`}
             style={{ touchAction: "none" }}
@@ -138,8 +138,8 @@ export default function GesturesPage() {
             </button>
           </div>
           {mix.lastPlan && (
-            <p className="text-xs text-fuchsia-300">
-              {mix.lastPlan.style} , {mix.lastPlan.reasoning}
+            <p className="text-xs text-cyan-300">
+              {mix.lastPlan.style} - {mix.lastPlan.reasoning}
             </p>
           )}
         </>

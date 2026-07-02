@@ -34,7 +34,7 @@ export function BeatTapButton({
           (((pos - anchor) % beatLen) + beatLen) % beatLen / beatLen;
         const punch = Math.pow(1 - phase, 3);
         el.style.transform = `scale(${1 + punch * 0.12})`;
-        el.style.boxShadow = `0 0 ${4 + punch * 22}px rgba(217,70,239,${
+        el.style.boxShadow = `0 0 ${4 + punch * 22}px rgba(34,211,238,${
           0.2 + punch * 0.5
         })`;
       }
@@ -55,15 +55,15 @@ export function BeatTapButton({
           onTap();
           setFlash(Date.now());
         }}
-        className="select-none rounded-full bg-fuchsia-600/90 px-5 py-2.5 text-sm font-bold transition hover:bg-fuchsia-500"
-        title="Tap on the beat (or spacebar) , each tap keeps the song going 15s longer"
+        className="select-none rounded-full bg-cyan-600/90 px-5 py-2.5 text-sm font-bold transition hover:bg-cyan-500"
+        title="Tap on the beat (or spacebar) - each tap keeps the song going 15s longer"
       >
         👏
       </button>
       {flash > 0 && (
         <span
           key={flash}
-          className="pointer-events-none absolute inset-0 animate-ping rounded-full border-2 border-fuchsia-400"
+          className="pointer-events-none absolute inset-0 animate-ping rounded-full border-2 border-cyan-400"
         />
       )}
     </span>
@@ -73,7 +73,7 @@ export function BeatTapButton({
 /**
  * "Clap along" pad: a ring that pulses on every beat of the playing track,
  * inviting the user to tap (spacebar or touch) on the beat. Each tap claims
- * +15s of the current song via useAutoMix.tapInterest , stop tapping and the
+ * +15s of the current song via useAutoMix.tapInterest - stop tapping and the
  * auto-DJ knows you've lost interest.
  *
  * Beat phase is derived from the engine playhead + track analysis on rAF, so
@@ -107,10 +107,10 @@ export function BeatTapPulse({
         const anchor = analysis.downbeatOffset ?? analysis.beatOffset;
         const phase =
           (((pos - anchor) % beatLen) + beatLen) % beatLen / beatLen;
-        // sharp attack on the beat, quick decay , feels like a clap cue
+        // sharp attack on the beat, quick decay - feels like a clap cue
         const punch = Math.pow(1 - phase, 3);
         el.style.transform = `scale(${1 + punch * 0.35})`;
-        el.style.boxShadow = `0 0 ${8 + punch * 40}px rgba(217,70,239,${
+        el.style.boxShadow = `0 0 ${8 + punch * 40}px rgba(34,211,238,${
           0.25 + punch * 0.55
         })`;
       }
@@ -129,12 +129,12 @@ export function BeatTapPulse({
         onTap();
         setFlash(Date.now());
       }}
-      className="relative flex w-full select-none flex-col items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 py-6 outline-none transition hover:border-fuchsia-800 focus-visible:border-fuchsia-500"
-      title="Tap on the beat (or hit spacebar) , each tap keeps the song going 15s longer"
+      className="relative flex w-full select-none flex-col items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 py-6 outline-none transition hover:border-cyan-800 focus-visible:border-cyan-500"
+      title="Tap on the beat (or hit spacebar) - each tap keeps the song going 15s longer"
     >
       <div
         ref={dotRef}
-        className="flex h-24 w-24 items-center justify-center rounded-full bg-fuchsia-600/90 text-2xl"
+        className="flex h-24 w-24 items-center justify-center rounded-full bg-cyan-600/90 text-2xl"
       >
         👏
       </div>
@@ -142,7 +142,7 @@ export function BeatTapPulse({
       {flash > 0 && (
         <span
           key={flash}
-          className="pointer-events-none absolute top-6 h-24 w-24 animate-ping rounded-full border-2 border-fuchsia-400"
+          className="pointer-events-none absolute top-6 h-24 w-24 animate-ping rounded-full border-2 border-cyan-400"
         />
       )}
       <p className="text-xs uppercase tracking-widest text-zinc-500">
@@ -151,7 +151,7 @@ export function BeatTapPulse({
       <p className="text-sm">
         {claimedLeft > 0 ? (
           <span className="font-semibold text-emerald-400">
-            +{Math.ceil(claimedLeft)}s claimed , keep clapping to extend
+            +{Math.ceil(claimedLeft)}s claimed - keep clapping to extend
           </span>
         ) : (
           <span className="text-zinc-400">

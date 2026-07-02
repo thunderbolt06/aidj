@@ -16,7 +16,7 @@
  *   YTDLP_COOKIES  → yt-dlp --cookies <path>  (exported YouTube cookies.txt)
  */
 const http = require("node:http");
-const { execFile } = require("node:child_process");
+const { execFile, spawn } = require("node:child_process");
 const { promisify } = require("node:util");
 const { mkdir, readdir, readFile, writeFile, stat } = require("node:fs/promises");
 const { createReadStream, existsSync } = require("node:fs");
@@ -335,5 +335,22 @@ const server = http.createServer(async (req, res) => {
     return json(res, 500, { error: e instanceof Error ? e.message : "error" });
   }
 });
+
+// bgutil-ytdlp-pot-provider server — mints PO tokens so yt-dlp's bundled
+// bgutil plugin (installed to /app/yt-dlp-plugins) can get real formats for
+// cookie-authenticated requests. Optional: only spawned if the nixpacks
+// build vendored it (see nixpacks.toml) and only useful when YTDLP_COOKIES
+// is set. Restarts on crash rather than taking the whole extractor down.
+const BGUTIL_SERVER_ENTRY =
+  process.env.BGUTIL_SERVER_PATH || "/app/bgutil-server/server/build/main.js";
+function startBgutilServer() {
+  if (!existsSync(BGUTIL_SERVER_ENTRY)) return;
+  const child = spawn("node", [BGUTIL_SERVER_ENTRY], { stdio: "inherit" });
+  child.on("exit", (code) => {
+    console.error(`bgutil-provider exited (${code}), restarting in 5s`);
+    setTimeout(startBgutilServer, 5000);
+  });
+}
+startBgutilServer();
 
 server.listen(PORT, () => console.log(`aidj-extractor listening on :${PORT}`));

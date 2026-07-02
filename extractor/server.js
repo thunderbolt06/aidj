@@ -28,6 +28,13 @@ const exec = promisify(execFile);
 
 const PORT = process.env.PORT || 8080;
 const YTDLP = process.env.YTDLP_PATH || "yt-dlp";
+
+// yt-dlp's JS challenge solver looks for a JS runtime (deno) on PATH, but the
+// Nixpacks runtime PATH doesn't include /usr/local/bin where the build puts it.
+// Prepending here propagates to every spawned child (yt-dlp, ffmpeg, bgutil).
+if (!(process.env.PATH || "").includes("/usr/local/bin")) {
+  process.env.PATH = `/usr/local/bin:${process.env.PATH || ""}`;
+}
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const TOKEN = process.env.EXTRACTOR_TOKEN || ""; // optional shared secret
 const CACHE_DIR = process.env.CACHE_DIR || path.join(__dirname, ".cache");

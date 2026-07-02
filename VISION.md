@@ -1,4 +1,4 @@
-# AIDJ Lab , Vision & Roadmap
+# Everplay Lab , Vision & Roadmap
 
 > Intent-based music with AI-generated DJ transitions. An experiment lab for finding the one music experience that feels magical enough to go viral.
 

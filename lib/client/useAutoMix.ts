@@ -172,6 +172,7 @@ function scoreCandidateForArc(a: TrackAnalysis, ctx: ArcScoreCtx): number {
 export function useAutoMix() {
   const [queue, setQueueState] = useState<Track[]>([]);
   const [running, setRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [nowIdx, setNowIdx] = useState(-1);
   const [now, setNow] = useState<LoadedTrack | null>(null);
   const [status, setStatus] = useState("");
@@ -188,6 +189,7 @@ export function useAutoMix() {
   const st = useRef({
     queue: [] as Track[],
     running: false,
+    paused: false,
     nowIdx: -1,
     current: null as LoadedTrack | null,
     opts: { clipLen: "ai", useAi: true } as AutoMixOptions,
@@ -298,15 +300,44 @@ export function useAutoMix() {
     timer.current = null;
     getEngine().stop();
     st.current.running = false;
+    st.current.paused = false;
     st.current.current = null;
     st.current.prepared = null;
     st.current.preparing = null;
     st.current.interestUntil = 0;
     setInterestUntil(0);
     setRunning(false);
+    setPaused(false);
     setNowIdx(-1);
     setNow(null);
     setNextReady(false);
+  }
+
+  /**
+   * Pause/resume the whole mix in place (freezes the AudioContext clock, so
+   * the playhead genuinely stops rather than the set tearing down). The
+   * auto-hop timer is wall-clock based, so it's cleared on pause and re-armed
+   * for its exact remaining wait on resume (the playhead hasn't moved).
+   */
+  async function togglePause() {
+    const s = st.current;
+    if (!s.running) return;
+    if (s.paused) {
+      s.paused = false;
+      setPaused(false);
+      await getEngine().resume();
+      // re-arm fresh rather than trust a remembered target: prepareNext()
+      // may have resolved while paused and skipped arming (see armTimer)
+      if (!timer.current) armTimer(s.prepared);
+    } else {
+      s.paused = true;
+      setPaused(true);
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      await getEngine().pause();
+    }
   }
 
   async function start(opts: AutoMixOptions = {}) {
@@ -431,6 +462,9 @@ export function useAutoMix() {
   /** Arm the auto-hop timer. In "ai" mode the plan's outPoint decides. */
   function armTimer(prepared?: Prepared | null) {
     if (timer.current) clearTimeout(timer.current);
+    // never schedule a hop while paused - prepareNext() can resolve after
+    // the user paused; togglePause() re-arms fresh on resume instead
+    if (st.current.paused) return;
     const { clipLen } = st.current.opts;
     if (!clipLen) return;
     const pos = getEngine().position();
@@ -785,6 +819,7 @@ export function useAutoMix() {
     queue,
     setQueue,
     running,
+    paused,
     nowIdx,
     now,
     status,
@@ -798,6 +833,7 @@ export function useAutoMix() {
     interestUntil,
     start,
     stop,
+    togglePause,
     hopNow,
     transitionTo,
     prepareNext,

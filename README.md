@@ -1,4 +1,4 @@
-# AIDJ Lab
+# Everplay Lab
 
 Intent-based music with AI-generated DJ transitions. Every page is an experiment , the goal is to try each idea thoroughly and keep the ones that work.
 

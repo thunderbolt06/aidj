@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AIDJ Lab",
+  title: "Everplay",
   description: "Intent-based music with AI-generated transitions",
 };
 

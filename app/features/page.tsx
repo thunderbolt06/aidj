@@ -103,7 +103,7 @@ export default function FeaturesPage() {
   return (
     <main className="mx-auto max-w-3xl p-6">
       <h1 className="text-3xl font-bold">
-        AI<span className="text-fuchsia-500">DJ</span> Lab
+        Ever<span className="text-fuchsia-500">play</span> Lab
       </h1>
       <p className="mt-1 text-zinc-400">
         Every card is an experiment , try them all, keep what slaps.

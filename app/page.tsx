@@ -212,7 +212,7 @@ export default function HomePage() {
   const cornerNav = (
     <div className="fixed inset-x-4 top-4 z-30 flex items-center justify-between gap-2">
       <Link href="/" className="text-lg font-bold">
-        AI<span className="text-fuchsia-500">DJ</span>
+        Ever<span className="text-fuchsia-500">play</span>
       </Link>
       <div className="flex items-center gap-2">
         <div className="relative">
@@ -259,7 +259,7 @@ export default function HomePage() {
         <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center">
           <div>
             <h1 className="text-4xl font-bold">
-              AI<span className="text-fuchsia-500">DJ</span>
+              Ever<span className="text-fuchsia-500">play</span>
             </h1>
             <p className="mt-2 max-w-md text-sm text-zinc-400">
               Tell it a vibe. It plays only the famous parts, transitions like
@@ -422,6 +422,14 @@ export default function HomePage() {
                   active={mix.running}
                 />
               )}
+              {/* PAUSE: freezes the mix in place; tap again to resume */}
+              <button
+                onClick={() => mix.togglePause()}
+                className="rounded-full border border-zinc-700 px-4 py-2.5 text-sm hover:border-zinc-500"
+                title={mix.paused ? "Resume" : "Pause"}
+              >
+                {mix.paused ? "▶" : "⏸"}
+              </button>
               {/* NEXT: tap = skip · hold = tension builds · release = drop */}
               <span className="relative">
                 {holding && (
@@ -441,20 +449,9 @@ export default function HomePage() {
                   }`}
                   title="Tap to skip - or hold to build tension and release to drop"
                 >
-                  {holding ? "RELEASE" : "NEXT ⏭"}
+                  {holding ? "RELEASE" : "⏭"}
                 </button>
               </span>
-              <button
-                onClick={() => {
-                  mix.stop();
-                  setGrid([]);
-                  setQueueOpen(false);
-                }}
-                className="rounded-full border border-zinc-700 px-4 py-2.5 text-sm hover:border-zinc-500"
-                title="Stop the set"
-              >
-                ■
-              </button>
             </div>
           </div>
 

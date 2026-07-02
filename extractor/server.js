@@ -43,13 +43,6 @@ function antiBlockArgs() {
   if (process.env.YTDLP_IPV6 !== "1") args.push("-4");
   if (process.env.YTDLP_PROXY) args.push("--proxy", process.env.YTDLP_PROXY);
   if (process.env.YTDLP_COOKIES) args.push("--cookies", process.env.YTDLP_COOKIES);
-  // Cookie-authenticated requests go through YouTube's "web" client, which now
-  // requires a PO token for most formats — without one every format gets
-  // filtered out ("Requested format is not available"). The ios/tv clients
-  // don't enforce PO tokens yet, so prefer those when cookies are in play.
-  if (process.env.YTDLP_COOKIES) {
-    args.push("--extractor-args", "youtube:player_client=ios,tv");
-  }
   return args;
 }
 

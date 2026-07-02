@@ -37,8 +37,19 @@ const META_DIR = path.join(CACHE_DIR, "meta");
 // extra yt-dlp args for anti-block — inert until the env vars are set
 function antiBlockArgs() {
   const args = [];
+  // Force IPv4: hosts with a broken/blackholed IPv6 route to Google make yt-dlp
+  // stall ~per-request retrying IPv6 before falling back, stacking into 80–160s
+  // hangs that blow past our timeouts. Set YTDLP_IPV6=1 to opt back into IPv6.
+  if (process.env.YTDLP_IPV6 !== "1") args.push("-4");
   if (process.env.YTDLP_PROXY) args.push("--proxy", process.env.YTDLP_PROXY);
   if (process.env.YTDLP_COOKIES) args.push("--cookies", process.env.YTDLP_COOKIES);
+  // Cookie-authenticated requests go through YouTube's "web" client, which now
+  // requires a PO token for most formats — without one every format gets
+  // filtered out ("Requested format is not available"). The ios/tv clients
+  // don't enforce PO tokens yet, so prefer those when cookies are in play.
+  if (process.env.YTDLP_COOKIES) {
+    args.push("--extractor-args", "youtube:player_client=ios,tv");
+  }
   return args;
 }
 

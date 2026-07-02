@@ -4,7 +4,7 @@ import { extractJson } from "@/lib/server/extractJson";
 
 export const dynamic = "force-dynamic";
 
-const SYSTEM = `You design multi-song mashups for an AI DJ app. The user gives an intent — a
+const SYSTEM = `You design multi-song mashups for an AI DJ app. The user gives an intent , a
 prompt, a singer, a year/era, or a theme. Pick real, popular songs that mash well together:
 similar BPM range (within ~10% of each other), compatible energy, recognizable hooks.
 

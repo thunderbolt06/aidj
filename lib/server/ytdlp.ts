@@ -13,8 +13,17 @@ const META_DIR = path.join(CACHE_DIR, "meta");
 const YTDLP = process.env.YTDLP_PATH || "yt-dlp";
 
 /**
+ * Force IPv4. Many networks advertise IPv6 but have a broken/blackholed route
+ * to Google/YouTube , yt-dlp then tries IPv6 first on every connection and
+ * stalls ~per-request until it times out and falls back to IPv4. Those stalls
+ * stack across the search + per-result fetches into 80–160s hangs that blow
+ * past our exec timeouts. `-4` skips IPv6 entirely (search drops to ~1s).
+ */
+const YTDLP_BASE = ["-4", "--no-warnings"];
+
+/**
  * When set, the heavy yt-dlp/ffmpeg work runs on the remote extractor service
- * (Railway) instead of locally — Vercel serverless can't run native binaries.
+ * (Railway) instead of locally , Vercel serverless can't run native binaries.
  * Unset (e.g. local dev with yt-dlp installed) → use the local binary.
  */
 export const EXTRACTOR = (process.env.EXTRACTOR_URL || "").replace(/\/+$/, "");
@@ -51,10 +60,10 @@ export async function searchYouTube(query: string, limit = 8): Promise<Track[]> 
   const { stdout } = await exec(
     YTDLP,
     [
+      ...YTDLP_BASE,
       `ytsearch${limit}:${query}`,
       "--dump-json",
       "--flat-playlist",
-      "--no-warnings",
     ],
     { maxBuffer: 32 * 1024 * 1024, timeout: 30_000 }
   );
@@ -102,7 +111,7 @@ export async function getTrackMeta(id: string): Promise<TrackMeta> {
 
   const { stdout } = await exec(
     YTDLP,
-    [`https://www.youtube.com/watch?v=${id}`, "--dump-json", "--no-warnings"],
+    [...YTDLP_BASE, `https://www.youtube.com/watch?v=${id}`, "--dump-json"],
     { maxBuffer: 64 * 1024 * 1024, timeout: 60_000 }
   );
   const j = JSON.parse(stdout);
@@ -138,6 +147,7 @@ export async function getAudioFile(id: string): Promise<string> {
     await exec(
       YTDLP,
       [
+        ...YTDLP_BASE,
         `https://www.youtube.com/watch?v=${id}`,
         "-f",
         "bestaudio[ext=m4a]/bestaudio",
@@ -146,13 +156,12 @@ export async function getAudioFile(id: string): Promise<string> {
         "m4a",
         "-o",
         path.join(AUDIO_DIR, "%(id)s.%(ext)s"),
-        "--no-warnings",
       ],
       { maxBuffer: 8 * 1024 * 1024, timeout: 180_000 }
     );
   } catch (e) {
     // yt-dlp breaks often (YouTube changes, missing deno for JS challenges,
-    // PATH issues) — surface its stderr so the failure is diagnosable.
+    // PATH issues) , surface its stderr so the failure is diagnosable.
     const err = e as { stderr?: string; message?: string; code?: string };
     const reason =
       err.code === "ENOENT"
@@ -167,7 +176,7 @@ export async function getAudioFile(id: string): Promise<string> {
 }
 
 /**
- * Audio bytes for `id`, regardless of mode — fetched from the extractor when
+ * Audio bytes for `id`, regardless of mode , fetched from the extractor when
  * remote, read off local disk otherwise. Used by the stems route (which feeds
  * the audio to Replicate).
  */

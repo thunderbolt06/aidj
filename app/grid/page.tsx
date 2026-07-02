@@ -29,9 +29,9 @@ export default function GridPage() {
       const res = await fetch("/api/ai/suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: `${current.title} — ${current.artist}` }),
+        body: JSON.stringify({ current: `${current.title} , ${current.artist}` }),
       });
-      if (!res.ok) throw new Error("suggest failed — is ANTHROPIC_API_KEY set?");
+      if (!res.ok) throw new Error("suggest failed , is ANTHROPIC_API_KEY set?");
       const { suggestions } = (await res.json()) as {
         suggestions: { query: string; tag: Suggestion["tag"] }[];
       };
@@ -72,7 +72,7 @@ export default function GridPage() {
       <header>
         <h1 className="text-2xl font-bold">9-Grid Next Song</h1>
         <p className="text-sm text-zinc-400">
-          One song plays; nine doors out. Tap a tile to transition into it —
+          One song plays; nine doors out. Tap a tile to transition into it ,
           green = safe, amber = energy shift, pink = wildcard.
         </p>
       </header>
@@ -85,7 +85,7 @@ export default function GridPage() {
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           {mix.lastPlan && (
             <p className="text-xs text-fuchsia-300">
-              {mix.lastPlan.style} — {mix.lastPlan.reasoning}
+              {mix.lastPlan.style} , {mix.lastPlan.reasoning}
             </p>
           )}
           <button

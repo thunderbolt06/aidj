@@ -28,7 +28,7 @@ export interface TrackAnalysis {
   energy: number[];
   duration: number;
   /**
-   * Estimated downbeat (bar-1) offset in seconds — the beat to anchor
+   * Estimated downbeat (bar-1) offset in seconds , the beat to anchor
    * phrase quantization on, not just the first detected beat.
    */
   downbeatOffset: number;

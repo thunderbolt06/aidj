@@ -23,7 +23,7 @@ export function SearchPicker({
     try {
       setResults(await searchTracks(q));
     } catch {
-      setError("Search failed — is yt-dlp installed and reachable?");
+      setError("Search failed , is yt-dlp installed and reachable?");
     } finally {
       setBusy(false);
     }

@@ -5,18 +5,18 @@ import { extractJson } from "@/lib/server/extractJson";
 export const dynamic = "force-dynamic";
 
 const SYSTEM = `You suggest the next song for a live DJ set. Given the currently playing song
-(and optionally a vibe), return 9 real, popular songs that would each transition well from it —
-a spread: ~3 same-vibe safe picks, ~3 energy shifts (up or down), ~3 wildcard genre/era jumps
-that still flow.
+(and optionally a vibe), return 9 real, popular songs that would each transition well from it ,
+EXACTLY this spread, in this order: 5 same-vibe safe picks, then 3 moderate energy shifts
+(up or down), then 1 wildcard genre/era jump that still flows.
 
 If an "arc" is given, the set is being paced along an energy curve and you must steer the WHOLE
 batch toward arc.phase and arc.energy (0=ambient, 1=peak-time banger), targeting roughly the
 arc.bpm window: "chill" → mellow/downtempo singalongs, "groovy" → mid-tempo movers, "hype" →
 high-energy crowd-pleasers, "peak" → festival/club bangers and drops. Bias all 9 picks that way
-(keep ~2 wildcards, but still at the target energy).
+(keep the 1 wildcard, but still at the target energy).
 
 Respond ONLY with JSON:
-{"suggestions": [{"query": "artist - song name", "tag": "safe|shift|wild"} x9]}`;
+{"suggestions": [{"query": "artist - song name", "tag": "safe|shift|wild"} x9 , 5 safe, 3 shift, 1 wild]}`;
 
 export async function POST(req: NextRequest) {
   const { current, vibe, arc } = await req.json();

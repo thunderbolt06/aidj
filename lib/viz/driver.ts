@@ -8,7 +8,7 @@ import type { BeatInfo, VizFrame, VizInputs } from "@/lib/viz/types";
  *  - the FFT (band energies, onset, chroma) reacts to what is actually playing;
  *  - the *beat grid* (bpm, beatOffset, downbeatOffset from analysis) plus the
  *    audio playhead give a smooth, predictive beat/bar phase so animations can
- *    pulse exactly on the beat even between audio frames — like the RGB lights
+ *    pulse exactly on the beat even between audio frames , like the RGB lights
  *    on a keyboard locking to the groove.
  */
 export class VizDriver {

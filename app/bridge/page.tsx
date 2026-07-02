@@ -9,7 +9,7 @@ import { HeatmapBar } from "@/components/HeatmapBar";
 
 /**
  * Generated-bridge mode: instead of blending A into B, an AI-composed clip
- * (Claude prompt → MusicGen) is inserted between them — starts in A's world,
+ * (Claude prompt → MusicGen) is inserted between them , starts in A's world,
  * ends in B's. Generation takes ~30-90s, so it renders while A plays.
  */
 export default function BridgePage() {
@@ -76,7 +76,7 @@ export default function BridgePage() {
       bridge = await getEngine().decode(await res.arrayBuffer());
       bridgeBuf.current = bridge;
     } catch (e) {
-      // LOUD failure — the user must know no bridge was generated
+      // LOUD failure , the user must know no bridge was generated
       setFallback(
         `NO BRIDGE GENERATED: ${e instanceof Error ? e.message : "unknown error"}. ` +
           `Playing a plain crossfade instead.`
@@ -86,7 +86,7 @@ export default function BridgePage() {
       return;
     }
 
-    setStatus("bridge ready — dropping it in…");
+    setStatus("bridge ready , dropping it in…");
     const bridgeAnalysis = await analyzeTrack(bridge);
     getEngine().onTransitionEnd = null;
     // fast 1.2s entry so nearly the whole generated clip is heard in the clear

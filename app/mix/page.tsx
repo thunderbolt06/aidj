@@ -101,7 +101,7 @@ export default function MixPage() {
       <header>
         <h1 className="text-2xl font-bold">2-Song Mix</h1>
         <p className="text-sm text-zinc-400">
-          Pick two songs. Play A, then hit <b>AI Transition</b> — Claude reads
+          Pick two songs. Play A, then hit <b>AI Transition</b> , Claude reads
           both tracks&apos; BPM, energy and famous-part data and renders the blend
           live in your browser.
         </p>

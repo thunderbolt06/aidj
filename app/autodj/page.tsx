@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { TransitionStyle } from "@/lib/types";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { MusicVisualizer } from "@/components/MusicVisualizer";
+import { BeatTapPulse } from "@/components/BeatTapPulse";
 
 const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
   { value: "", label: "🤖 AI picks the trick" },
@@ -28,6 +29,7 @@ const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
 export default function AutoDjPage() {
   const mix = useAutoMix();
   const [clipLen, setClipLen] = useState<number | "ai">("ai");
+  const [minPlaySec, setMinPlaySec] = useState(25);
   const [useAi, setUseAi] = useState(true);
   const [quantize, setQuantize] = useState(true);
   const [endless, setEndless] = useState(true);
@@ -35,6 +37,22 @@ export default function AutoDjPage() {
   const [stems, setStems] = useState(false);
   const [trick, setTrick] = useState<TransitionStyle | "">("");
   const [musicVideo, setMusicVideo] = useState(false);
+  const [tapToExtend, setTapToExtend] = useState(true);
+
+  // spacebar = interest tap (skip when typing in an input/select)
+  useEffect(() => {
+    if (!mix.running || !tapToExtend) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.code !== "Space" || e.repeat) return;
+      e.preventDefault();
+      mix.tapInterest();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mix.running, tapToExtend]);
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
@@ -152,7 +170,18 @@ export default function AutoDjPage() {
         </label>
         <label
           className="flex items-center gap-2 text-sm text-zinc-300"
-          title="Real-time, beat & chord-reactive music video — coded, not pre-rendered"
+          title="Tap spacebar (or the pad) on the beat to keep a song you like playing , each tap guarantees 15 more seconds. Turn off for smooth hands-free listening."
+        >
+          <input
+            type="checkbox"
+            checked={tapToExtend}
+            onChange={(e) => setTapToExtend(e.target.checked)}
+          />
+          👏 Tap to extend
+        </label>
+        <label
+          className="flex items-center gap-2 text-sm text-zinc-300"
+          title="Real-time, beat & chord-reactive music video , coded, not pre-rendered"
         >
           <input
             type="checkbox"
@@ -181,6 +210,7 @@ export default function AutoDjPage() {
             onClick={() => {
               mix.start({
                 clipLen,
+                minPlaySec,
                 useAi,
                 quantize,
                 endless,
@@ -189,7 +219,7 @@ export default function AutoDjPage() {
                 styleHint: trick || undefined,
               });
             }}
-            disabled={mix.queue.length < 2}
+            disabled={mix.queue.length < 1}
             className="rounded-lg bg-zinc-100 px-5 py-2 font-semibold text-zinc-900 disabled:opacity-40"
           >
             ▶ Start set
@@ -227,8 +257,46 @@ export default function AutoDjPage() {
         )}
       </div>
 
+      {clipLen === "ai" && (
+        <div className="flex items-center gap-3 text-sm text-zinc-300">
+          <label
+            htmlFor="minPlay"
+            className="shrink-0"
+            title="In AI timing mode, every song plays at least this long before the AI is allowed to transition out of it."
+          >
+            ⏱ Min play <span className="text-zinc-500">(AI timing)</span>
+          </label>
+          <input
+            id="minPlay"
+            type="range"
+            min={5}
+            max={120}
+            step={5}
+            value={minPlaySec}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setMinPlaySec(v);
+              mix.setOptions({ minPlaySec: v }); // applies live mid-set
+            }}
+            className="grow accent-fuchsia-600"
+          />
+          <span className="w-12 shrink-0 text-right tabular-nums text-zinc-100">
+            {minPlaySec}s
+          </span>
+        </div>
+      )}
+
       {mix.status && (
         <p className="animate-pulse text-xs text-amber-400">{mix.status}</p>
+      )}
+
+      {tapToExtend && (
+        <BeatTapPulse
+          analysis={mix.now?.analysis ?? null}
+          interestUntil={mix.interestUntil}
+          onTap={() => mix.tapInterest()}
+          active={mix.running}
+        />
       )}
 
       {mix.now && (
@@ -245,7 +313,7 @@ export default function AutoDjPage() {
             )}
             {" · "}famous @ {mix.now.meta.famousStart ?? "?"}s
             {mix.now.analysis.bpmConfidence < 0.15 && (
-              <span className="ml-2 text-amber-400" title="low tempo confidence — quantize off">
+              <span className="ml-2 text-amber-400" title="low tempo confidence , quantize off">
                 · ⚠ shaky BPM
               </span>
             )}
@@ -256,7 +324,7 @@ export default function AutoDjPage() {
           {mix.lastPlan && (
             <p className="text-xs text-fuchsia-300">
               last hop: {mix.lastPlan.style}
-              {mix.lastPlan.beatMatch ? " (beat-matched)" : ""} —{" "}
+              {mix.lastPlan.beatMatch ? " (beat-matched)" : ""} ,{" "}
               {mix.lastPlan.reasoning}
             </p>
           )}
@@ -293,7 +361,7 @@ export default function AutoDjPage() {
                 const lines = mix.setLog
                   .map(
                     (e, i) =>
-                      `${i + 1}. ${e.title} — ${e.artist}${
+                      `${i + 1}. ${e.title} , ${e.artist}${
                         i === 0 ? "" : `  (${e.style})`
                       }`
                   )
@@ -323,7 +391,7 @@ export default function AutoDjPage() {
               >
                 <span className="truncate">
                   {i + 1}. {e.title}{" "}
-                  <span className="text-zinc-500">— {e.artist}</span>
+                  <span className="text-zinc-500">, {e.artist}</span>
                 </span>
                 {i > 0 && (
                   <span className="shrink-0 text-xs text-zinc-500">{e.style}</span>

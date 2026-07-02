@@ -1,13 +1,13 @@
 /**
  * Pitch-preserving time-stretch (key-lock / master tempo).
  *
- * `beatMatch` in the engine glides `playbackRate`, which also shifts pitch —
+ * `beatMatch` in the engine glides `playbackRate`, which also shifts pitch ,
  * fighting harmonic mixing. This stretches a buffer's DURATION by `factor`
  * (pitch untouched) so the engine can then play it at rate 1 and have it both
  * tempo-matched AND in its original key.
  *
  * Plain overlap-add with a Hann window at 50% synthesis overlap. Beat-matching
- * only engages within ~8% tempo difference, so `factor` stays in ~0.92–1.08 —
+ * only engages within ~8% tempo difference, so `factor` stays in ~0.92–1.08 ,
  * a mild stretch where OLA is essentially transparent and a WSOLA search isn't
  * worth its cost. Runs synchronously on the raw channel data (no
  * OfflineAudioContext), so it's cheap enough to do during prepare-ahead.

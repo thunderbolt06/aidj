@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * YouTube metadata is hostile to lyric lookup: `artist` is usually a channel
  * ("T-Series", "Latin City", "...VEVO") and titles carry junk ("(Official
  * Video)", "Full Video Song", en-dashes). So this route cleans aggressively,
- * tries several query strategies, and picks the best candidate — preferring
+ * tries several query strategies, and picks the best candidate , preferring
  * synced lyrics and matching the track duration when the client provides it.
  */
 
@@ -35,7 +35,7 @@ function cleanTitle(raw: string): string {
     .replace(/[|/].*$/, " ") // everything after a pipe/slash
     .replace(/\b(ft\.?|feat\.?|featuring)\b.*$/i, " ") // featuring clause
     .replace(TITLE_JUNK, " ")
-    .replace(/[–—]/g, "-") // normalize dashes
+    .replace(/[–,]/g, "-") // normalize dashes
     .replace(/\s+/g, " ")
     .trim();
 }

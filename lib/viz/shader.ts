@@ -1,7 +1,7 @@
 import type { VizFrame } from "@/lib/viz/types";
 
 /**
- * Minimal WebGL fragment-shader runner — the "shader-art" path.
+ * Minimal WebGL fragment-shader runner , the "shader-art" path.
  *
  * A shader template (built-in OR user/AI authored) only needs to define
  *   void mainImage(out vec4 fragColor, in vec2 fragCoord)
@@ -16,7 +16,7 @@ attribute vec2 aPos;
 void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }
 `;
 
-/** Documented uniform contract — keep in sync with the AI route's prompt. */
+/** Documented uniform contract , keep in sync with the AI route's prompt. */
 export const SHADER_PRELUDE = `
 precision highp float;
 uniform vec2  iResolution;   // pixels
@@ -33,7 +33,7 @@ uniform float iHue;          // 0..1 base hue (from the song key)
 uniform float iIntensity;    // reactivity multiplier (~0..2)
 uniform float iSpeed;        // motion multiplier (~0..2)
 uniform vec3  iKeyColor;     // rgb anchor color from the song key
-uniform float iChroma[12];   // 12 pitch-class energies — the live chord
+uniform float iChroma[12];   // 12 pitch-class energies , the live chord
 uniform sampler2D iSpectrum; // row .25 = FFT, row .75 = waveform; x in 0..1
 
 vec3 hsv2rgb(vec3 c){

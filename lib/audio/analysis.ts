@@ -182,7 +182,7 @@ function integratedLoudness(buffer: AudioBuffer): number {
   const data = buffer.getChannelData(0);
   let sum = 0;
   let n = 0;
-  // decimate heavily — we only need a stable average level
+  // decimate heavily , we only need a stable average level
   for (let i = 0; i < data.length; i += 257) {
     sum += data[i] * data[i];
     n++;
@@ -213,7 +213,7 @@ function detectKey(buffer: AudioBuffer): {
   const sr = buffer.sampleRate;
   const frameSize = 4096;
 
-  // Goertzel coefficient per semitone, C2 (MIDI 36) .. B5 (MIDI 83) — 4 octaves.
+  // Goertzel coefficient per semitone, C2 (MIDI 36) .. B5 (MIDI 83) , 4 octaves.
   const notes: { pc: number; coeff: number }[] = [];
   for (let m = 36; m < 84; m++) {
     const f = 440 * Math.pow(2, (m - 69) / 12);

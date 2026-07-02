@@ -124,7 +124,14 @@ export class DJEngine {
   private recStartCtxTime = 0;
 
   constructor() {
-    this.ctx = new AudioContext();
+    // older iOS Safari only ships the prefixed constructor
+    const AC =
+      typeof AudioContext !== "undefined"
+        ? AudioContext
+        : (globalThis as { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext;
+    if (!AC) throw new Error("Web Audio not supported in this browser");
+    this.ctx = new AC();
     this.master = this.ctx.createGain();
     this.master.connect(this.ctx.destination);
 
@@ -152,7 +159,14 @@ export class DJEngine {
   }
 
   async resume() {
-    if (this.ctx.state === "suspended") await this.ctx.resume();
+    // iOS also reports a non-standard "interrupted" state , resume for
+    // anything that isn't running
+    if (this.ctx.state !== "running") await this.ctx.resume();
+  }
+
+  /** Freeze the whole mix in place (suspends the AudioContext clock). */
+  async pause() {
+    if (this.ctx.state === "running") await this.ctx.suspend();
   }
 
   /** Load + immediately play a track on the active deck. */
@@ -173,7 +187,7 @@ export class DJEngine {
 
   /**
    * Lazily create an FFT analyser tapped off the master bus, for visualizers.
-   * The analyser's output is intentionally left unconnected — an AnalyserNode
+   * The analyser's output is intentionally left unconnected , an AnalyserNode
    * analyzes whatever reaches its input regardless, so this taps the full mix
    * (decks + echo bus) without altering the audible signal path.
    */
@@ -194,8 +208,57 @@ export class DJEngine {
   }
 
   /**
+   * Seek within the active deck's track with a vinyl-scratch transition:
+   * a short slice of the record "rubs" (reversed when jumping back, forward
+   * when jumping ahead) with a fast rate sweep, then playback slams in at
+   * the target position. Returns the clamped position actually seeked to.
+   */
+  scratchSeek(sec: number): number {
+    const deck = this.activeDeck;
+    const buf = deck.buffer;
+    if (!buf) return 0;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const from = deck.position();
+    const target = Math.min(Math.max(0, sec), Math.max(0, buf.duration - 0.5));
+    const rubLen = 0.18;
+
+    // the rub: a slice of the track at the CURRENT playhead, direction-aware
+    const back = target < from;
+    const sliceStart = back ? Math.max(0, from - rubLen) : Math.min(from, buf.duration - rubLen);
+    const rub = ctx.createBufferSource();
+    rub.buffer = back ? this.reversedSlice(buf, sliceStart, rubLen) : buf;
+    // sweep the rate up like a hand dragging the platter
+    rub.playbackRate.setValueAtTime(1, now);
+    rub.playbackRate.exponentialRampToValueAtTime(2.4, now + rubLen);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.9, now);
+    g.gain.linearRampToValueAtTime(0, now + rubLen);
+    rub.connect(g).connect(this.master);
+    if (back) rub.start(now);
+    else rub.start(now, sliceStart);
+    rub.stop(now + rubLen + 0.02);
+    setTimeout(() => {
+      try {
+        g.disconnect();
+      } catch {
+        /* already gone */
+      }
+    }, (rubLen + 0.5) * 1000);
+
+    // deck ducks through the rub, then slams back in at the target
+    const dg = deck.gain.gain;
+    dg.cancelScheduledValues(now);
+    dg.setValueAtTime(dg.value, now);
+    dg.linearRampToValueAtTime(0, now + 0.04);
+    dg.setValueAtTime(1, now + rubLen);
+    deck.play(now + rubLen, target);
+    return target;
+  }
+
+  /**
    * AudioContext time of the next phrase boundary on the ACTIVE deck's beat
-   * grid, at least `minLead` seconds away — the moment a drop should land.
+   * grid, at least `minLead` seconds away , the moment a drop should land.
    */
   nextGridTime(from: TrackAnalysis, quantBeats: number, minLead = 0.08): number {
     const A = this.activeDeck;
@@ -226,7 +289,7 @@ export class DJEngine {
     return this.noiseBuffer;
   }
 
-  /** A short sub-bass thump one-shot — punctuates silence_drop / FX layers. */
+  /** A short sub-bass thump one-shot , punctuates silence_drop / FX layers. */
   private impact(at: number) {
     const ctx = this.ctx;
     const s = ctx.createBufferSource();
@@ -261,7 +324,7 @@ export class DJEngine {
    * Execute a transition from the active deck to `nextBuffer` per the plan.
    *
    * Everything is scheduled on the AudioContext clock against a single anchor
-   * `t0` — the moment B enters. With `quantizeBeats` set, t0 snaps to A's
+   * `t0` , the moment B enters. With `quantizeBeats` set, t0 snaps to A's
    * beat grid (sample-accurate, no setTimeout drift) and pre-roll effects
    * (loop roll, brake, riser) are scheduled BEFORE it so the drop lands on
    * the phrase. B's inPoint additionally snaps to B's own beat grid.
@@ -392,7 +455,7 @@ export class DJEngine {
         break;
       }
       case "loop_roll": {
-        // classic roll: 1-beat loop ×2, half-beat ×2, quarter-beat ×4 — then slam
+        // classic roll: 1-beat loop ×2, half-beat ×2, quarter-beat ×4 , then slam
         const rollStart = t0 - 4 * beatCtx;
         const p = A.posAt(rollStart);
         if (A.buffer && p > 0) {
@@ -457,7 +520,7 @@ export class DJEngine {
         noise.connect(bp).connect(ng).connect(this.master);
         noise.start(riseStart);
         noise.stop(t0 + 0.05);
-        // bass drains out of A through the rise — the floor falls away
+        // bass drains out of A through the rise , the floor falls away
         A.low.gain.setValueAtTime(0, riseStart);
         A.low.gain.linearRampToValueAtTime(-26, t0);
         aGain.setValueAtTime(aGain.value, t0 - 0.01);
@@ -556,7 +619,7 @@ export class DJEngine {
   }
 
   /**
-   * Mashup: play both decks at once — A as the low-end "bed", B band-passed
+   * Mashup: play both decks at once , A as the low-end "bed", B band-passed
    * on top as the "topper", tempo-matched to A. Poor man's stem separation.
    */
   playMashup(
@@ -567,7 +630,7 @@ export class DJEngine {
       topperOffset: number;
       rate: number;
       topperGain?: number;
-      /** false when using real stems — no EQ carving needed. */
+      /** false when using real stems , no EQ carving needed. */
       carve?: boolean;
     }
   ) {
@@ -599,7 +662,7 @@ export class DJEngine {
 
   /**
    * Infinite mashup: replace one layer with a new song while the other keeps
-   * playing — quick dip, swap source, come back. EQ carve on the deck stays.
+   * playing , quick dip, swap source, come back. EQ carve on the deck stays.
    */
   swapMashupLayer(
     which: "bed" | "topper",
@@ -621,13 +684,13 @@ export class DJEngine {
 
   /**
    * Word-stutter transition (Lyric DJ): loop a short beat-synced slice of the
-   * current track (the sung word) N times — echo rising — then drop the next
+   * current track (the sung word) N times , echo rising , then drop the next
    * track exactly as the loop releases. Returns the ctx time of the drop.
    */
   stutterTransition(
     nextBuffer: AudioBuffer,
     opts: {
-      loopStart: number; // seconds into current track — where the word begins
+      loopStart: number; // seconds into current track , where the word begins
       loopLen: number; // one repeat length (≈ a beat)
       repeats: number;
       inPoint: number; // where the next track enters
@@ -681,7 +744,7 @@ export class DJEngine {
 
   /**
    * Tension build for press-and-hold gestures: while on, the active deck's
-   * lows drain away and the echo bus swells — release into a transition.
+   * lows drain away and the echo bus swells , release into a transition.
    */
   tension(on: boolean, rampSec = 1.5) {
     const A = this.activeDeck;
@@ -769,7 +832,7 @@ export class DJEngine {
 
   /**
    * Acapella-in: B's isolated VOCAL stem rides in over A's groove for ~8 beats,
-   * then B's full mix drops on the phrase and A bows out — the classic radio
+   * then B's full mix drops on the phrase and A bows out , the classic radio
    * blend. `bVocal` is B's demucs vocal stem; `bFull` is B's full track. Grid-
    * quantized like `transition`. Returns the ctx time the swap completes.
    */
@@ -820,7 +883,7 @@ export class DJEngine {
 
     // acapella overlay: B's vocal stem, timed so its hook reaches inPoint at t0.
     // The overlay plays at `rate`, so over `preRoll` wall-seconds it advances
-    // `preRoll * rate` of B-time — start that far back from inPoint.
+    // `preRoll * rate` of B-time , start that far back from inPoint.
     const voxOffset = Math.max(0, inPoint - preRoll * rate);
     const vox = ctx.createBufferSource();
     vox.buffer = opts.bVocal;
@@ -879,7 +942,7 @@ export class DJEngine {
 
   /**
    * Vocal-throw: B cuts in on the grid while A's last sung WORD is thrown over
-   * its intro — a band-passed one-shot fed into a dotted feedback delay so it
+   * its intro , a band-passed one-shot fed into a dotted feedback delay so it
    * echoes and tails out across B's opening bar. `wordBuffer` is a short slice
    * of A at the sung word (full mix or, cleaner, A's vocal stem).
    */
@@ -940,7 +1003,7 @@ export class DJEngine {
     bp.frequency.value = 1600;
     bp.Q.value = 0.9;
     const dly = ctx.createDelay(1);
-    dly.delayTime.value = beatCtx * 0.75; // dotted eighth — classic dub throw
+    dly.delayTime.value = beatCtx * 0.75; // dotted eighth , classic dub throw
     const fb = ctx.createGain();
     fb.gain.value = 0.55;
     const wet = ctx.createGain();
@@ -986,7 +1049,7 @@ export class DJEngine {
  */
 function trimGainFromLoudness(loudness?: number): number {
   if (!loudness || loudness <= 0) return 1;
-  const REF = 0.09; // target RMS — roughly a commercial master
+  const REF = 0.09; // target RMS , roughly a commercial master
   return Math.min(2.2, Math.max(0.5, REF / loudness));
 }
 

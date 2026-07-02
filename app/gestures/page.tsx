@@ -41,7 +41,7 @@ export default function GesturesPage() {
     if (!holding) return;
     setHolding(false);
     if (release === "transition") {
-      // keep the tension through the drop — the transition resets deck FX
+      // keep the tension through the drop , the transition resets deck FX
       mix.hopNow();
     } else {
       getEngine().tension(false);
@@ -53,7 +53,7 @@ export default function GesturesPage() {
       <header>
         <h1 className="text-2xl font-bold">Gestures</h1>
         <p className="text-sm text-zinc-400">
-          Hold the pad — the track tenses up. Let go — it drops into the next
+          Hold the pad , the track tenses up. Let go , it drops into the next
           song. Swipe up for an instant transition.
         </p>
       </header>
@@ -69,7 +69,7 @@ export default function GesturesPage() {
           disabled={mix.queue.length < 2}
           className="rounded-lg bg-zinc-100 px-5 py-2 font-semibold text-zinc-900 disabled:opacity-40"
         >
-          ▶ Start ({mix.queue.length} queued — need ≥2)
+          ▶ Start ({mix.queue.length} queued , need ≥2)
         </button>
       )}
       {mix.status && (
@@ -128,7 +128,7 @@ export default function GesturesPage() {
           <div className="flex items-center justify-between text-sm">
             <span className="truncate text-zinc-400">
               next:{" "}
-              {mix.queue[(mix.nowIdx + 1) % mix.queue.length]?.title ?? "—"}
+              {mix.queue[(mix.nowIdx + 1) % mix.queue.length]?.title ?? ","}
             </span>
             <button
               onClick={() => mix.stop()}
@@ -139,7 +139,7 @@ export default function GesturesPage() {
           </div>
           {mix.lastPlan && (
             <p className="text-xs text-fuchsia-300">
-              {mix.lastPlan.style} — {mix.lastPlan.reasoning}
+              {mix.lastPlan.style} , {mix.lastPlan.reasoning}
             </p>
           )}
         </>

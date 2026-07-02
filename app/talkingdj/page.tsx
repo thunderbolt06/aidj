@@ -38,7 +38,7 @@ export default function TalkingDjPage() {
           userSaid,
         }),
       });
-      if (!res.ok) throw new Error("DJ brain offline — ANTHROPIC_API_KEY?");
+      if (!res.ok) throw new Error("DJ brain offline , ANTHROPIC_API_KEY?");
       const { speech, action } = await res.json();
       setTranscript((t) => [...t, { who: "dj", text: speech }]);
 
@@ -58,7 +58,7 @@ export default function TalkingDjPage() {
       } else {
         setTranscript((t) => [
           ...t,
-          { who: "dj", text: "(voice offline — OPENAI_API_KEY missing, text only)" },
+          { who: "dj", text: "(voice offline , SMALLEST_API_KEY missing, text only)" },
         ]);
       }
 
@@ -114,7 +114,7 @@ export default function TalkingDjPage() {
         <h1 className="text-2xl font-bold">Talking DJ</h1>
         <p className="text-sm text-zinc-400">
           MC Fable spins your queue, talks between songs (music ducks under the
-          voice), and listens when you talk back — ask for a vibe change
+          voice), and listens when you talk back , ask for a vibe change
           mid-set.
         </p>
       </header>

@@ -78,7 +78,7 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
 
   // resolve + prepare the active template whenever the selection changes.
   // setShaderError here surfaces the result of an external system (the WebGL
-  // compile) into React — a legitimate effect→setState sync.
+  // compile) into React , a legitimate effect→setState sync.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const t = getTemplate(templateId);
@@ -241,7 +241,7 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
         {/* top overlay: name + live badge + buttons */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
           <div className="rounded-md bg-black/40 px-2 py-1 text-xs text-zinc-300 backdrop-blur">
-            🎬 {current?.name ?? "—"}
+            🎬 {current?.name ?? ","}
             {active && <span className="ml-2 text-emerald-400">● live</span>}
           </div>
           <div className="pointer-events-auto flex gap-1.5">
@@ -317,7 +317,7 @@ export function MusicVisualizer({ analysis, track, arc, active, defaultTemplate 
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !aiBusy && generateAI()}
-              placeholder="Describe a vibe — 'neon city rain', 'psychedelic 70s', 'deep space'…"
+              placeholder="Describe a vibe , 'neon city rain', 'psychedelic 70s', 'deep space'…"
               className="min-w-[200px] flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
             />
             <button
@@ -373,7 +373,7 @@ function Slider({
   );
 }
 
-const SHADER_STARTER = `// GLSL ES 1.00 — define mainImage. Uniforms available:
+const SHADER_STARTER = `// GLSL ES 1.00 , define mainImage. Uniforms available:
 //   iResolution, iTime, iLevel, iLow, iMid, iHigh,
 //   iBeat, iBeatPulse, iBar, iOnset, iHue, iKeyColor,
 //   iChroma[12], and fft(x)/wave(x) (x in 0..1).
@@ -384,7 +384,7 @@ void mainImage(out vec4 o, in vec2 fc){
   o = vec4(col + iKeyColor*iLow*0.4, 1.0);
 }`;
 
-const CANVAS_STARTER = `// Canvas2D — 'ctx' (2D context), 'f' (VizFrame), 'state' (your object),
+const CANVAS_STARTER = `// Canvas2D , 'ctx' (2D context), 'f' (VizFrame), 'state' (your object),
 // 'helpers' = { hsl, pitchClassHue, specAt, pulse }. Coords are CSS pixels.
 const { hsl } = helpers;
 const cx = f.w/2, cy = f.h/2;

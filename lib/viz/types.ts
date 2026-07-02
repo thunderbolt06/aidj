@@ -3,9 +3,9 @@
  *
  * A *template* is a coded, real-time animation (Canvas2D draw function or a
  * GLSL fragment shader) that reacts to the audio. Every frame the VizDriver
- * hands the template a `VizFrame` snapshot of the music — band energies, beat
+ * hands the template a `VizFrame` snapshot of the music , band energies, beat
  * grid phase, transient onsets, a 12-bin chroma ("chord"), and a key-derived
- * color — and the template paints. Nothing is pre-rendered.
+ * color , and the template paints. Nothing is pre-rendered.
  */
 
 import type { TrackAnalysis } from "@/lib/types";
@@ -23,7 +23,7 @@ export interface BeatInfo {
   bar: number;
   /** 0..1 position within the current 4-beat bar. */
   barPhase: number;
-  /** 0..1 pulse that snaps to 1 on each beat and eases down — for flashes. */
+  /** 0..1 pulse that snaps to 1 on each beat and eases down , for flashes. */
   beatPulse: number;
   /**
    * 0..1 combined beat "hit" the visuals should actually flash on. When the BPM
@@ -38,7 +38,7 @@ export interface BeatInfo {
   barHit: boolean;
 }
 
-/** Tunable look/feel knobs — set by the user or the AI director. */
+/** Tunable look/feel knobs , set by the user or the AI director. */
 export interface VizParams {
   /** Base hue 0..360. Overrides the key-derived hue when set. */
   hue: number;
@@ -92,7 +92,7 @@ export interface VizFrame {
   spectrum: Uint8Array;
   /** Time-domain waveform 0..255 (128 = silence). */
   waveform: Uint8Array;
-  /** 12 pitch-class energies 0..1 — the live "chord". */
+  /** 12 pitch-class energies 0..1 , the live "chord". */
   chroma: number[];
   /** Index 0..11 of the strongest pitch class. */
   chromaRoot: number;

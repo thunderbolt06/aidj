@@ -93,7 +93,7 @@ export async function renderWordplayClip(
   echoSend.gain.value = 0;
   echoSend.connect(echo);
 
-  // A — lead-in up to the word
+  // A , lead-in up to the word
   const lead = ctx.createBufferSource();
   lead.buffer = a.buffer;
   const gLead = ctx.createGain();
@@ -101,7 +101,7 @@ export async function renderWordplayClip(
   lead.start(0, leadStart);
   lead.stop(tWord + 0.03);
 
-  // A — stutter loop of the word, echo rising into the drop
+  // A , stutter loop of the word, echo rising into the drop
   const loop = ctx.createBufferSource();
   loop.buffer = a.buffer;
   loop.loop = true;
@@ -118,7 +118,7 @@ export async function renderWordplayClip(
   loop.start(tWord, h.aWordTime);
   loop.stop(dropAt + 0.06);
 
-  // B — slams in on its own word
+  // B , slams in on its own word
   const bSrc = ctx.createBufferSource();
   bSrc.buffer = b.buffer;
   const gB = ctx.createGain();

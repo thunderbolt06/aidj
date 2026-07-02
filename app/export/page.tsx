@@ -55,7 +55,7 @@ export default function ExportPage() {
       } else {
         const err = await res.json().catch(() => null);
         setStatus(
-          `video failed (${err?.error ?? res.status}) — WAV is still ready below`
+          `video failed (${err?.error ?? res.status}) , WAV is still ready below`
         );
       }
     } catch (e) {

@@ -30,7 +30,7 @@ export default function ReelsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: seed }),
       });
-      if (!res.ok) throw new Error("intent failed — ANTHROPIC_API_KEY?");
+      if (!res.ok) throw new Error("intent failed , ANTHROPIC_API_KEY?");
       const plan = await res.json();
       const found = await Promise.all(
         (plan.queries as string[]).map((q) =>
@@ -58,7 +58,7 @@ export default function ReelsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          current: `${current.title} — ${current.artist}`,
+          current: `${current.title} , ${current.artist}`,
           vibe: seed,
         }),
       });
@@ -196,7 +196,7 @@ export default function ReelsPage() {
                   <HeatmapBar meta={mix.now.meta} position={mix.position} />
                   {mix.lastPlan && (
                     <p className="text-xs text-fuchsia-300">
-                      {mix.lastPlan.style} — {mix.lastPlan.reasoning}
+                      {mix.lastPlan.style} , {mix.lastPlan.reasoning}
                     </p>
                   )}
                 </div>

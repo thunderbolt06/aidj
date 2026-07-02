@@ -1,30 +1,30 @@
 # AIDJ Lab
 
-Intent-based music with AI-generated DJ transitions. Every page is an experiment — the goal is to try each idea thoroughly and keep the ones that work.
+Intent-based music with AI-generated DJ transitions. Every page is an experiment , the goal is to try each idea thoroughly and keep the ones that work.
 
 ## Experiments
 
 | Route | Experiment |
 |---|---|
-| `/mix` | 2-song mix — Claude reads BPM/energy/famous-part of both tracks and renders the transition live |
-| `/autodj` | Auto-DJ — plays only the famous part of each song (YouTube "most replayed" heatmap), hops every 30s/60s |
-| `/vibe` | Vibe prompt — typed or spoken intent ("singable road trip") → AI builds the queue; vibe change mid-set |
-| `/grid` | 9-grid — tap one of nine AI-suggested next songs (safe / energy shift / wildcard) to transition into it |
+| `/mix` | 2-song mix , Claude reads BPM/energy/famous-part of both tracks and renders the transition live |
+| `/autodj` | Auto-DJ , plays only the famous part of each song (YouTube "most replayed" heatmap), hops every 30s/60s |
+| `/vibe` | Vibe prompt , typed or spoken intent ("singable road trip") → AI builds the queue; vibe change mid-set |
+| `/grid` | 9-grid , tap one of nine AI-suggested next songs (safe / energy shift / wildcard) to transition into it |
 | `/gestures` | Press-and-hold builds tension, release drops into the next song; swipe up to skip |
-| `/karaoke` | Synced lyrics (lrclib) + AI lyric-matched transitions — connects two songs at lyric lines that rhyme/relate |
-| `/talkingdj` | MC Fable — Claude writes the banter, OpenAI TTS speaks it ducked over the music, talk back via mic for vibe changes |
+| `/karaoke` | Synced lyrics (lrclib) + AI lyric-matched transitions , connects two songs at lyric lines that rhyme/relate |
+| `/talkingdj` | MC Fable , Claude writes the banter, OpenAI TTS speaks it ducked over the music, talk back via mic for vibe changes |
 | `/mashup` | Two songs layered: A is the low-end bed, B band-passed on top, tempo-matched |
-| `/reels` | Vertical swipe feed of famous parts — swiping to the next card IS the transition (phrase-quantized); feed refills itself with AI suggestions |
-| `/bridge` | Generated bridge — Claude writes the brief, Replicate MusicGen composes a ~10s clip from A's world into B's, rendered while A plays |
+| `/reels` | Vertical swipe feed of famous parts , swiping to the next card IS the transition (phrase-quantized); feed refills itself with AI suggestions |
+| `/bridge` | Generated bridge , Claude writes the brief, Replicate MusicGen composes a ~10s clip from A's world into B's, rendered while A plays |
 
 **Beat-grid quantize**: transitions can wait for the next 4-bar phrase boundary (toggle on Auto-DJ, always on in Reels) and snap the incoming track onto its own beat grid instead of firing on raw timers.
 
 ## How it works
 
 - **Source**: YouTube via `yt-dlp` (search, audio extraction, replay heatmap). Audio cached in `.cache/`.
-- **Famous part**: the peak of YouTube's "most replayed" heatmap — the bet is people only want ~1 minute of most songs.
+- **Famous part**: the peak of YouTube's "most replayed" heatmap , the bet is people only want ~1 minute of most songs.
 - **Analysis**: in-browser BPM detection (lowpass → peak intervals → tempo voting) + per-second energy.
-- **Transitions**: Web Audio dual-deck engine — equal-power crossfade, bass swap, filter sweep, echo out, cut; optional beat-matching via playback-rate glide.
+- **Transitions**: Web Audio dual-deck engine , equal-power crossfade, bass swap, filter sweep, echo out, cut; optional beat-matching via playback-rate glide.
 - **AI**: Claude plans transitions/queues/banter/lyric matches; OpenAI TTS voices the DJ. Heuristic fallbacks everywhere, so the app works without keys (minus the AI flavor).
 
 ## Run it

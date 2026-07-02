@@ -80,7 +80,7 @@ export default function ArcPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: `${text} (energy arc: ${shape})` }),
       });
-      if (!res.ok) throw new Error("intent failed — is ANTHROPIC_API_KEY set?");
+      if (!res.ok) throw new Error("intent failed , is ANTHROPIC_API_KEY set?");
       const plan: { queries: string[] } = await res.json();
       setBusy("finding the opening songs…");
       const found = await Promise.all(
@@ -120,7 +120,7 @@ export default function ArcPage() {
       <header>
         <h1 className="text-2xl font-bold">Energy-Arc Director</h1>
         <p className="text-sm text-zinc-400">
-          Set a journey — chill → peak → cool-down — over a chosen length. The AI
+          Set a journey , chill → peak → cool-down , over a chosen length. The AI
           paces BPM, energy, transition intensity, and song picks across the
           whole set, not just the next hop.
         </p>
@@ -170,7 +170,7 @@ export default function ArcPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && startJourney()}
-            placeholder='Seed vibe — e.g. "house party", "bollywood night", "gym session"'
+            placeholder='Seed vibe , e.g. "house party", "bollywood night", "gym session"'
             className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 outline-none focus:border-fuchsia-500"
           />
           <button
@@ -194,7 +194,7 @@ export default function ArcPage() {
             <span>
               phase:{" "}
               <span className={`font-bold ${phaseColor[arc?.phase ?? "groovy"]}`}>
-                {arc?.phase ?? "—"}
+                {arc?.phase ?? ","}
               </span>
             </span>
             <span className="text-zinc-400">
@@ -221,7 +221,7 @@ export default function ArcPage() {
           )}
           {mix.lastPlan && (
             <p className="text-xs text-fuchsia-300">
-              last hop: {mix.lastPlan.style} — {mix.lastPlan.reasoning}
+              last hop: {mix.lastPlan.style} , {mix.lastPlan.reasoning}
             </p>
           )}
           <div className="flex gap-2">

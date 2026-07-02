@@ -1,6 +1,7 @@
 "use client";
 
 import { DJEngine } from "@/lib/audio/engine";
+import { installAudioUnlock } from "@/lib/audio/unlock";
 import { analyzeTrack, camelotCompatible } from "@/lib/audio/analysis";
 import type {
   Track,
@@ -11,7 +12,11 @@ import type {
 
 let engine: DJEngine | null = null;
 export function getEngine(): DJEngine {
-  if (!engine) engine = new DJEngine();
+  if (!engine) {
+    engine = new DJEngine();
+    // iPhone: resume-on-gesture + mute-switch workaround (no-op elsewhere)
+    installAudioUnlock(() => getEngine().ctx);
+  }
   return engine;
 }
 
@@ -94,7 +99,7 @@ export async function planTransition(
     signal: opts?.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
     body: JSON.stringify({
       trackA: {
-        title: `${from.meta.title} — ${from.meta.artist}`,
+        title: `${from.meta.title} , ${from.meta.artist}`,
         bpm: from.analysis.bpm,
         bpmConfidence: from.analysis.bpmConfidence,
         camelot: from.analysis.camelot,
@@ -105,7 +110,7 @@ export async function planTransition(
         famousStart: from.meta.famousStart,
       },
       trackB: {
-        title: `${to.meta.title} — ${to.meta.artist}`,
+        title: `${to.meta.title} , ${to.meta.artist}`,
         bpm: to.analysis.bpm,
         bpmConfidence: to.analysis.bpmConfidence,
         camelot: to.analysis.camelot,
@@ -160,7 +165,7 @@ export function stemReady(id: string, stem: "vocals" | "instrumental"): boolean 
 
 /**
  * Fallback plan when the AI is unavailable. Crossfades into the famous part,
- * but on a harmonic key clash it reaches for echo_out — a feedback tail masks
+ * but on a harmonic key clash it reaches for echo_out , a feedback tail masks
  * dissonance where a blend would sound sour.
  */
 export function heuristicPlan(

@@ -41,7 +41,7 @@ const CACHE_DIR = process.env.CACHE_DIR || path.join(__dirname, ".cache");
 const AUDIO_DIR = path.join(CACHE_DIR, "audio");
 const META_DIR = path.join(CACHE_DIR, "meta");
 
-// extra yt-dlp args for anti-block — inert until the env vars are set
+// extra yt-dlp args for anti-block , inert until the env vars are set
 function antiBlockArgs() {
   const args = [];
   // Force IPv4: hosts with a broken/blackholed IPv6 route to Google make yt-dlp
@@ -284,7 +284,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, await getTrackMeta(metaMatch[1]));
     }
 
-    // audio — browser-facing: CORS open, served via redirect from Vercel
+    // audio , browser-facing: CORS open, served via redirect from Vercel
     const audioMatch = p.match(/^\/audio\/([\w-]{6,})$/);
     if (audioMatch && req.method === "GET") {
       const file = await getAudioFile(audioMatch[1]);
@@ -300,7 +300,7 @@ const server = http.createServer(async (req, res) => {
       return createReadStream(file).pipe(res);
     }
 
-    // clip — a 16kHz mono mp3 window for Whisper word alignment
+    // clip , a 16kHz mono mp3 window for Whisper word alignment
     if (p === "/clip" && req.method === "GET") {
       if (!authed(req)) return json(res, 401, { error: "unauthorized" });
       const id = url.searchParams.get("id");
@@ -343,7 +343,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// bgutil-ytdlp-pot-provider server — mints PO tokens so yt-dlp's bundled
+// bgutil-ytdlp-pot-provider server , mints PO tokens so yt-dlp's bundled
 // bgutil plugin (installed to /app/yt-dlp-plugins) can get real formats for
 // cookie-authenticated requests. Optional: only spawned if the nixpacks
 // build vendored it (see nixpacks.toml) and only useful when YTDLP_COOKIES

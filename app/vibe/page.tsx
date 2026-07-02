@@ -45,7 +45,7 @@ export default function VibePage() {
           history: history.current.join(" → ") || undefined,
         }),
       });
-      if (!res.ok) throw new Error("intent failed — is ANTHROPIC_API_KEY set?");
+      if (!res.ok) throw new Error("intent failed , is ANTHROPIC_API_KEY set?");
       const p: VibePlan = await res.json();
       setPlan(p);
       history.current.push(p.vibe);
@@ -100,7 +100,7 @@ export default function VibePage() {
       <header>
         <h1 className="text-2xl font-bold">Vibe Prompt</h1>
         <p className="text-sm text-zinc-400">
-          Tell the DJ what you want — typed or spoken. Change the vibe mid-set
+          Tell the DJ what you want , typed or spoken. Change the vibe mid-set
           and it transitions over.
         </p>
       </header>
@@ -169,7 +169,7 @@ export default function VibePage() {
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           {mix.lastPlan && (
             <p className="text-xs text-fuchsia-300">
-              {mix.lastPlan.style} — {mix.lastPlan.reasoning}
+              {mix.lastPlan.style} , {mix.lastPlan.reasoning}
             </p>
           )}
           <div className="flex gap-2">

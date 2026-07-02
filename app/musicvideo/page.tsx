@@ -8,7 +8,7 @@ import { MusicVisualizer } from "@/components/MusicVisualizer";
 /**
  * Immersive music-video mode: queue songs, hit play, and watch a real-time,
  * beat & chord-reactive visual painted from the live audio. Same Auto-DJ engine
- * underneath (famous parts, AI transitions, endless refill) — here the picture
+ * underneath (famous parts, AI transitions, endless refill) , here the picture
  * is the point. Pick a built-in framework, let the AI compose one from a prompt,
  * or paste your own.
  */
@@ -23,7 +23,7 @@ export default function MusicVideoPage() {
           🎬 Music Video <span className="text-fuchsia-500">Lab</span>
         </h1>
         <p className="text-sm text-zinc-400">
-          Real-time animation coded to the beats and chords of the music — like
+          Real-time animation coded to the beats and chords of the music , like
           the old Windows Media Player visualizers, but context-aware and
           AI-directed. Nothing is pre-rendered; every frame reacts to what&apos;s
           playing. Double-click the canvas for fullscreen.

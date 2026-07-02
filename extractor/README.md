@@ -6,7 +6,7 @@ write to disk, so the Next.js app proxies the heavy work here over HTTP.
 ## Endpoints
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/` | — | health check |
+| GET | `/` | , | health check |
 | GET | `/search?q=&limit=` | token | YouTube search → `{ tracks }` |
 | GET | `/meta/:id` | token | metadata + replay heatmap → `TrackMeta` |
 | GET | `/audio/:id` | public (CORS *) | extracted m4a audio (Vercel redirects the browser here) |
@@ -39,4 +39,4 @@ Redeploy Vercel. When `EXTRACTOR_URL` is set the app calls the extractor; unset
 Datacenter IPs are throttled/blocked. When extractions start failing:
 - set `YTDLP_PROXY` to a residential/rotating proxy, **or**
 - export a logged-in `cookies.txt`, put it on the volume, set `YTDLP_COOKIES`.
-Both are already wired in `server.js` — no code change needed.
+Both are already wired in `server.js` , no code change needed.

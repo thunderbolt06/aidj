@@ -23,7 +23,7 @@ const FONT_CANDIDATES = [
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ].filter(Boolean) as string[];
 
-/** A centered, bold burned-in caption filter — or "" if no usable font. */
+/** A centered, bold burned-in caption filter , or "" if no usable font. */
 function captionFilter(caption?: string): string {
   if (!caption) return "";
   const font = FONT_CANDIDATES.find((f) => existsSync(f));
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const metaRaw = req.nextUrl.searchParams.get("meta");
   if (!metaRaw) return NextResponse.json({ error: "missing meta" }, { status: 400 });
 
-  // remote mode: ffmpeg can't run on Vercel — forward to the extractor
+  // remote mode: ffmpeg can't run on Vercel , forward to the extractor
   if (EXTRACTOR) {
     const body = await req.arrayBuffer();
     const res = await fetch(

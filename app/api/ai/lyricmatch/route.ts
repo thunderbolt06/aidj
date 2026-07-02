@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * Find the lyric handoff between song A and song B.
  *
  * Exact-word matches are computed deterministically here (the "sing the same
- * word into the next song" effect must actually be exact — an LLM guessing
+ * word into the next song" effect must actually be exact , an LLM guessing
  * lines defeats the point). Claude is only the fallback when the two songs
  * genuinely share no usable words, where a semantic/rhyme match is better
  * than nothing.
@@ -42,7 +42,7 @@ function exactMatch(
   aFamous: number | null,
   preferWord: string | null
 ): Match | null {
-  // word frequency across both songs — rare words make better hooks
+  // word frequency across both songs , rare words make better hooks
   const freq = new Map<string, number>();
   const aTokens = aLines.map((l) => tokenize(l.text));
   const bTokens = bLines.map((l) => tokenize(l.text));
@@ -67,7 +67,7 @@ function exactMatch(
     // leave from the middle/late part of A, but not the very last line
     let aPosScore =
       aT > aDur * 0.25 && aT < aDur * 0.9 ? 2 : aT >= aDur * 0.9 ? -2 : 0;
-    // HOOK BIAS: a word sung inside A's famous section resonates hardest —
+    // HOOK BIAS: a word sung inside A's famous section resonates hardest ,
     // the crowd is already singing along when the stutter grabs it
     if (aFamous != null && aT >= aFamous - 3 && aT <= aFamous + 40)
       aPosScore += 5;
@@ -76,7 +76,7 @@ function exactMatch(
         const bT = bLines[bIdx].time;
         if (bT < 8) continue; // don't land on a cold intro line
         let score = 4 / Math.sqrt(freq.get(w) ?? 1) + Math.min(w.length, 9) * 0.3 + aPosScore;
-        // the chain AI suggested this word as the link — trust it first
+        // the chain AI suggested this word as the link , trust it first
         if (preferWord && w === preferWord) score += 6;
         // land B near its hook when we know where that is
         if (bFamous != null)
@@ -124,11 +124,11 @@ export async function POST(req: NextRequest) {
       bLine: bLine.text,
       sharedWord: exact.shared,
       exact: true,
-      reasoning: `Both songs sing “${exact.shared}” — A hands the word straight to B.`,
+      reasoning: `Both songs sing “${exact.shared}” , A hands the word straight to B.`,
     });
   }
 
-  // No exact shared word: let Claude pick a semantic connection — but it must
+  // No exact shared word: let Claude pick a semantic connection , but it must
   // answer with line INDICES only. Asking it to quote lyric lines trips the
   // API content filter ("Output blocked by content filtering policy").
   try {
@@ -137,11 +137,11 @@ export async function POST(req: NextRequest) {
       model: "claude-haiku-4-5",
       max_tokens: 300,
       system: `You connect two songs for a DJ transition using their numbered lyric lines.
-Pick the single best pair — one line index from A (mid-to-late, never the final line), one
-from B (near the hook, not the first seconds) — that connect by meaning, emotion, rhyme,
+Pick the single best pair , one line index from A (mid-to-late, never the final line), one
+from B (near the hook, not the first seconds) , that connect by meaning, emotion, rhyme,
 or pun. The transition plays A's line fully, then lands on B's line.
 
-Respond ONLY with JSON (indices only — NEVER quote any lyric text):
+Respond ONLY with JSON (indices only , NEVER quote any lyric text):
 {"aIdx": n, "bIdx": n, "reasoning": "one short sentence, no lyric quotes"}`,
       messages: [
         {

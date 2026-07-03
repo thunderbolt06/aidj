@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TrackAnalysis } from "@/lib/types";
 import { getEngine } from "@/lib/client/dj";
+import { HandIcon } from "@/components/icons";
 
 /**
  * Compact "clap along" button for player docks: pulses on every beat of the
@@ -34,8 +35,8 @@ export function BeatTapButton({
           (((pos - anchor) % beatLen) + beatLen) % beatLen / beatLen;
         const punch = Math.pow(1 - phase, 3);
         el.style.transform = `scale(${1 + punch * 0.12})`;
-        el.style.boxShadow = `0 0 ${4 + punch * 22}px rgba(34,211,238,${
-          0.2 + punch * 0.5
+        el.style.boxShadow = `0 0 ${4 + punch * 22}px rgba(255,255,255,${
+          0.15 + punch * 0.4
         })`;
       }
       raf = requestAnimationFrame(tick);
@@ -55,15 +56,15 @@ export function BeatTapButton({
           onTap();
           setFlash(Date.now());
         }}
-        className="select-none rounded-full bg-cyan-600/90 px-5 py-2.5 text-sm font-bold transition hover:bg-cyan-500"
+        className="flex h-11 w-11 select-none items-center justify-center rounded-full border border-white/70 text-white transition hover:border-white active:scale-95"
         title="Tap on the beat (or spacebar) - each tap keeps the song going 15s longer"
       >
-        👏
+        <HandIcon />
       </button>
       {flash > 0 && (
         <span
           key={flash}
-          className="pointer-events-none absolute inset-0 animate-ping rounded-full border-2 border-cyan-400"
+          className="pointer-events-none absolute inset-0 animate-ping rounded-full border-2 border-white"
         />
       )}
     </span>

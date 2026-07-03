@@ -15,7 +15,7 @@ export function getEngine(): DJEngine {
   if (!engine) {
     engine = new DJEngine();
     // iPhone: resume-on-gesture + mute-switch workaround (no-op elsewhere)
-    installAudioUnlock(() => getEngine().ctx);
+    installAudioUnlock(() => getEngine());
   }
   return engine;
 }

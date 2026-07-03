@@ -30,3 +30,13 @@ body {
 ::selection {
   background: rgba(34, 211, 238, 0.35);
 }
+
+/* enter animations for popovers/sheets (settings panel drops, queue sheet rises) */
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}

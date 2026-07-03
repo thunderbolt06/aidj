@@ -111,6 +111,8 @@ export class DJEngine {
   private master: GainNode;
   private decks: [Deck, Deck];
   private active = 0;
+  /** True while the user has deliberately paused - blocks passive auto-resume. */
+  private userPaused = false;
   /** Called when a transition completes, with the new active deck index. */
   onTransitionEnd: (() => void) | null = null;
 
@@ -158,14 +160,28 @@ export class DJEngine {
     return this.ctx.decodeAudioData(data);
   }
 
+  /** Explicit resume (user action or startup unlock) - clears the pause flag. */
   async resume() {
+    this.userPaused = false;
     // iOS also reports a non-standard "interrupted" state - resume for
     // anything that isn't running
     if (this.ctx.state !== "running") await this.ctx.resume();
   }
 
+  /**
+   * Passive/incidental resume - iOS gesture unlock, tab visibility changes,
+   * interruption recovery. Does nothing if the user deliberately paused, so
+   * clicking or pressing a key anywhere else on the page can't silently
+   * un-pause the mix out from under the pause button.
+   */
+  async autoResume() {
+    if (this.userPaused || this.ctx.state === "running") return;
+    await this.ctx.resume();
+  }
+
   /** Freeze the whole mix in place (suspends the AudioContext clock). */
   async pause() {
+    this.userPaused = true;
     if (this.ctx.state === "running") await this.ctx.suspend();
   }
 

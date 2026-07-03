@@ -1,20 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
 
+/**
+ * variant="card": inline block, results push content below (queue sheets,
+ * setup screens). variant="bar": pill-shaped input for the top bar - results
+ * float over the page on a solid panel and close on outside click.
+ */
 export function SearchPicker({
   placeholder = "Search a song…",
   onPick,
+  variant = "card",
 }: {
   placeholder?: string;
   onPick: (t: Track) => void;
+  variant?: "card" | "bar";
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Track[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isBar = variant === "bar";
+
+  // bar floats over the page, so stale results must dismiss on outside click
+  useEffect(() => {
+    if (!isBar || results.length === 0) return;
+    const close = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setResults([]);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [isBar, results.length]);
 
   async function go() {
     if (!q.trim()) return;
@@ -30,26 +49,41 @@ export function SearchPicker({
   }
 
   return (
-    <div className="w-full">
+    <div ref={rootRef} className={isBar ? "relative w-full" : "w-full"}>
       <div className="flex gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
           placeholder={placeholder}
-          className="flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-cyan-500"
+          className={
+            isBar
+              ? "h-10 min-w-0 flex-1 rounded-full border border-zinc-700 bg-zinc-900/70 px-4 text-sm outline-none backdrop-blur focus:border-cyan-500"
+              : "flex-1 rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-cyan-500"
+          }
         />
         <button
           onClick={go}
           disabled={busy}
-          className="rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 px-4 py-2 text-sm font-medium"
+          title="Search"
+          className={
+            isBar
+              ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm transition hover:bg-cyan-500 active:scale-95 disabled:opacity-50"
+              : "rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 px-4 py-2 text-sm font-medium"
+          }
         >
-          {busy ? "…" : "Search"}
+          {busy ? "…" : isBar ? "🔍" : "Search"}
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       {results.length > 0 && (
-        <ul className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-zinc-800 divide-y divide-zinc-800">
+        <ul
+          className={`max-h-72 overflow-y-auto rounded-lg border border-zinc-800 divide-y divide-zinc-800 ${
+            isBar
+              ? "absolute inset-x-0 top-full z-50 mt-2 rounded-xl bg-zinc-950/95 shadow-xl backdrop-blur animate-[drop-in_150ms_ease]"
+              : "mt-2"
+          }`}
+        >
           {results.map((t) => (
             <li key={t.id}>
               <button

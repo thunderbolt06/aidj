@@ -67,18 +67,30 @@ function beMediaPlayback() {
   });
 }
 
+/** Minimal surface this module needs from the engine - kept generic so it doesn't import DJEngine. */
+interface UnlockableEngine {
+  ctx: AudioContext;
+  autoResume(): Promise<void>;
+}
+
 /**
- * Install once per page. `getCtx` is lazy so merely installing the listeners
- * never constructs an AudioContext outside a gesture.
+ * Install once per page. `getEngine` is lazy so merely installing the
+ * listeners never constructs an AudioContext outside a gesture.
+ *
+ * Every resume here goes through `autoResume()`, NOT a raw `ctx.resume()`:
+ * these listeners fire on ANY click or keypress anywhere on the page (that's
+ * the whole point, for iOS unlock), so a raw resume would silently undo an
+ * intentional pause the instant the user clicked or typed anything else.
  */
-export function installAudioUnlock(getCtx: () => AudioContext) {
+export function installAudioUnlock(getEngine: () => UnlockableEngine) {
   if (installed || typeof window === "undefined") return;
   installed = true;
 
   const unlock = () => {
-    const ctx = getCtx();
+    const engine = getEngine();
+    const ctx = engine.ctx;
     beMediaPlayback();
-    if (ctx.state !== "running") ctx.resume().catch(() => {});
+    engine.autoResume().catch(() => {});
     // a 1-sample blip through the context nails the unlock on stubborn iOS
     try {
       const src = ctx.createBufferSource();
@@ -95,11 +107,11 @@ export function installAudioUnlock(getCtx: () => AudioContext) {
     window.addEventListener(ev, unlock, { capture: true, passive: true });
 
   // iOS suspends the context on interruptions (calls, Siri) and sometimes on
-  // tab switches - resume as soon as we're visible/interrupted-ended again.
+  // tab switches - resume as soon as we're visible/interrupted-ended again
+  // (but never fight a deliberate pause - see autoResume).
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      const ctx = getCtx();
-      if (ctx.state !== "running") ctx.resume().catch(() => {});
+      getEngine().autoResume().catch(() => {});
     }
   });
 }

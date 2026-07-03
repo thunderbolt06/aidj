@@ -68,11 +68,29 @@ export function SearchPicker({
           title="Search"
           className={
             isBar
-              ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm transition hover:bg-cyan-500 active:scale-95 disabled:opacity-50"
+              ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/70 text-sm text-zinc-300 backdrop-blur transition hover:border-cyan-600 hover:text-cyan-300 active:scale-95 disabled:opacity-50"
               : "rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 px-4 py-2 text-sm font-medium"
           }
         >
-          {busy ? "…" : isBar ? "🔍" : "Search"}
+          {busy ? (
+            "…"
+          ) : isBar ? (
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          ) : (
+            "Search"
+          )}
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}

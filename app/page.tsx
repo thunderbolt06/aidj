@@ -215,9 +215,7 @@ function QueueRow({
           }
         }}
       >
-        <span className="truncate">
-          {index + 1}. {title}
-        </span>
+        <span className="truncate">{title}</span>
         <span
           className="cursor-grab select-none text-zinc-600 active:cursor-grabbing"
           title="Drag to reorder"

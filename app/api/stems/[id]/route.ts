@@ -6,7 +6,8 @@ import Replicate from "replicate";
 import { getAudioBytes } from "@/lib/server/library";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+// 300s is the ceiling on the Vercel hobby plan - a larger value fails the deploy
+export const maxDuration = 300;
 
 // On Vercel only /tmp is writable; locally this is still fine. Cache is a
 // best-effort speed-up (Replicate is the source of truth), so ephemeral is ok.

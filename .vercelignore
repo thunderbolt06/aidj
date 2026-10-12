@@ -1,0 +1,5 @@
+# never upload the local music library or other non-app folders with a CLI deploy
+library
+.cache
+mobile
+extractor

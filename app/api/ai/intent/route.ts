@@ -1,59 +1,107 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractJson } from "@/lib/server/extractJson";
-import { languageHint } from "@/lib/server/langHint";
+import {
+  libraryStats,
+  pickForIntent,
+  toTrack,
+  type IntentFilter,
+} from "@/lib/server/library";
 
 export const dynamic = "force-dynamic";
 
-const SYSTEM = `You are an audio curator AI for an AI-DJ app. The user gives an intent/vibe in plain
-language (possibly Hinglish), e.g. "singable road trip", "high energy party", "dirty", "sad boi hours",
-"wedding sangeet", "afrobeats", "techno", "motivational speeches", "true crime podcast", "Zelda OST".
-Produce a play queue plan. The app plays whatever real audio matches the request - it does NOT have to
-be a song.
+const STYLES = ["crossfade", "bass_swap", "filter_sweep", "echo_out", "cut"];
 
-Content types you can pick, based on what the vibe actually calls for:
-- Songs (the default): real, popular, recognizable tracks. Mix global and Indian music when the
-  prompt suggests it. Covers genres too - afrobeats, techno, EDM/house/trance, K-pop, reggae, jazz,
-  lo-fi, classical, qawwali, etc.
-- Game/movie/TV soundtracks: real OST tracks by their actual title (e.g. "Zelda Breath of the Wild -
-  Main Theme", "Interstellar - Cornfield Chase").
-- Spoken word: motivational speeches, TED talks, famous monologues, comedy specials - use the real
-  speaker/creator name + talk title as the query (e.g. "David Goggins - motivational speech",
-  "Steve Jobs Stanford commencement speech").
-- Podcasts: real, popular podcast clips or highlight segments - use "podcast name + topic/guest" as
-  the query, favoring a clip/highlight over a full episode.
-Pick queries that best match the vibe's content type; don't force a spoken-word or OST request into
-song picks, and vice versa. Every result is capped around 12 minutes, so for speeches/podcasts pick
-the famous clip or highlight, not the full-length original.
+const SYSTEM = `You are the crate-digger for an AI-DJ app with a fixed music library. The user gives a
+vibe in plain language ("singable road trip", "late night coding", "gym", "sad boi hours"). You do
+NOT name songs - you translate the vibe into a filter over the library, and the app picks the tracks.
+
+You are given the library's genres and most common tags (with counts). Choose ONLY from those lists.
 
 Respond with ONLY JSON:
 {
   "vibe": "short name",
   "energyArc": "flat" | "build" | "peak_and_release" | "wind_down",
   "transitionStyleHint": "crossfade" | "bass_swap" | "filter_sweep" | "echo_out" | "cut",
-  "queries": ["youtube search query 1", "... 6-10 queries, each a real findable-on-YouTube result fitting the vibe and its content type, ordered to follow the energy arc"]
+  "genres": ["2-6 genres from the list, best fit first"],
+  "keywords": ["0-4 tags from the list that sharpen the vibe"],
+  "intensity": [min, max],   // 0 = ambient, 1 = peak-time banger
+  "bpm": [min, max] | null,
+  "instrumental": true | false | null   // true only if the vibe needs no vocals (focus, study, sleep)
 }`;
 
+/** No API key / model hiccup: read the vibe off its keywords. */
+function heuristicFilter(prompt: string, genres: string[]): IntentFilter & {
+  vibe: string;
+  transitionStyleHint: string;
+} {
+  const p = prompt.toLowerCase();
+  const has = (...w: string[]) => w.some((x) => p.includes(x));
+  const calm = has("chill", "calm", "relax", "sleep", "study", "focus", "lofi", "lo-fi", "sad", "rain", "night", "coding", "read");
+  const hype = has("party", "hype", "gym", "workout", "run", "dance", "energy", "banger", "club", "rave", "pump");
+  return {
+    vibe: prompt.slice(0, 40),
+    energyArc: hype ? "build" : calm ? "flat" : "peak_and_release",
+    transitionStyleHint: hype ? "bass_swap" : "crossfade",
+    genres: genres.filter((g) => p.includes(g.toLowerCase())),
+    keywords: p.split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 4),
+    intensity: calm ? [0, 0.5] : hype ? [0.65, 1] : [0.35, 0.8],
+    instrumental: has("study", "focus", "coding", "sleep", "instrumental") ? true : null,
+  };
+}
+
 export async function POST(req: NextRequest) {
-  const { prompt, history, languages } = await req.json();
-  const client = new Anthropic();
-  const msg = await client.messages.create({
-    model: "claude-haiku-4-5",
-    max_tokens: 800,
-    system: SYSTEM + languageHint(languages),
-    messages: [
-      {
-        role: "user",
-        content: history
-          ? `Previous vibe context: ${history}\nNew request: ${prompt}`
-          : prompt,
-      },
-    ],
-  });
-  const text = msg.content[0].type === "text" ? msg.content[0].text : "{}";
-     try {
-    return NextResponse.json(extractJson(text));
-  } catch {
-    return NextResponse.json({ error: "invalid plan", raw: text }, { status: 502 });
+  const { prompt, history } = await req.json();
+  try {
+    const stats = await libraryStats();
+    const genreNames = stats.genres.map((g) => g.name);
+    let plan = heuristicFilter(String(prompt ?? ""), genreNames);
+
+    if (process.env.ANTHROPIC_API_KEY) {
+      try {
+        const client = new Anthropic();
+        const msg = await client.messages.create({
+          model: "claude-haiku-4-5",
+          max_tokens: 400,
+          system: SYSTEM,
+          messages: [
+            {
+              role: "user",
+              content:
+                `Genres: ${stats.genres.map((g) => `${g.name} (${g.count})`).join(", ")}\n` +
+                `Tags: ${stats.tags.map((t) => t.name).join(", ")}\n\n` +
+                (history ? `Previous vibe context: ${history}\n` : "") +
+                `Vibe: ${prompt}`,
+            },
+          ],
+        });
+        const text = msg.content[0].type === "text" ? msg.content[0].text : "{}";
+        const ai = extractJson(text) as typeof plan;
+        if (Array.isArray(ai.genres)) plan = { ...plan, ...ai };
+      } catch {
+        /* keep the heuristic plan - a vibe request must never dead-end */
+      }
+    }
+
+    let rows = await pickForIntent(plan, 10);
+    // a filter that matches nothing (tiny library, odd vibe) falls back to energy alone
+    if (rows.length < 4)
+      rows = await pickForIntent({ intensity: plan.intensity, energyArc: plan.energyArc }, 10);
+
+    return NextResponse.json({
+      vibe: plan.vibe,
+      energyArc: plan.energyArc ?? "flat",
+      transitionStyleHint: STYLES.includes(plan.transitionStyleHint)
+        ? plan.transitionStyleHint
+        : "crossfade",
+      // exact `id:` lookups - callers resolve each through search as before
+      queries: rows.map((r) => `id:${r.id}`),
+      tracks: rows.map((r) => toTrack(r, req.nextUrl.origin)),
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "intent failed" },
+      { status: 503 }
+    );
   }
 }

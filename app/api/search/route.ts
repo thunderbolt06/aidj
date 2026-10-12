@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchYouTube } from "@/lib/server/ytdlp";
+import { searchLibrary, type SearchOptions } from "@/lib/server/library";
 
 export const dynamic = "force-dynamic";
 
+/** Library search. Empty `q` returns the most popular entries (browse mode). */
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("q");
-  if (!q) return NextResponse.json({ error: "missing q" }, { status: 400 });
+  const p = req.nextUrl.searchParams;
+  const kind = (p.get("kind") ?? "song") as SearchOptions["kind"];
+  const limit = Math.min(60, Math.max(1, Number(p.get("limit")) || 12));
   try {
-    const tracks = await searchYouTube(q);
+    const tracks = await searchLibrary(p.get("q") ?? "", req.nextUrl.origin, { kind, limit });
     return NextResponse.json({ tracks });
   } catch (e) {
     return NextResponse.json(

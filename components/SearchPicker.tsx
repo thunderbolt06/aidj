@@ -10,7 +10,7 @@ import { searchTracks } from "@/lib/client/dj";
  * float over the page on a solid panel and close on outside click.
  */
 export function SearchPicker({
-  placeholder = "Search a song…",
+  placeholder = "Search the library - title, artist, genre, 120bpm, 8A…",
   onPick,
   variant = "card",
 }: {
@@ -35,25 +35,44 @@ export function SearchPicker({
     return () => document.removeEventListener("pointerdown", close);
   }, [isBar, results.length]);
 
-  async function go() {
-    if (!q.trim()) return;
+  // the library is local, so search is instant: results follow typing, and an
+  // empty box browses the most-played tracks instead of showing nothing
+  const seq = useRef(0);
+  async function go(query = q) {
+    const mine = ++seq.current;
     setBusy(true);
     setError("");
     try {
-      setResults(await searchTracks(q));
-    } catch {
-      setError("Search failed - is yt-dlp installed and reachable?");
+      const found = await searchTracks(query.trim());
+      if (mine === seq.current) setResults(found);
+    } catch (e) {
+      if (mine === seq.current)
+        setError(e instanceof Error ? e.message : "Search failed");
     } finally {
-      setBusy(false);
+      if (mine === seq.current) setBusy(false);
     }
   }
+
+  const touched = useRef(false);
+  useEffect(() => {
+    if (!touched.current) return;
+    const t = setTimeout(() => go(q), 140);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
 
   return (
     <div ref={rootRef} className={isBar ? "relative w-full" : "w-full"}>
       <div className="flex gap-2">
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            touched.current = true;
+            setQ(e.target.value);
+          }}
+          onFocus={() => {
+            if (!results.length) go();
+          }}
           onKeyDown={(e) => e.key === "Enter" && go()}
           placeholder={placeholder}
           className={
@@ -63,7 +82,7 @@ export function SearchPicker({
           }
         />
         <button
-          onClick={go}
+          onClick={() => go()}
           disabled={busy}
           title="Search"
           className={
@@ -122,8 +141,15 @@ export function SearchPicker({
                   <span className="block truncate text-xs text-zinc-400">
                     {t.artist} · {Math.floor(t.duration / 60)}:
                     {String(t.duration % 60).padStart(2, "0")}
+                    {t.genres?.[0] ? ` · ${t.genres[0]}` : ""}
                   </span>
                 </span>
+                {t.bpm ? (
+                  <span className="ml-auto shrink-0 text-right text-[10px] leading-tight text-zinc-500">
+                    <span className="block text-cyan-400">{Math.round(t.bpm)} BPM</span>
+                    {t.camelot}
+                  </span>
+                ) : null}
               </button>
             </li>
           ))}

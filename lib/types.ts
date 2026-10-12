@@ -1,23 +1,54 @@
 // Shared types across experiments
 
+/** What a library entry is for: a full song, a one-shot effect, or a beat loop. */
+export type TrackKind = "song" | "sfx" | "loop";
+
 export interface Track {
-  id: string; // YouTube video id
+  id: string; // library id, e.g. "fma-12345"
   title: string;
-  artist: string; // channel/uploader
+  artist: string;
   duration: number; // seconds
   thumbnail: string;
+  // precomputed at ingest - present on everything the library serves
+  kind?: TrackKind;
+  bpm?: number;
+  camelot?: string | null;
+  /** 0 (ambient) .. 1 (peak-time banger). */
+  intensity?: number;
+  genres?: string[];
+  /** Licence name + links, for attribution wherever a track is listed. */
+  license?: string | null;
+  licenseUrl?: string | null;
+  sourceUrl?: string | null;
 }
 
 export interface HeatmapPoint {
   start: number; // seconds
   end: number;
-  value: number; // 0..1 replay intensity
+  value: number; // 0..1 hook-likeness (loud AND repeated)
+}
+
+export interface TrackLicense {
+  name: string;
+  url: string | null;
+  commercialUse: boolean | null;
+  derivatives: boolean | null;
 }
 
 export interface TrackMeta extends Track {
   heatmap: HeatmapPoint[];
-  /** Start of the most-replayed ("famous") section, in seconds. */
+  /** Start of the hook ("famous part"), in seconds - computed from the audio. */
   famousStart: number | null;
+  /** Full analysis computed at ingest; when present the client skips its own. */
+  analysis?: TrackAnalysis;
+  /** Where the intro ends / the outro starts - clean mix-in and mix-out points. */
+  cueIn?: number;
+  cueOut?: number;
+  tags?: string[];
+  album?: string | null;
+  instrumental?: boolean;
+  licenseInfo?: TrackLicense;
+  source?: string;
 }
 
 export interface TrackAnalysis {

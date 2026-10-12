@@ -16,7 +16,7 @@ const experiments = [
   {
     href: "/autodj",
     title: "Auto-DJ (30s / 1min)",
-    desc: "Plays only the famous part of each song, auto-transitions.",
+    desc: "Plays only the hook of each song (detected from the audio), auto-transitions.",
     status: "ready",
   },
   {
@@ -76,7 +76,7 @@ const experiments = [
   {
     href: "/reels",
     title: "Reels Feed",
-    desc: "Vertical swipe feed of famous parts - the swipe IS the transition.",
+    desc: "Vertical swipe feed of hooks - the swipe IS the transition.",
     status: "ready",
   },
   {
@@ -84,6 +84,18 @@ const experiments = [
     title: "Music Video Lab",
     desc: "Real-time, beat & chord-reactive visuals - pick a framework or let AI code one from a prompt.",
     status: "ready",
+  },
+  {
+    href: "/pads",
+    title: "FX Pad",
+    desc: "Risers, impacts, horns and beat loops under your fingers - loops lock to the track's tempo and bar.",
+    status: "new",
+  },
+  {
+    href: "/library",
+    title: "Library",
+    desc: "Browse the pre-analyzed crate by genre, tempo and key, with licence and source for every track.",
+    status: "new",
   },
   {
     href: "/bridge",
@@ -94,7 +106,7 @@ const experiments = [
   {
     href: "/export",
     title: "Export Reel",
-    desc: "Render a ≤60s famous-parts mega-mix as a vertical video for Reels/Shorts.",
+    desc: "Render a ≤60s hooks mega-mix as a vertical video for Reels/Shorts.",
     status: "ready",
   },
 ];
@@ -126,7 +138,9 @@ export default function FeaturesPage() {
                     ? "bg-cyan-900/60 text-cyan-300"
                     : e.status === "ready"
                       ? "bg-emerald-900/60 text-emerald-300"
-                      : "bg-zinc-800 text-zinc-400"
+                      : e.status === "new"
+                        ? "bg-amber-900/60 text-amber-300"
+                        : "bg-zinc-800 text-zinc-400"
                 }`}
               >
                 {e.status}

@@ -49,7 +49,7 @@ export default function GridPage() {
       setGrid(tiles);
       setBusy("");
       // preload every tile's audio in the background so taps are instant;
-      // stagger so we don't fire 9 yt-dlp extractions at once
+      // stagger so nine decodes don't land on the main thread at once
       tiles.forEach((s, i) => {
         setTimeout(() => loadTrack(s.track.id).catch(() => {}), i * 4000);
       });

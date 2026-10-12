@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 
 const SYSTEM = `You are a world-class club DJ planning a single transition between two songs.
 You receive analysis for track A (currently playing) and track B (next up): BPM (+confidence
-0-1), musical key as a Camelot code + name, duration, per-second energy (0-1), the YouTube
-"most replayed" famous section start, and the current playhead position in A. A top-level
+0-1), musical key as a Camelot code + name, duration, per-second energy (0-1), the hook
+("famous section") start detected from the audio, and the current playhead position in A. A top-level
 "harmonic" boolean says whether the two keys are compatible on the Camelot wheel.
 
 Pick the transition that will feel best to a casual listener:

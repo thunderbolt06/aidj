@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
-import { EXTRACTOR, extractorAudioUrl, getAudioFile } from "@/lib/server/ytdlp";
+import { getAudioFile, remoteAudioUrl } from "@/lib/server/library";
 
 export const dynamic = "force-dynamic";
 
 const MIME: Record<string, string> = {
   m4a: "audio/mp4",
-  mp4: "audio/mp4",
-  webm: "audio/webm",
-  opus: "audio/ogg",
   mp3: "audio/mpeg",
+  wav: "audio/wav",
 };
 
 export async function GET(
@@ -17,24 +15,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  // remote mode: hand the browser straight to the extractor so the (multi-MB)
-  // audio never round-trips through the Vercel function
-  if (EXTRACTOR) return NextResponse.redirect(extractorAudioUrl(id), 302);
   try {
+    // remote mode: hand the browser straight to the static host so the
+    // (multi-MB) audio never round-trips through the serverless function
+    const remote = await remoteAudioUrl(id);
+    if (remote) return NextResponse.redirect(remote, 302);
     const file = await getAudioFile(id);
-    const ext = file.split(".").pop() ?? "m4a";
+    const ext = file.split(".").pop() ?? "mp3";
     const buf = await readFile(file);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
-        "Content-Type": MIME[ext] ?? "audio/mp4",
+        "Content-Type": MIME[ext] ?? "audio/mpeg",
         "Content-Length": String(buf.length),
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": "public, max-age=604800, immutable",
       },
     });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "audio failed" },
-      { status: 500 }
+      { status: 404 }
     );
   }
 }

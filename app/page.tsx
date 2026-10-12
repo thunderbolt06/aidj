@@ -5,12 +5,6 @@ import Link from "next/link";
 import type { Track } from "@/lib/types";
 import { getEngine, loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
-import {
-  TOP_LANGUAGES,
-  MORE_LANGUAGES,
-  getSelectedLanguageLabels,
-  useLanguagePrefs,
-} from "@/lib/client/langPrefs";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
@@ -34,29 +28,20 @@ interface Suggestion {
   tag: "safe" | "shift" | "wild";
 }
 
-// every situation someone reaches for audio - shuffled a chunk at a time so
-// the hero doesn't turn into a wall of pills; "🔀 more" resamples the pool.
-// Not just songs: genres, game/movie scores, and spoken-word all work too -
-// the AI picks real, findable content matching whatever the chip asks for.
+// situations someone reaches for music in, plus the genres the library is
+// deep in - shuffled a chunk at a time so the hero doesn't turn into a wall
+// of pills. Each chip becomes a filter over the pre-analyzed library (genre,
+// tags, intensity), so every one of them resolves to real, playable tracks.
 const VIBE_CHIP_POOL = [
-  "singable road trip",
+  "road trip",
   "study focus session",
-  "high session",
   "background for a house party",
   "chill music while we chat",
   "fashion store playlist",
-  "jam session with friends",
-  "sangeet bangers",
-  "2010s pop anthems",
   "late night chill",
-  "love time, slow and romantic",
-  "movie dialogues mashup",
-  "reels time - short viral hooks",
-  "meme time - funny songs",
-  "bhajan time",
+  "slow and romantic",
   "gym workout time",
   "sad boi hours",
-  "breakup healing",
   "rainy day mood",
   "morning routine energizer",
   "cooking in the kitchen",
@@ -65,49 +50,30 @@ const VIBE_CHIP_POOL = [
   "coffee shop acoustic",
   "yoga and meditation",
   "cleaning the house",
-  "shower singing",
   "exam stress relief",
   "airport lounge / traveling",
-  "garba and dandiya night",
-  "diwali party",
-  "holi splash",
   "office lo-fi background",
-  "birthday party bangers",
   "late night coding",
-  "wedding baraat",
-  "anime opening hype",
-  "retro 90s bollywood",
-  "k-drama feels",
   "poolside chill",
+  "video background music",
   // genres
-  "afrobeats",
-  "techno",
-  "EDM festival set",
-  "deep house",
-  "trance journey",
-  "drum and bass",
-  "dubstep bass drops",
-  "reggae and dancehall",
-  "funk and disco",
-  "city pop",
-  "flamenco",
-  "sufi and qawwali",
-  "carnatic classical",
-  "old school hip hop",
-  "trap bangers",
-  "synthwave",
+  "indie rock",
+  "electronic",
+  "hip hop beats",
+  "folk and acoustic",
+  "pop",
+  "jazz",
+  "classical piano",
   "ambient soundscapes",
-  // non-song audio
-  "motivational speeches",
-  "true crime podcast",
-  "comedy podcast clips",
-  "famous game soundtracks",
-  "movie score iconic themes",
-  "TED talk highlights",
-  "standup comedy clips",
-  "ASMR and rain sounds",
-  "white noise for sleep",
-  "nature and forest sounds",
+  "cinematic soundtrack",
+  "chiptune",
+  "punk energy",
+  "techno",
+  "house",
+  "funk and soul",
+  "blues",
+  "country",
+  "instrumental only",
 ];
 
 // how many chips show on the hero at once before you have to hit "more"
@@ -236,12 +202,10 @@ export default function HomePage() {
   const [holding, setHolding] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [moreLangOpen, setMoreLangOpen] = useState(false);
   // mid-set "home": logo tap brings the hero back while the dock keeps playing
   const [homeView, setHomeView] = useState(false);
   // 9-grid tile whose transition is loading (spinner overlay until the hop)
   const [pendingTile, setPendingTile] = useState<string | null>(null);
-  const { selected: langSelected, toggle: toggleLang } = useLanguagePrefs();
   const { minPlaySec, setMinPlaySec } = useMinPlaySec();
   // deterministic on first paint (matches SSR), reshuffled client-side after
   // mount so refreshing/tapping shuffle surfaces different situations
@@ -384,7 +348,6 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
-          languages: getSelectedLanguageLabels(),
         }),
       });
       if (!res.ok) return;
@@ -423,7 +386,7 @@ export default function HomePage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, languages: getSelectedLanguageLabels() }),
+        body: JSON.stringify({ prompt: text }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
       const plan = (await res.json()) as { queries: string[] };
@@ -547,56 +510,6 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="space-y-2 border-t border-zinc-800 pt-3">
-                <p
-                  className="text-xs font-semibold uppercase tracking-wide text-zinc-500"
-                  title="Biases every AI song pick (vibe prompts, 9-grid, Sing-It Showdown) toward these languages. None selected = no constraint."
-                >
-                  🌐 Song languages
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {TOP_LANGUAGES.map((l) => (
-                    <button
-                      key={l.code}
-                      onClick={() => toggleLang(l.code)}
-                      className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                        langSelected.includes(l.code)
-                          ? "border-cyan-500 bg-cyan-600/20 text-cyan-300"
-                          : "border-zinc-700 text-zinc-400 hover:border-cyan-700"
-                      }`}
-                    >
-                      {l.label}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setMoreLangOpen((o) => !o)}
-                    className="rounded-full border border-dashed border-zinc-700 px-2.5 py-1 text-xs text-zinc-500 hover:border-cyan-700 hover:text-cyan-300"
-                  >
-                    {moreLangOpen ? "− less" : "+ more"}
-                  </button>
-                </div>
-                {moreLangOpen && (
-                  <div className="flex flex-wrap gap-1.5 border-t border-zinc-900 pt-2">
-                    {MORE_LANGUAGES.map((l) => (
-                      <button
-                        key={l.code}
-                        onClick={() => toggleLang(l.code)}
-                        className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                          langSelected.includes(l.code)
-                            ? "border-cyan-500 bg-cyan-600/20 text-cyan-300"
-                            : "border-zinc-700 text-zinc-400 hover:border-cyan-700"
-                        }`}
-                      >
-                        {l.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {langSelected.length === 0 && (
-                  <p className="text-[11px] text-zinc-600">none selected - mixes everything</p>
-                )}
-              </div>
-
               <div className="border-t border-zinc-800 pt-3">
                 <Link
                   href="/features"
@@ -609,7 +522,20 @@ export default function HomePage() {
                   </span>
                 </Link>
                 <p className="mt-1.5 text-[11px] text-zinc-600">
-                  experiments: karaoke, mashups, music videos & more
+                  experiments: FX pad, mashups, music videos & more
+                </p>
+                <Link
+                  href="/library"
+                  onClick={() => setSettingsOpen(false)}
+                  className="mt-3 flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 transition hover:border-cyan-600 hover:text-cyan-300"
+                >
+                  <span>♫ Library</span>
+                  <span aria-hidden className="text-zinc-600">
+                    →
+                  </span>
+                </Link>
+                <p className="mt-1.5 text-[11px] text-zinc-600">
+                  browse the crate by genre, tempo and key · track credits
                 </p>
               </div>
             </div>

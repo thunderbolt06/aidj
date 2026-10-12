@@ -92,7 +92,7 @@ export function loadTrack(
     if (!metaRes.ok) throw new Error("metadata failed");
     const meta: TrackMeta = await metaRes.json();
 
-    onStatus?.("extracting audio…");
+    onStatus?.("loading audio…");
     const audioRes = await fetch(apiUrl(`/api/audio/${id}`));
     if (!audioRes.ok) {
       let detail: string | null = null;
@@ -101,7 +101,7 @@ export function loadTrack(
       } catch {
         /* non-JSON error body */
       }
-      throw new Error(`audio extraction failed: ${detail || `HTTP ${audioRes.status}`}`);
+      throw new Error(`audio failed: ${detail || `HTTP ${audioRes.status}`}`);
     }
     const data = await audioRes.arrayBuffer();
 
@@ -109,10 +109,11 @@ export function loadTrack(
       onStatus?.("decoding…");
       console.log(`[load ${id}] decoding ${data.byteLength} bytes`);
       const buf = await getEngine().decode(data);
-      console.log(`[load ${id}] decoded ${buf.duration.toFixed(1)}s, analyzing`);
-      onStatus?.("analyzing beats…");
-      const an = await analyzeTrack(buf);
-      console.log(`[load ${id}] analyzed bpm=${an.bpm} key=${an.camelot}`);
+      console.log(`[load ${id}] decoded ${buf.duration.toFixed(1)}s`);
+      // library tracks ship their analysis - only analyze natively as a fallback
+      if (!meta.analysis) onStatus?.("analyzing beats…");
+      const an = meta.analysis ?? (await analyzeTrack(buf));
+      console.log(`[load ${id}] bpm=${an.bpm} key=${an.camelot}`);
       collectAudioGarbage();
       return { buffer: buf, analysis: an };
     });

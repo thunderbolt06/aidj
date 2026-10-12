@@ -322,6 +322,39 @@ export class DJEngine {
     s.stop(at + 0.35);
   }
 
+  /**
+   * Fire a library element - an FX one-shot or a beat loop - straight into the
+   * master bus, on top of whatever the decks are doing (so it is recorded and
+   * visualized with the mix). The handle fades it out or retunes its speed
+   * (a running loop follows the tempo of the next track).
+   */
+  playElement(
+    buffer: AudioBuffer,
+    opts: { gain?: number; rate?: number; loop?: boolean; when?: number } = {}
+  ): { stop: () => void; setRate: (rate: number) => void } {
+    const ctx = this.ctx;
+    const s = ctx.createBufferSource();
+    s.buffer = buffer;
+    s.loop = !!opts.loop;
+    s.playbackRate.value = opts.rate ?? 1;
+    const g = ctx.createGain();
+    g.gain.value = opts.gain ?? 0.8;
+    s.connect(g).connect(this.master);
+    s.start(Math.max(ctx.currentTime, opts.when ?? 0));
+    return {
+      stop: () => {
+        const now = ctx.currentTime;
+        g.gain.setTargetAtTime(0, now, 0.03);
+        try {
+          s.stop(now + 0.2);
+        } catch {
+          /* one-shot already ended */
+        }
+      },
+      setRate: (rate) => s.playbackRate.setTargetAtTime(rate, ctx.currentTime, 0.5),
+    };
+  }
+
   /** Build a reversed AudioBuffer of `lenSec` starting at `startSec`. */
   private reversedSlice(buf: AudioBuffer, startSec: number, lenSec: number): AudioBuffer {
     const sr = buf.sampleRate;

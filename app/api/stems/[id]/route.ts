@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Replicate from "replicate";
-import { getAudioBytes } from "@/lib/server/ytdlp";
+import { getAudioBytes } from "@/lib/server/library";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -52,7 +52,7 @@ export async function GET(
       `ryan5453/demucs:${version}` as `${string}/${string}:${string}`,
       {
         input: {
-          audio: new Blob([new Uint8Array(audio)], { type: "audio/mp4" }),
+          audio: new Blob([new Uint8Array(audio)], { type: "audio/mpeg" }),
           stem: "vocals", // two-stem mode: vocals + accompaniment
           output_format: "mp3",
         },

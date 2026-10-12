@@ -6,6 +6,7 @@ import { analyzeTrack, camelotCompatible } from "@/lib/audio/analysis";
 import type {
   Track,
   TrackAnalysis,
+  TrackKind,
   TrackMeta,
   TransitionPlan,
 } from "@/lib/types";
@@ -28,7 +29,11 @@ export interface LoadedTrack {
 
 const cache = new Map<string, Promise<LoadedTrack>>();
 
-/** Fetch meta + audio + run analysis; cached per video id. */
+/**
+ * Fetch meta + audio; cached per track id. Library tracks arrive with their
+ * analysis precomputed, so loading is just download + decode - the in-browser
+ * analyzer only runs for an entry that somehow lacks one.
+ */
 export function loadTrack(
   id: string,
   onStatus?: (s: string) => void
@@ -36,29 +41,24 @@ export function loadTrack(
   const hit = cache.get(id);
   if (hit) return hit;
   const p = (async () => {
-    onStatus?.("fetching metadata…");
-    const metaRes = await fetch(`/api/meta/${id}`);
-    if (!metaRes.ok) throw new Error("metadata failed");
+    onStatus?.("loading…");
+    // meta and audio are both static reads now - fetch them together
+    const [metaRes, audioRes] = await Promise.all([
+      fetch(`/api/meta/${id}`),
+      fetch(`/api/audio/${id}`),
+    ]);
+    if (!metaRes.ok) throw new Error("track not in library");
     const meta: TrackMeta = await metaRes.json();
-
-    onStatus?.("extracting audio…");
-    const audioRes = await fetch(`/api/audio/${id}`);
     if (!audioRes.ok) {
-      // surface the real reason (yt-dlp stderr) instead of a generic message
       const detail = await audioRes
         .clone()
         .json()
         .then((j) => j?.error)
         .catch(() => null);
-      throw new Error(`audio extraction failed: ${detail || `HTTP ${audioRes.status}`}`);
+      throw new Error(`audio failed: ${detail || `HTTP ${audioRes.status}`}`);
     }
-    const data = await audioRes.arrayBuffer();
-
-    onStatus?.("decoding…");
-    const buffer = await getEngine().decode(data);
-
-    onStatus?.("analyzing beats…");
-    const analysis = await analyzeTrack(buffer);
+    const buffer = await getEngine().decode(await audioRes.arrayBuffer());
+    const analysis = meta.analysis ?? (await analyzeTrack(buffer));
     onStatus?.("");
     return { meta, buffer, analysis };
   })();
@@ -67,9 +67,35 @@ export function loadTrack(
   return p;
 }
 
-export async function searchTracks(q: string): Promise<Track[]> {
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error("search failed");
+const elementCache = new Map<string, Promise<AudioBuffer>>();
+
+/** Decode a library element (FX one-shot / loop) once; taps replay the buffer. */
+export function loadElement(id: string): Promise<AudioBuffer> {
+  const hit = elementCache.get(id);
+  if (hit) return hit;
+  const p = (async () => {
+    const res = await fetch(`/api/audio/${id}`);
+    if (!res.ok) throw new Error(`element ${id} failed`);
+    return getEngine().decode(await res.arrayBuffer());
+  })();
+  p.catch(() => elementCache.delete(id));
+  elementCache.set(id, p);
+  return p;
+}
+
+/** Library search; an empty query browses the most popular entries. */
+export async function searchTracks(
+  q: string,
+  opts?: { kind?: TrackKind | "all"; limit?: number }
+): Promise<Track[]> {
+  const params = new URLSearchParams({ q });
+  if (opts?.kind) params.set("kind", opts.kind);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  const res = await fetch(`/api/search?${params}`);
+  if (!res.ok) {
+    const detail = await res.json().then((j) => j?.error).catch(() => null);
+    throw new Error(detail || "search failed");
+  }
   return (await res.json()).tracks;
 }
 

@@ -1,9 +1,9 @@
 // Shared types — mirrors the web app's lib/types.ts (home-feature subset).
 
 export interface Track {
-  id: string; // YouTube video id
+  id: string; // library id, e.g. "fma-12345"
   title: string;
-  artist: string; // channel/uploader
+  artist: string;
   duration: number; // seconds
   thumbnail: string;
 }
@@ -11,13 +11,15 @@ export interface Track {
 export interface HeatmapPoint {
   start: number; // seconds
   end: number;
-  value: number; // 0..1 replay intensity
+  value: number; // 0..1 hook-likeness
 }
 
 export interface TrackMeta extends Track {
   heatmap: HeatmapPoint[];
-  /** Start of the most-replayed ("famous") section, in seconds. */
+  /** Start of the hook ("famous part"), in seconds - computed at ingest. */
   famousStart: number | null;
+  /** Precomputed at ingest; when present the app skips native analysis. */
+  analysis?: TrackAnalysis;
 }
 
 export interface TrackAnalysis {

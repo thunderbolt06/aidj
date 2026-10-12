@@ -6,7 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "library:fetch": "python3 scripts/library/fetch_fma.py",
+    "library:kit": "node scripts/library/synth_kit.mjs",
+    "library:freesound": "node scripts/library/fetch_freesound.mjs",
+    "library:ingest": "node --experimental-strip-types --no-warnings scripts/library/ingest.mjs",
+    "library:youtube": "python3 scripts/library/fetch_youtube.py",
+    "library:import-cache": "python3 scripts/library/import_cache.py",
+    "library:build": "bash scripts/library/build_all.sh",
+    "library:grow": "bash scripts/library/grow_fma.sh",
+    "library:push": "bash scripts/library/sync_s3.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

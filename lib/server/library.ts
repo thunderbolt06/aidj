@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { camelotDistance } from "@/lib/audio/analysis";
+import { signUrl } from "@/lib/server/cloudfrontSign";
 import type { Track, TrackKind, TrackLicense, TrackMeta } from "@/lib/types";
 
 /**
@@ -75,7 +76,7 @@ function indexCatalog(all: CatalogRow[]): Catalog {
 export async function loadCatalog(): Promise<Catalog> {
   if (LIBRARY_URL) {
     if (cached && Date.now() - cached.stamp < REMOTE_TTL_MS) return cached.catalog;
-    const res = await fetch(`${LIBRARY_URL}/catalog.json`);
+    const res = await fetch(signUrl(`${LIBRARY_URL}/catalog.json`));
     if (!res.ok) throw new Error(`library catalog unreachable (${res.status})`);
     cached = { catalog: indexCatalog((await res.json()).tracks), stamp: Date.now() };
     return cached.catalog;
@@ -97,7 +98,9 @@ export async function loadCatalog(): Promise<Catalog> {
 }
 
 function coverUrl(id: string, origin: string): string {
-  return LIBRARY_URL ? `${LIBRARY_URL}/covers/${id}.jpg` : `${origin}/api/cover/${id}`;
+  return LIBRARY_URL
+    ? signUrl(`${LIBRARY_URL}/covers/${id}.jpg`, 24)
+    : `${origin}/api/cover/${id}`;
 }
 
 export function toTrack(r: CatalogRow, origin: string): Track {
@@ -182,7 +185,7 @@ interface StoredMeta
 async function readMeta(id: string): Promise<StoredMeta> {
   if (!/^[\w-]+$/.test(id)) throw new Error("bad track id");
   if (LIBRARY_URL) {
-    const res = await fetch(`${LIBRARY_URL}/meta/${id}.json`);
+    const res = await fetch(signUrl(`${LIBRARY_URL}/meta/${id}.json`));
     if (!res.ok) throw new Error(`track ${id} not in library`);
     return res.json();
   }
@@ -218,7 +221,7 @@ export async function remoteAudioUrl(id: string): Promise<string | null> {
   if (!LIBRARY_URL) return null;
   const row = (await loadCatalog()).byId.get(id);
   if (!row) throw new Error(`track ${id} not in library`);
-  return `${LIBRARY_URL}/audio/${row.file}`;
+  return signUrl(`${LIBRARY_URL}/audio/${row.file}`);
 }
 
 export function coverFile(id: string): string {

@@ -18,7 +18,8 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
   const { pathname } = req.nextUrl;
-  if (pathname === "/login" || pathname === "/api/login") return NextResponse.next();
+  if (pathname === "/login" || pathname === "/api/login" || pathname === "/api/health")
+    return NextResponse.next();
   if (await validSession(req.cookies.get(SESSION_COOKIE)?.value)) return NextResponse.next();
   if (pathname.startsWith("/api/"))
     return NextResponse.json({ error: "sign in required" }, { status: 401 });

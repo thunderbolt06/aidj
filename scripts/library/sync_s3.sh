@@ -30,7 +30,8 @@ CATALOG="catalog.public.json"
 if [ "$ALL" = 1 ]; then
   DIST="${CLOUDFRONT_DISTRIBUTION_ID:-$(fromenv CLOUDFRONT_DISTRIBUTION_ID)}"
   : "${DIST:?--all needs CLOUDFRONT_DISTRIBUTION_ID (env or .env.local)}"
-  locked=$("$AWS" cloudfront get-distribution-config --id "$DIST" \
+  # CloudFront is global, but the CLI still wants a region to sign the call
+  locked=$("$AWS" cloudfront get-distribution-config --id "$DIST" --region us-east-1 \
     --query "DistributionConfig.DefaultCacheBehavior.TrustedKeyGroups.Enabled" --output text)
   [ "$locked" = "True" ] || { echo "refusing --all: distribution $DIST does not require signed links"; exit 1; }
   public=$("$AWS" s3api get-public-access-block --bucket "$S3_BUCKET" --region "$S3_REGION" \

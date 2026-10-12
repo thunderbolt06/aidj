@@ -1,5 +1,6 @@
-# never upload the local music library or other non-app folders with a CLI deploy
-library
-.cache
-mobile
-extractor
+# never upload the local music library or other non-app folders with a CLI deploy.
+# Leading slashes matter: a bare "library" would also drop app/library and app/api/library.
+/library
+/.cache
+/mobile
+/extractor

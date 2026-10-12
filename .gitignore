@@ -48,3 +48,6 @@ next-env.d.ts
 
 # music library (downloaded audio + derived analysis) - rebuilt by scripts/library
 /library/
+
+# python bytecode
+__pycache__/

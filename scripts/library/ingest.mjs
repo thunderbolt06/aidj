@@ -284,6 +284,7 @@ async function buildCatalog() {
       intensity: m.intensity,
       genres: m.genres ?? [],
       tags: m.tags ?? [],
+      language: m.language ?? null,
       instrumental: !!m.instrumental,
       popularity: m.popularity ?? 0,
       license: m.license?.name ?? null,

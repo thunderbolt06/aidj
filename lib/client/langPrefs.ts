@@ -1,47 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ALL_LANGUAGES } from "@/lib/languages";
+
+export { ALL_LANGUAGES, MORE_LANGUAGES, TOP_LANGUAGES, type Language } from "@/lib/languages";
 
 /**
- * Song-language preference, shared across every AI song-picker (vibe intent,
- * 9-grid suggestions, Sing-It Showdown playlists, arc/reels/talking-DJ). No
- * selection = no constraint (today's default: mix everything).
+ * Song-language preference, shared across every song-picker (vibe intent,
+ * 9-grid suggestions, search, Sing-It Showdown playlists, arc/reels/talking-DJ).
+ * No selection = no constraint (today's default: mix everything).
  */
-
-export interface Language {
-  code: string;
-  label: string;
-}
-
-/** Shown by default in the settings panel. */
-export const TOP_LANGUAGES: Language[] = [
-  { code: "english", label: "English" },
-  { code: "hindi", label: "Hindi" },
-  { code: "spanish", label: "Spanish" },
-  { code: "punjabi", label: "Punjabi" },
-  { code: "korean", label: "Korean" },
-];
-
-/** Revealed behind "+ more". */
-export const MORE_LANGUAGES: Language[] = [
-  { code: "tamil", label: "Tamil" },
-  { code: "telugu", label: "Telugu" },
-  { code: "bengali", label: "Bengali" },
-  { code: "marathi", label: "Marathi" },
-  { code: "gujarati", label: "Gujarati" },
-  { code: "kannada", label: "Kannada" },
-  { code: "malayalam", label: "Malayalam" },
-  { code: "bhojpuri", label: "Bhojpuri" },
-  { code: "urdu", label: "Urdu" },
-  { code: "french", label: "French" },
-  { code: "arabic", label: "Arabic" },
-  { code: "portuguese", label: "Portuguese" },
-  { code: "japanese", label: "Japanese" },
-  { code: "mandarin", label: "Mandarin" },
-  { code: "german", label: "German" },
-];
-
-export const ALL_LANGUAGES: Language[] = [...TOP_LANGUAGES, ...MORE_LANGUAGES];
 
 const STORAGE_KEY = "everplay:languages";
 
@@ -83,14 +51,20 @@ export function useLanguagePrefs() {
     };
   }, []);
 
-  function toggle(code: string) {
-    const next = selected.includes(code)
-      ? selected.filter((c) => c !== code)
-      : [...selected, code];
+  function save(next: string[]) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     setSelected(next);
     notify();
   }
 
-  return { selected, toggle };
+  function toggle(code: string) {
+    save(selected.includes(code) ? selected.filter((c) => c !== code) : [...selected, code]);
+  }
+
+  /** Back to "any language". */
+  function clear() {
+    save([]);
+  }
+
+  return { selected, toggle, clear };
 }

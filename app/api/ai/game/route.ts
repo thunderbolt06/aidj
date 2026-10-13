@@ -26,9 +26,9 @@ Respond with ONLY JSON:
 Return 14-18 songs, difficulty as integers 1 (easiest) to 10 (hardest), sorted ascending.`;
 
 export async function POST(req: NextRequest) {
-  const { prompt } = await req.json();
+  const { prompt, languages } = await req.json();
   try {
-    const songs = await knownSongs();
+    const songs = await knownSongs(500, languages);
     const client = new Anthropic();
     const msg = await client.messages.create({
       model: "claude-haiku-4-5",

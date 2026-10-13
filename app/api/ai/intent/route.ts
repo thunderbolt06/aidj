@@ -51,9 +51,11 @@ function heuristicFilter(prompt: string, genres: string[]): IntentFilter & {
 }
 
 export async function POST(req: NextRequest) {
-  const { prompt, history } = await req.json();
+  const { prompt, history, languages } = await req.json();
   try {
-    const stats = await libraryStats();
+    // facets of the chosen languages only, so the plan is built from genres
+    // and tags those songs actually carry
+    const stats = await libraryStats(languages);
     const genreNames = stats.genres.map((g) => g.name);
     let plan = heuristicFilter(String(prompt ?? ""), genreNames);
 
@@ -83,10 +85,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let rows = await pickForIntent(plan, 10);
+    let rows = await pickForIntent(plan, 10, languages);
     // a filter that matches nothing (tiny library, odd vibe) falls back to energy alone
     if (rows.length < 4)
-      rows = await pickForIntent({ intensity: plan.intensity, energyArc: plan.energyArc }, 10);
+      rows = await pickForIntent(
+        { intensity: plan.intensity, energyArc: plan.energyArc },
+        10,
+        languages
+      );
 
     return NextResponse.json({
       vibe: plan.vibe,

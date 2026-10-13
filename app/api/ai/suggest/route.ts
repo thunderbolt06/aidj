@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
  * search keep working unchanged; `track` saves them the round-trip.
  */
 export async function POST(req: NextRequest) {
-  const { current, arc, exclude } = await req.json();
+  const { current, arc, exclude, languages } = await req.json();
   try {
-    const picks = await pickNext({ current, arc, exclude });
+    const picks = await pickNext({ current, arc, exclude, languages });
     return NextResponse.json({
       suggestions: picks.map((p) => ({
         query: `id:${p.row.id}`,

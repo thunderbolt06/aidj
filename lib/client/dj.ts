@@ -3,6 +3,7 @@
 import { DJEngine } from "@/lib/audio/engine";
 import { installAudioUnlock } from "@/lib/audio/unlock";
 import { analyzeTrack, camelotCompatible } from "@/lib/audio/analysis";
+import { getSelectedLanguages } from "@/lib/client/langPrefs";
 import type {
   Track,
   TrackAnalysis,
@@ -91,6 +92,8 @@ export async function searchTracks(
   const params = new URLSearchParams({ q });
   if (opts?.kind) params.set("kind", opts.kind);
   if (opts?.limit) params.set("limit", String(opts.limit));
+  const languages = getSelectedLanguages();
+  if (languages.length) params.set("lang", languages.join(","));
   const res = await fetch(`/api/search?${params}`);
   if (!res.ok) {
     const detail = await res.json().then((j) => j?.error).catch(() => null);

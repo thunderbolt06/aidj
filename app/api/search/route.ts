@@ -9,7 +9,12 @@ export async function GET(req: NextRequest) {
   const kind = (p.get("kind") ?? "song") as SearchOptions["kind"];
   const limit = Math.min(60, Math.max(1, Number(p.get("limit")) || 12));
   try {
-    const tracks = await searchLibrary(p.get("q") ?? "", req.nextUrl.origin, { kind, limit });
+    const languages = (p.get("lang") ?? "").split(",").filter(Boolean);
+    const tracks = await searchLibrary(p.get("q") ?? "", req.nextUrl.origin, {
+      kind,
+      limit,
+      languages,
+    });
     return NextResponse.json({ tracks });
   } catch (e) {
     return NextResponse.json(

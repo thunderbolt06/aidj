@@ -1,0 +1,866 @@
+# Famous Hindi songs - commercial film / label releases only, across vibes and eras.
+# Fetched by:  npm run library:hindi
+#
+# One "Artist - Title" per line. A line starting with "@" sets the genres and
+# tags for every song below it, which is what vibe prompts filter on.
+# All-rights-reserved recordings: same rules as the chart crate (never public).
+
+@ genres: Bollywood, Dance | tags: party, dance, club, upbeat
+Badshah - Kala Chashma
+Vishal Dadlani - Balam Pichkari
+Badshah - Abhi Toh Party Shuru Hui Hai
+Yo Yo Honey Singh - Lungi Dance
+Yo Yo Honey Singh - Party All Night
+Yo Yo Honey Singh - Chaar Botal Vodka
+Yo Yo Honey Singh - Sunny Sunny
+Yo Yo Honey Singh - Desi Kalakaar
+Yo Yo Honey Singh - Blue Eyes
+Yo Yo Honey Singh - Love Dose
+Yo Yo Honey Singh - Angreji Beat
+Badshah - DJ Waley Babu
+Badshah - Saturday Saturday
+Badshah - Kar Gayi Chull
+Badshah - Garmi
+Badshah - Genda Phool
+Badshah - Jugnu
+Vishal Dadlani - Swag Se Swagat
+Vishal Dadlani - Jhoome Jo Pathaan
+Shilpa Rao - Besharam Rang
+Benny Dayal - Badtameez Dil
+Benny Dayal - Bang Bang
+Vishal Dadlani - Ghungroo
+Vishal Dadlani - Nashe Si Chadh Gayi
+Neha Kakkar - Aankh Marey
+Neha Kakkar - Dilbar
+Neha Kakkar - O Saki Saki
+Neha Kakkar - Kala Chashma
+Nakash Aziz - Jabra Fan
+Mika Singh - Subha Hone Na De
+Mika Singh - Mauja Hi Mauja
+Mika Singh - Dhinka Chika
+Mika Singh - Jumme Ki Raat
+Sunidhi Chauhan - Sheila Ki Jawani
+Sunidhi Chauhan - Dhoom Machale
+Sunidhi Chauhan - Desi Girl
+Sunidhi Chauhan - Kamli
+Sunidhi Chauhan - Crazy Kiya Re
+Shreya Ghoshal - Chikni Chameli
+Shreya Ghoshal - Ooh La La
+Mamta Sharma - Munni Badnaam Hui
+Mamta Sharma - Fevicol Se
+Kanika Kapoor - Baby Doll
+Kanika Kapoor - Chittiyaan Kalaiyaan
+Kanika Kapoor - Lovely
+Vishal Dadlani - Tune Maari Entriyaan
+Vishal Dadlani - Malhari
+Arijit Singh - First Class
+Arijit Singh - The Breakup Song
+Arijit Singh - Dilliwaali Girlfriend
+Shankar Mahadevan - Its The Time To Disco
+Shankar Mahadevan - Where's The Party Tonight
+Shankar Mahadevan - Koi Kahe Kehta Rahe
+KK - Dus Bahane
+KK - Koi Kahe Kehta Rahe
+Vishal Shekhar - Desi Girl
+Sukhwinder Singh - Chaiyya Chaiyya
+Sukhwinder Singh - Chak De India
+Sukhwinder Singh - Marjaani
+Labh Janjua - London Thumakda
+Labh Janjua - Jee Karda
+Guru Randhawa - High Rated Gabru
+Guru Randhawa - Lahore
+Guru Randhawa - Suit Suit
+Guru Randhawa - Ban Ja Rani
+Guru Randhawa - Morni Banke
+Diljit Dosanjh - Proper Patola
+Diljit Dosanjh - Lover
+Diljit Dosanjh - G.O.A.T.
+Tanishk Bagchi - Bom Diggy Diggy
+Tony Kakkar - Coca Cola
+Jasleen Royal - Nachde Ne Saare
+Amit Trivedi - London Thumakda
+Amit Trivedi - Gal Mitthi Mitthi
+Pritam - Tu Meri
+Vishal Dadlani - Bala
+Shaan - Chaar Kadam
+Vishal Dadlani - Gulabi Aankhen
+Sachin Jigar - Kamariya
+Divya Kumar - Zingaat Hindi
+Ajay Atul - Chikni Chameli
+Daler Mehndi - Tunak Tunak Tun
+Daler Mehndi - Bolo Ta Ra Ra
+Arijit Singh - What Jhumka
+Arijit Singh - Jhoome Jo Pathaan
+Anirudh Ravichander - Chaleya
+Anirudh Ravichander - Zinda Banda
+Vishal Mishra - Pehle Bhi Main
+B Praak - Naah
+Harrdy Sandhu - Bijlee Bijlee
+Harrdy Sandhu - Kya Baat Ay
+Asees Kaur - Raataan Lambiyan
+Darshan Raval - Chogada
+Dev Negi - Badri Ki Dulhania
+Udit Narayan - Tip Tip Barsa Paani
+Alka Yagnik - Ek Do Teen
+
+@ genres: Bollywood, Wedding | tags: wedding, sangeet, shaadi, dance, celebration
+Sonu Nigam - Bole Chudiyan
+Shankar Mahadevan - Maahi Ve
+Udit Narayan - Mehndi Laga Ke Rakhna
+Vishal Dadlani - Gallan Goodiyaan
+Sukhwinder Singh - Banno
+Rekha Bhardwaj - Kabira Encore
+Rekha Bhardwaj - Genda Phool
+Harshdeep Kaur - Kabira
+Shreya Ghoshal - Radha
+Shreya Ghoshal - Nagada Sang Dhol
+Shreya Ghoshal - Ghoomar
+Shreya Ghoshal - Dola Re Dola
+Shreya Ghoshal - Deewani Mastani
+Shreya Ghoshal - Barso Re
+Aditi Singh Sharma - Sooraj Dooba Hain
+Mika Singh - Gandi Baat
+Mika Singh - Sweety Tera Drama
+Master Saleem - Tashan Mein
+Sunidhi Chauhan - Sajna Ji Vaari Vaari
+Shankar Mahadevan - Say Shava Shava
+Udit Narayan - Yeh Ladka Hai Deewana
+Sonu Nigam - Saajanji Ghar Aaye
+Lata Mangeshkar - Mehndi Hai Rachnewali
+Jasleen Royal - Din Shagna Da
+Harshdeep Kaur - Dilbaro
+Pritam - Cutiepie
+Neha Kakkar - Morni Banke
+Badshah - Tareefan
+Sunidhi Chauhan - Ainvayi Ainvayi
+Salim Merchant - Ainvayi Ainvayi
+Benny Dayal - Lat Lag Gayee
+Arijit Singh - Dilli Wali Girlfriend
+Amit Trivedi - Navrai Majhi
+Neeti Mohan - Nainowale Ne
+Shankar Mahadevan - Desi Girl
+Vishal Dadlani - Drama Queen
+Pritam - Kudmayi
+Shahid Mallya - Kudmayi
+
+@ genres: Bollywood, Romantic | tags: romantic, love, soft, mellow
+Arijit Singh - Tum Hi Ho
+Arijit Singh - Kesariya
+Arijit Singh - Raabta
+Arijit Singh - Gerua
+Arijit Singh - Janam Janam
+Arijit Singh - Hawayein
+Arijit Singh - Tera Yaar Hoon Main
+Arijit Singh - Phir Le Aya Dil
+Arijit Singh - Tujhe Kitna Chahne Lage
+Arijit Singh - Shayad
+Arijit Singh - Pal
+Arijit Singh - Samjhawan
+Arijit Singh - Muskurane
+Arijit Singh - Sooraj Dooba Hain
+Arijit Singh - Ve Maahi
+Arijit Singh - Khairiyat
+Arijit Singh - Humdard
+Arijit Singh - Naina
+Arijit Singh - Soch Na Sake
+Arijit Singh - Tere Hawaale
+Arijit Singh - Apna Bana Le
+Arijit Singh - Satranga
+Arijit Singh - O Maahi
+Arijit Singh - Heeriye
+Arijit Singh - Tum Kya Mile
+Arijit Singh - Phir Aur Kya Chahiye
+Arijit Singh - Ilahi
+Atif Aslam - Tera Hone Laga Hoon
+Atif Aslam - Pehli Nazar Mein
+Atif Aslam - Tu Jaane Na
+Atif Aslam - Jeene Laga Hoon
+Atif Aslam - Dil Diyan Gallan
+Atif Aslam - Tere Sang Yaara
+Atif Aslam - Woh Lamhe Woh Baatein
+Atif Aslam - Piya O Re Piya
+Atif Aslam - Main Rang Sharbaton Ka
+Atif Aslam - Be Intehaan
+Mohit Chauhan - Tum Se Hi
+Mohit Chauhan - Pee Loon
+Mohit Chauhan - Tujhe Bhula Diya
+Mohit Chauhan - Saiyaara
+Mohit Chauhan - Matargashti
+Mohit Chauhan - Masakali
+KK - Tu Hi Meri Shab Hai
+KK - Aankhon Mein Teri
+KK - Khuda Jaane
+KK - Zara Sa
+KK - Dil Ibaadat
+KK - Labon Ko
+KK - Tu Jo Mila
+Shreya Ghoshal - Teri Ore
+Shreya Ghoshal - Tujh Mein Rab Dikhta Hai
+Shreya Ghoshal - Saibo
+Shreya Ghoshal - Sunn Raha Hai
+Shreya Ghoshal - Manwa Laage
+Shreya Ghoshal - Agar Tum Mil Jao
+Shreya Ghoshal - Jaadu Hai Nasha Hai
+Sonu Nigam - Abhi Mujh Mein Kahin
+Sonu Nigam - Suraj Hua Maddham
+Sonu Nigam - Main Agar Kahoon
+Sonu Nigam - Kal Ho Naa Ho
+Sonu Nigam - Tumhi Dekho Naa
+Sonu Nigam - Mere Haath Mein
+Rahat Fateh Ali Khan - Teri Meri
+Rahat Fateh Ali Khan - Tere Mast Mast Do Nain
+Rahat Fateh Ali Khan - O Re Piya
+Rahat Fateh Ali Khan - Jiya Dhadak Dhadak Jaye
+Rahat Fateh Ali Khan - Main Tenu Samjhawan Ki
+Rahat Fateh Ali Khan - Zaroori Tha
+Jubin Nautiyal - Raataan Lambiyan
+Jubin Nautiyal - Tum Hi Aana
+Jubin Nautiyal - Lut Gaye
+Jubin Nautiyal - Humnava Mere
+Armaan Malik - Bol Do Na Zara
+Armaan Malik - Main Rahoon Ya Na Rahoon
+Armaan Malik - Wajah Tum Ho
+Ankit Tiwari - Galliyan
+Ankit Tiwari - Sunn Raha Hai
+Ankit Tiwari - Tu Hai Ki Nahi
+Darshan Raval - Tera Zikr
+Sachet Tandon - Bekhayali
+Vishal Mishra - Kaise Hua
+Shaan - Chand Sifarish
+Shaan - Jab Se Tere Naina
+Shaan - Behti Hawa Sa Tha Woh
+Javed Ali - Kun Faya Kun
+Javed Ali - Guzarish
+Javed Ali - Jashn-E-Bahaaraa
+Javed Ali - Tum Tak
+Papon - Moh Moh Ke Dhaage
+Papon - Jiyein Kyun
+Sunidhi Chauhan - Ae Watan
+Palak Muchhal - Kaun Tujhe
+Palak Muchhal - Meri Aashiqui
+Neeti Mohan - Ishq Wala Love
+Shilpa Rao - Khuda Jaane
+Shilpa Rao - Tose Naina Laage
+Shilpa Rao - Kalank Title Track
+A.R. Rahman - Tum Tak
+A.R. Rahman - Tere Bina
+A.R. Rahman - Enna Sona
+Sid Sriram - Srivalli Hindi
+Stebin Ben - Thoda Thoda Pyaar
+Vishal Mishra - Pehle Bhi Main
+
+@ genres: Bollywood, Sad | tags: sad, heartbreak, emotional, slow
+Arijit Singh - Channa Mereya
+Arijit Singh - Ae Dil Hai Mushkil
+Arijit Singh - Agar Tum Saath Ho
+Arijit Singh - Hamari Adhuri Kahani
+Arijit Singh - Phir Bhi Tumko Chaahunga
+Arijit Singh - Bekhayali
+Arijit Singh - Tera Ban Jaunga
+Arijit Singh - Khamoshiyan
+Arijit Singh - Sanam Re
+Arijit Singh - Aayat
+Arijit Singh - Laal Ishq
+Arijit Singh - Kabira
+Arijit Singh - Main Dhoondne Ko Zamaane Mein
+Arijit Singh - Judaai
+Arijit Singh - Pachtaoge
+B Praak - Filhall
+B Praak - Mann Bharryaa
+B Praak - Teri Mitti
+B Praak - Ranjha
+KK - Tadap Tadap Ke
+KK - Alvida
+KK - Beete Lamhein
+KK - Yaaron
+KK - Pal
+KK - Sach Keh Raha Hai Deewana
+Atif Aslam - Tera Hone Laga Hoon
+Atif Aslam - Aadat
+Atif Aslam - Tajdar-e-Haram
+Mohit Chauhan - Tum Ho
+Mohit Chauhan - Jo Bhi Main
+Mohit Chauhan - Kun Faya Kun
+Rahat Fateh Ali Khan - Dil To Bachcha Hai Ji
+Rahat Fateh Ali Khan - Tum Jo Aaye
+Sonu Nigam - Abhi Mujh Mein Kahin
+Sonu Nigam - Sandese Aate Hai
+Sonu Nigam - Do Pal
+Shafqat Amanat Ali - Mitwa
+Shafqat Amanat Ali - Bin Tere
+Shafqat Amanat Ali - Tere Naina
+Vishal Mishra - Pehle Bhi Main
+Jubin Nautiyal - Bewafa Tera Masoom Chehra
+Sachet Tandon - Mere Sohneya
+Adnan Sami - Bhar Do Jholi Meri
+Adnan Sami - Tera Chehra
+Adnan Sami - Kabhi To Nazar Milao
+Kumar Sanu - Jab Koi Baat Bigad Jaye
+Himesh Reshammiya - Aashiq Banaya Aapne
+Himesh Reshammiya - Tera Suroor
+Himesh Reshammiya - Jhalak Dikhla Ja
+Mustafa Zahid - Tera Mera Rishta
+Mustafa Zahid - Toh Phir Aao
+Roop Kumar Rathod - Tujh Mein Rab Dikhta Hai
+Roop Kumar Rathod - Maula Mere Maula
+
+@ genres: Sufi, Bollywood | tags: sufi, qawwali, soulful, spiritual
+A.R. Rahman - Kun Faya Kun
+A.R. Rahman - Khwaja Mere Khwaja
+A.R. Rahman - Arziyan
+A.R. Rahman - Piya Haji Ali
+Nusrat Fateh Ali Khan - Afreen Afreen
+Nusrat Fateh Ali Khan - Mere Rashke Qamar
+Nusrat Fateh Ali Khan - Dulhe Ka Sehra
+Nusrat Fateh Ali Khan - Tumhe Dillagi
+Rahat Fateh Ali Khan - Afreen Afreen
+Rahat Fateh Ali Khan - Mere Rashke Qamar
+Rahat Fateh Ali Khan - Sajda
+Kailash Kher - Teri Deewani
+Kailash Kher - Saiyyan
+Kailash Kher - Allah Ke Bande
+Kailash Kher - Ya Rabba
+Kailash Kher - Bam Lahiri
+Rekha Bhardwaj - Sasural Genda Phool
+Rekha Bhardwaj - Phir Le Aya Dil
+Abida Parveen - Chaap Tilak
+Wadali Brothers - Rangrez
+Sukhwinder Singh - Haule Haule
+Sukhwinder Singh - Ramta Jogi
+Mohit Chauhan - Phir Se Ud Chala
+Javed Ali - Arziyan
+Arijit Singh - Mast Magan
+Shankar Mahadevan - Noor E Khuda
+Richa Sharma - Sajda
+Richa Sharma - Maahi Ve
+Harshdeep Kaur - Heer
+Harshdeep Kaur - Katiya Karun
+Nooran Sisters - Patakha Guddi
+Sona Mohapatra - Ambarsariya
+Amit Trivedi - Iktara
+Kavita Seth - Iktara
+Shafqat Amanat Ali - Aankhon Ke Saagar
+Sabri Brothers - Tumse Milke Dil Ka
+
+@ genres: Retro, Bollywood | tags: retro, classic, oldies, evergreen
+Kishore Kumar - Mere Sapno Ki Rani
+Kishore Kumar - Roop Tera Mastana
+Kishore Kumar - Pal Pal Dil Ke Paas
+Kishore Kumar - Yeh Shaam Mastani
+Kishore Kumar - O Mere Dil Ke Chain
+Kishore Kumar - Chala Jata Hoon
+Kishore Kumar - Zindagi Ek Safar Hai Suhana
+Kishore Kumar - Mere Mehboob Qayamat Hogi
+Kishore Kumar - Neele Neele Ambar Par
+Kishore Kumar - Ek Ladki Bheegi Bhaagi Si
+Kishore Kumar - Khaike Paan Banaraswala
+Kishore Kumar - Hume Tumse Pyaar Kitna
+Kishore Kumar - Chookar Mere Mann Ko
+Kishore Kumar - Rimjhim Gire Sawan
+Kishore Kumar - Ek Ajnabee Haseena Se
+Kishore Kumar - Bachna Ae Haseeno
+Kishore Kumar - Om Shanti Om
+Kishore Kumar - Aane Wala Pal
+Kishore Kumar - Tere Bina Zindagi Se
+Kishore Kumar - Yeh Dosti
+Kishore Kumar - Jai Jai Shiv Shankar
+Kishore Kumar - Pag Ghungroo Baandh
+Kishore Kumar - Dilbar Mere
+Mohammed Rafi - Kya Hua Tera Wada
+Mohammed Rafi - Chura Liya Hai Tumne
+Mohammed Rafi - Baharon Phool Barsao
+Mohammed Rafi - Likhe Jo Khat Tujhe
+Mohammed Rafi - Yeh Chand Sa Roshan Chehra
+Mohammed Rafi - Aaj Mausam Bada Beimaan Hai
+Mohammed Rafi - Gulabi Aankhen
+Mohammed Rafi - Badan Pe Sitare
+Mohammed Rafi - Tareef Karoon Kya Uski
+Mohammed Rafi - Abhi Na Jao Chhod Kar
+Mohammed Rafi - Chaudhvin Ka Chand
+Mohammed Rafi - Dard-E-Dil
+Mohammed Rafi - Yeh Reshmi Zulfein
+Mohammed Rafi - Aaja Aaja Main Hoon Pyar Tera
+Mohammed Rafi - O Haseena Zulfonwali
+Lata Mangeshkar - Lag Jaa Gale
+Lata Mangeshkar - Ajeeb Dastan Hai Yeh
+Lata Mangeshkar - Pyar Kiya To Darna Kya
+Lata Mangeshkar - Tere Bina Zindagi Se
+Lata Mangeshkar - Aap Ki Nazron Ne Samjha
+Lata Mangeshkar - Tujhe Dekha To
+Lata Mangeshkar - Dil To Pagal Hai
+Lata Mangeshkar - Kabhi Kabhi Mere Dil Mein
+Lata Mangeshkar - Ek Pyar Ka Nagma Hai
+Lata Mangeshkar - Bahon Mein Chale Aao
+Lata Mangeshkar - Tere Liye
+Asha Bhosle - Dum Maro Dum
+Asha Bhosle - Piya Tu Ab To Aaja
+Asha Bhosle - Yeh Mera Dil
+Asha Bhosle - In Aankhon Ki Masti
+Asha Bhosle - Dil Cheez Kya Hai
+Asha Bhosle - Aaiye Meherbaan
+Asha Bhosle - Jhumka Gira Re
+Asha Bhosle - Chura Liya Hai Tumne
+Asha Bhosle - Mehbooba Mehbooba
+R.D. Burman - Mehbooba Mehbooba
+R.D. Burman - Duniya Mein Logon Ko
+Mukesh - Kabhi Kabhi Mere Dil Mein
+Mukesh - Mera Joota Hai Japani
+Mukesh - Awara Hoon
+Mukesh - Kisi Ki Muskurahaton Pe
+Mukesh - Jeena Yahan Marna Yahan
+Mukesh - Ek Pyar Ka Nagma Hai
+Manna Dey - Yeh Dosti
+Manna Dey - Ae Meri Zohra Jabeen
+Manna Dey - Pyar Hua Ikrar Hua
+Hemant Kumar - Hai Apna Dil To Awara
+Bappi Lahiri - I Am A Disco Dancer
+Bappi Lahiri - Yaar Bina Chain Kahan Re
+Bappi Lahiri - Tamma Tamma Loge
+Bappi Lahiri - Jimmy Jimmy Aaja Aaja
+Usha Uthup - Ramba Ho
+Nazia Hassan - Aap Jaisa Koi
+Nazia Hassan - Disco Deewane
+Amit Kumar - Bade Achhe Lagte Hain
+Shailendra Singh - Main Shayar To Nahin
+S.P. Balasubrahmanyam - Dil Deewana
+S.P. Balasubrahmanyam - Pehla Pehla Pyar Hai
+S.P. Balasubrahmanyam - Didi Tera Devar Deewana
+Amitabh Bachchan - Rang Barse
+Amitabh Bachchan - Mere Angne Mein
+
+@ genres: 90s Bollywood, Bollywood | tags: 90s, nostalgia, melody, romantic
+Kumar Sanu - Ek Ladki Ko Dekha To
+Kumar Sanu - Tujhe Dekha To
+Kumar Sanu - Chura Ke Dil Mera
+Kumar Sanu - Yeh Kaali Kaali Aankhen
+Kumar Sanu - Baazigar O Baazigar
+Kumar Sanu - Mera Dil Bhi Kitna Pagal Hai
+Kumar Sanu - Do Dil Mil Rahe Hain
+Kumar Sanu - Dheere Dheere Se
+Kumar Sanu - Nazar Ke Samne
+Kumar Sanu - Tu Mile Dil Khile
+Kumar Sanu - Ladki Badi Anjani Hai
+Kumar Sanu - Aankhon Ki Gustakhiyan
+Kumar Sanu - Jab Kisi Ki Taraf Dil
+Kumar Sanu - Tu Pyar Hai Kisi Aur Ka
+Kumar Sanu - Dil Hai Ki Manta Nahin
+Kumar Sanu - Sochenge Tumhe Pyaar
+Udit Narayan - Pehla Nasha
+Udit Narayan - Papa Kehte Hain
+Udit Narayan - Jaadu Teri Nazar
+Udit Narayan - Ruk Ja O Dil Deewane
+Udit Narayan - Ho Gaya Hai Tujhko
+Udit Narayan - Kuch Kuch Hota Hai
+Udit Narayan - Koi Mil Gaya
+Udit Narayan - Dil To Pagal Hai
+Udit Narayan - Aye Mere Humsafar
+Udit Narayan - Chand Chhupa Badal Mein
+Udit Narayan - Taal Se Taal Mila
+Udit Narayan - Mitwa
+Udit Narayan - Main Yahaan Hoon
+Udit Narayan - Tere Naam
+Udit Narayan - Dil Ne Yeh Kaha Hai Dil Se
+Udit Narayan - Ae Ajnabi
+Alka Yagnik - Tip Tip Barsa Paani
+Alka Yagnik - Gali Mein Aaj Chand Nikla
+Alka Yagnik - Dil Laga Liya
+Alka Yagnik - Agar Tum Saath Ho
+Alka Yagnik - Taal Se Taal
+Alka Yagnik - Choli Ke Peeche
+Alka Yagnik - Chamma Chamma
+Abhijeet - Main Koi Aisa Geet Gaoon
+Abhijeet - Badi Mushkil Hai
+Abhijeet - Chaand Taare
+Abhijeet - Tumhe Jo Maine Dekha
+Abhijeet - Zara Sa Jhoom Loon Main
+Abhijeet - Suno Na Suno Na
+Hariharan - Tu Hi Re
+Hariharan - Chanda Re
+Hariharan - Roja Jaaneman
+A.R. Rahman - Dil Se Re
+A.R. Rahman - Chaiyya Chaiyya
+A.R. Rahman - Humma Humma
+A.R. Rahman - Urvashi Urvashi Hindi
+A.R. Rahman - Muqabla Muqabla
+A.R. Rahman - Rangeela Re
+A.R. Rahman - Tanha Tanha
+A.R. Rahman - Jiya Jale
+A.R. Rahman - Ishq Bina
+A.R. Rahman - Kehna Hi Kya
+Sonu Nigam - Yeh Dil Deewana
+Sonu Nigam - Sandese Aate Hai
+Sonu Nigam - Satrangi Re
+Vinod Rathod - Aisi Deewangi
+Vinod Rathod - Chalte Chalte
+Jatin Lalit - Yaara O Yaara
+Anu Malik - Oonchi Hai Building
+Anu Malik - Ek Garam Chai Ki Pyali
+Sukhwinder Singh - Ramta Jogi
+Remo Fernandes - Humma Humma
+Baba Sehgal - Thanda Thanda Pani
+Kavita Krishnamurthy - Hawa Hawai
+Kavita Krishnamurthy - Tu Cheez Badi Hai Mast Mast
+Kavita Krishnamurthy - Nimbooda
+Kavita Krishnamurthy - Aankhon Ki Gustakhiyan
+Sapna Awasthi - Chaiyya Chaiyya
+Ila Arun - Choli Ke Peeche Kya Hai
+Poornima - Sona Kitna Sona Hai
+Alisha Chinai - Made In India
+Alisha Chinai - Kajra Re
+
+@ genres: 2000s Bollywood, Bollywood | tags: 2000s, nostalgia, hits
+Sonu Nigam - Kabhi Khushi Kabhie Gham
+Sonu Nigam - You Are My Soniya
+Sonu Nigam - Dil Dooba
+Sonu Nigam - Bijuria
+Sonu Nigam - Shukran Allah
+Sonu Nigam - Kabhi Alvida Naa Kehna
+Sonu Nigam - Mujhse Shaadi Karogi
+Sonu Nigam - All Is Well
+Shaan - Koi Kahe Kehta Rahe
+Shaan - Musu Musu Hasi
+Shaan - Woh Ladki Hai Kahan
+Shaan - Tanha Dil
+Shaan - My Dil Goes Mmmm
+Shaan - Hey Shona
+Shaan - Dus Bahane
+Shaan - Rock N Roll Soniye
+KK - Kya Mujhe Pyaar Hai
+KK - O Meri Jaan
+KK - Dil Kyun Yeh Mera
+KK - Awarapan Banjarapan
+KK - Tu Aashiqui Hai
+KK - Mera Pehla Pehla Pyaar
+KK - Aashayein
+KK - Hai Junoon
+Himesh Reshammiya - Hookah Bar
+Himesh Reshammiya - Tandoori Nights
+Himesh Reshammiya - Zara Jhoom Jhoom
+Himesh Reshammiya - Naam Hai Tera
+Kunal Ganjawala - Bheege Honth Tere
+Kunal Ganjawala - Salaam Namaste
+Zubeen Garg - Ya Ali
+James - Bheegi Bheegi
+Neeraj Shridhar - Twist
+Neeraj Shridhar - Hare Ram Hare Ram
+Neeraj Shridhar - Tum Hi Ho Bandhu
+Neeraj Shridhar - Chor Bazaari
+Neeraj Shridhar - Love Mera Hit Hit
+Neeraj Shridhar - Bhool Bhulaiyaa
+Neeraj Shridhar - Prem Ki Naiyya
+Bombay Vikings - Kya Soorat Hai
+Sukhwinder Singh - Dard-E-Disco
+Vishal Dadlani - Dhoom Again
+Vishal Dadlani - Kurbaan Hua
+Abhijeet Sawant - Mohabbatein Lutaunga
+Alisha Chinai - Dil Tu Hi Bataa
+Shreya Ghoshal - Mere Dholna
+Shreya Ghoshal - Yeh Ishq Hai
+Shreya Ghoshal - Bairi Piya
+Shreya Ghoshal - Silsila Ye Chahat Ka
+Sunidhi Chauhan - Beedi
+Sunidhi Chauhan - Mehboob Mere
+Sunidhi Chauhan - Ruki Ruki Si Zindagi
+Sunidhi Chauhan - Aaja Nachle
+Sunidhi Chauhan - Bhaage Re Mann
+Adnan Sami - Lift Karadey
+Lucky Ali - Ek Pal Ka Jeena
+Lucky Ali - Na Tum Jaano Na Hum
+Lucky Ali - Aa Bhi Ja
+Udit Narayan - Woh Chand Jaisi Ladki
+Udit Narayan - Idhar Chala Main Udhar Chala
+Udit Narayan - Yeh Tara Woh Tara
+Pritam - In Dino
+Soham Chakraborty - In Dino
+Tulsi Kumar - Tum Jo Aaye
+Mohit Chauhan - Yeh Dooriyan
+Vishal Shekhar - Aankhon Mein Teri
+Atif Aslam - Bakhuda Tumhi Ho
+Atif Aslam - Tere Bin
+Atif Aslam - Doorie
+
+@ genres: Indie Pop | tags: indie, indipop, pop, fresh
+Lucky Ali - O Sanam
+Lucky Ali - Gori Teri Aankhen Kahe
+Lucky Ali - Safarnama
+Euphoria - Maeri
+Euphoria - Dhoom Pichak Dhoom
+Silk Route - Dooba Dooba
+Colonial Cousins - Krishna
+Falguni Pathak - Maine Payal Hai Chhankai
+Falguni Pathak - Yaad Piya Ki Aane Lagi
+Falguni Pathak - Chudi Jo Khanki
+Shaan - Tanha Dil Tanha Safar
+Sonu Nigam - Deewana Tera
+Sonu Nigam - Bijuria Bijuria
+Strings - Dhaani
+Jal - Woh Lamhe
+Junoon - Sayonee
+Indian Ocean - Bandeh
+Prateek Kuhad - cold/mess
+Prateek Kuhad - Kasoor
+Prateek Kuhad - Tum Jab Paas
+Anuv Jain - Baarishein
+Anuv Jain - Gul
+Anuv Jain - Husn
+Anuv Jain - Jo Tum Mere Ho
+Aditya Rikhari - Samjho Na
+Ritviz - Udd Gaye
+Ritviz - Liggi
+Ritviz - Jeet
+The Local Train - Choo Lo
+The Local Train - Aaoge Tum Kabhi
+When Chai Met Toast - Firefly
+Lifafa - Jaago
+Jasleen Royal - Heeriye
+Jasleen Royal - Kho Gaye Hum Kahan
+Jasleen Royal - Ranjha
+Zaeden - Tere Bina
+Akull - Laal Bindi
+Kaifi Khalil - Kahani Suno 2.0
+Ali Sethi - Pasoori
+Abdul Hannan - Iraaday
+Hasan Raheem - Joona
+Young Stunners - Gumaan
+AUR - Tu Hai Kahan
+Mitraz - Akhiyaan
+King - Maan Meri Jaan
+King - Tu Aake Dekhle
+Tony Kakkar - Dheeme Dheeme
+Dhvani Bhanushali - Vaaste
+Darshan Raval - Ek Tarfa
+Arjun Kanungo - Baaki Baatein Peene Baad
+Vilen - Ek Raat
+Vishal Mishra - Aaj Bhi
+Tanzeel Khan - Dil Mera
+Faheem Abdullah - Saiyaara
+Sachet Parampara - Saiyaara
+Shubh - Cheques
+AP Dhillon - Brown Munde
+AP Dhillon - Excuses
+AP Dhillon - With You
+Karan Aujla - Tauba Tauba
+Karan Aujla - Softly
+Diljit Dosanjh - Born To Shine
+
+@ genres: Hip-Hop, Desi Hip-Hop | tags: rap, hip hop, desi hip hop, swagger
+DIVINE - Mere Gully Mein
+DIVINE - Jungli Sher
+DIVINE - Kohinoor
+DIVINE - Chal Bombay
+DIVINE - Mirchi
+Ranveer Singh - Apna Time Aayega
+Ranveer Singh - Asli Hip Hop
+Naezy - Aafat
+Emiway Bantai - Machayenge
+Emiway Bantai - Firse Machayenge
+Raftaar - Swag Mera Desi
+Raftaar - Dhaakad
+Raftaar - All Black
+Raftaar - Tu Mera Bhai Nahi Hai
+KR$NA - No Cap
+KR$NA - Joota Japani
+Seedhe Maut - Namastute
+Seedhe Maut - Nanchaku
+MC Stan - Basti Ka Hasti
+MC Stan - Insaan
+King - Oops
+Badshah - Paagal
+Badshah - Mercy
+Yo Yo Honey Singh - Brown Rang
+Yo Yo Honey Singh - Dheere Dheere
+Yo Yo Honey Singh - Millionaire
+Yo Yo Honey Singh - Makhna
+Bohemia - Kali Denali
+Ikka - Level Up
+Dino James - Loser
+Paradox - Jaadugar
+Hanumankind - Big Dawgs
+
+@ genres: Bollywood, Feel Good | tags: road trip, travel, feel good, friendship, chill
+Shankar Mahadevan - Dil Chahta Hai
+Shankar Mahadevan - Senorita
+Shankar Mahadevan - Kal Ho Naa Ho
+Shankar Mahadevan - Sapnon Se Bhare Naina
+KK - Yaaron Dosti
+KK - Dil Chahta Hai
+Mohit Chauhan - Ilahi
+Mohit Chauhan - Safarnama
+Mohit Chauhan - Dooriyan
+Arijit Singh - Ilahi
+Arijit Singh - Zinda
+Farhan Akhtar - Senorita
+Farhan Akhtar - Rock On
+Farhan Akhtar - Socha Hai
+Farhan Akhtar - Tum Ho Toh
+Vishal Dadlani - Khaabon Ke Parinday
+Alyssa Mendonsa - Khaabon Ke Parinday
+Pritam - Kabira
+Pritam - Safar
+Lucky Ali - Safarnama
+Amit Trivedi - Shaam
+Amit Trivedi - Love You Zindagi
+Amit Trivedi - Sham
+Amit Trivedi - Kinare
+Amit Trivedi - Manja
+Amit Trivedi - Namo Namo
+Amit Trivedi - Zinda
+Swanand Kirkire - Behti Hawa Sa Tha Woh
+Shaan - Give Me Some Sunshine
+Suraj Jagan - Give Me Some Sunshine
+Sonu Nigam - Aal Izz Well
+Raghu Dixit - Mysore Se Aayi
+Nikhil D'Souza - Sham
+Clinton Cerejo - Yaariyan
+Benny Dayal - Tarkeebein
+Benny Dayal - Ude Dil Befikre
+Shalmali Kholgade - Balam Pichkari
+Shilpa Rao - Bulleya
+Vishal Dadlani - Bulleya
+Papon - Kyon
+Nikhil Paul George - Main Kya Karoon
+Ayushmann Khurrana - Pani Da Rang
+Ayushmann Khurrana - Saadi Gali Aaja
+Ayushmann Khurrana - Mitti Di Khushboo
+Rochak Kohli - Pani Da Rang
+Mohit Chauhan - Tune Jo Na Kaha
+A.R. Rahman - Dil Dhadakne Do
+A.R. Rahman - Patakha Guddi
+A.R. Rahman - Phir Se Ud Chala
+A.R. Rahman - Roobaroo
+A.R. Rahman - Luka Chuppi
+A.R. Rahman - Yun Hi Chala Chal
+A.R. Rahman - Nadaan Parindey
+A.R. Rahman - Jai Ho
+A.R. Rahman - Rang De Basanti
+A.R. Rahman - Khalbali
+A.R. Rahman - Masakali
+
+@ genres: Bollywood, Rock | tags: workout, gym, motivation, energy, anthem
+Sukhwinder Singh - Chak De India
+Siddharth Mahadevan - Zinda
+Shankar Mahadevan - Bhaag Milkha Bhaag
+Arijit Singh - Sultan Title Track
+Daler Mehndi - Dangal Title Track
+Raftaar - Dhaakad
+Vishal Dadlani - Jee Le Zaraa
+Vishal Dadlani - Sadda Haq
+Mohit Chauhan - Sadda Haq
+Amit Trivedi - Kar Har Maidaan Fateh
+Sukhwinder Singh - Kar Har Maidaan Fateh
+Shankar Mahadevan - Lakshya
+Farhan Akhtar - Sinbad The Sailor
+KK - Aasman Ko Chukar Dekha
+Vishal Dadlani - Malang
+Vishal Dadlani - Dhoom Machale Dhoom
+Aditi Singh Sharma - Dhoom Machale Dhoom
+Sunidhi Chauhan - Dhoom Machale
+Shankar Ehsaan Loy - Brothers Anthem
+Ajay Gogavale - Brothers Anthem
+Divya Kumar - Jee Karda
+Sukhwinder Singh - Chale Chalo
+A.R. Rahman - Lagaan Chale Chalo
+Vishal Dadlani - Ziddi Dil
+Arijit Singh - Aashiqui Aa Gayi
+Amit Mishra - Bulleya
+Amit Trivedi - Hikki
+Shankar Mahadevan - Breathless
+Salim Merchant - Ali Maula
+Sukhwinder Singh - Sultan
+Vishal Dadlani - Bloody Hell
+Shashwat Sachdev - Challa Main Lad Jaana
+Vishal Dadlani - Jai Jai Shivshankar
+Benny Dayal - Jai Jai Shivshankar
+Vishal Dadlani - Sher Khul Gaye
+
+@ genres: Patriotic, Bollywood | tags: patriotic, india, anthem
+A.R. Rahman - Maa Tujhe Salaam
+A.R. Rahman - Yeh Jo Des Hai Tera
+A.R. Rahman - Bharat Humko Jaan Se Pyara Hai
+Lata Mangeshkar - Ae Mere Watan Ke Logon
+Arijit Singh - Ae Watan
+Sonu Nigam - Sandese Aate Hain
+Roop Kumar Rathod - Sandese Aate Hain
+Daler Mehndi - Rang De Basanti
+Shankar Mahadevan - Kandhon Se Milte Hain Kandhe
+Sukhwinder Singh - Jai Ho
+Mahendra Kapoor - Mere Desh Ki Dharti
+Mohammed Rafi - Kar Chale Hum Fida
+Mohit Chauhan - Lehra Do
+
+@ genres: Devotional | tags: devotional, bhakti, spiritual, calm
+Sachet Tandon - Shiv Tandav Stotram
+Hansraj Raghuwanshi - Mera Bhola Hai Bhandari
+Jubin Nautiyal - Mere Ghar Ram Aaye Hain
+Vishal Mishra - Ram Aayenge
+Shankar Mahadevan - Deva Shree Ganesha
+Ajay Gogavale - Deva Shree Ganesha
+Shankar Mahadevan - Shree Ganeshay Dheemahi
+Amitabh Bachchan - Shree Hanuman Chalisa
+Hariharan - Shree Hanuman Chalisa
+Anuradha Paudwal - Om Jai Jagdish Hare
+Kailash Kher - Jai Jaikara
+Arijit Singh - Deva Deva
+Jubin Nautiyal - Shri Krishna Govind Hare Murari
+Lata Mangeshkar - Satyam Shivam Sundaram
+A.R. Rahman - O Paalanhaare
+
+@ genres: Ghazal | tags: ghazal, mellow, late night, classic
+Jagjit Singh - Hoshwalon Ko Khabar Kya
+Jagjit Singh - Tum Itna Jo Muskura Rahe Ho
+Jagjit Singh - Chitthi Na Koi Sandesh
+Jagjit Singh - Hothon Se Chhu Lo Tum
+Jagjit Singh - Jhuki Jhuki Si Nazar
+Jagjit Singh - Tumko Dekha To Yeh Khayal Aaya
+Jagjit Singh - Woh Kagaz Ki Kashti
+Jagjit Singh - Koi Fariyaad
+Jagjit Singh - Kal Chaudhvin Ki Raat Thi
+Ghulam Ali - Chupke Chupke Raat Din
+Ghulam Ali - Hungama Hai Kyon Barpa
+Mehdi Hassan - Ranjish Hi Sahi
+Pankaj Udhas - Chitthi Aayi Hai
+Pankaj Udhas - Chandi Jaisa Rang Hai Tera
+Pankaj Udhas - Aur Ahista Kijiye Baatein
+Talat Aziz - Zindagi Jab Bhi Teri Bazm Mein
+Hariharan - Kaash Aisa Koi Manzar Hota
+
+@ genres: Bollywood, Monsoon | tags: rain, monsoon, cosy, romantic
+Kishore Kumar - Rim Jhim Gire Sawan
+Lata Mangeshkar - Rimjhim Gire Sawan
+Shreya Ghoshal - Barso Re Megha
+Sunidhi Chauhan - Bheegi Bheegi Raaton Mein
+Adnan Sami - Bheegi Bheegi Raaton Mein
+Arijit Singh - Baarish
+Ash King - Baarish
+Neeti Mohan - Sau Aasmaan
+Mohammed Irfan - Baarish Yaariyan
+Atif Aslam - Baarishein
+Darshan Raval - Baarish Lete Aana
+Payal Dev - Baarish Ban Jaana
+Shaan - Dekho Na
+Lata Mangeshkar - O Sajna Barkha Bahaar Aayi
+Sonu Nigam - Tip Tip Barsa Pani
+Shreya Ghoshal - Cham Cham
+Abhijeet - Tauba Tumhare Yeh Ishaare
+Udit Narayan - Ghanan Ghanan
+Shubha Mudgal - Ab Ke Sawan
+
+@ genres: Bollywood, Festive | tags: holi, festival, garba, navratri, celebration
+Amitabh Bachchan - Hori Khele Raghuveera
+Vishal Dadlani - Balam Pichkari Holi
+Shreya Ghoshal - Nagada Sang Dhol Baje
+Kirtidan Gadhvi - Laadki
+Darshan Raval - Chogada Tara
+Aditya Narayan - Tattad Tattad
+Osman Mir - Mor Bani Thanghat Kare
+Shail Hada - Lahu Munh Lag Gaya
+Anu Malik - Do Me A Favour Lets Play Holi
+Kishore Kumar - Holi Ke Din
+Alka Yagnik - Ang Se Ang Lagana
+Shankar Mahadevan - Sindoor Lal Chadhayo
+Udit Narayan - Udi Udi Jaye
+Sukhwinder Singh - Udi Udi Jaye
+Falguni Pathak - Indhana Winva
+Shreya Ghoshal - Dholida
+Arijit Singh - Kamariya
+Vishal Dadlani - Shubhaarambh

@@ -6,6 +6,8 @@ import type { Track } from "@/lib/types";
 import { getEngine, loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
+import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
+import { LanguagePicker } from "@/components/LanguagePicker";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { BeatTapButton } from "@/components/BeatTapPulse";
@@ -76,11 +78,34 @@ const VIBE_CHIP_POOL = [
   "instrumental only",
 ];
 
+// shown instead when Hindi is the only language picked - these read off the
+// genres and tags of the Hindi collection (scripts/library/collections/hindi.txt)
+const HINDI_CHIP_POOL = [
+  "bollywood party",
+  "shaadi dance floor",
+  "sangeet night",
+  "romantic bollywood",
+  "heartbreak hours",
+  "sufi night",
+  "retro classics",
+  "90s nostalgia",
+  "2000s hits",
+  "indie pop",
+  "desi hip hop",
+  "road trip with friends",
+  "gym motivation",
+  "monsoon rain",
+  "late night ghazal",
+  "holi and festive",
+  "devotional morning",
+  "patriotic anthems",
+];
+
 // how many chips show on the hero at once before you have to hit "more"
 const CHIP_DISPLAY_COUNT = 16;
 
-function sampleChips(n: number): string[] {
-  const copy = [...VIBE_CHIP_POOL];
+function sampleChips(n: number, pool: string[] = VIBE_CHIP_POOL): string[] {
+  const copy = [...pool];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -207,6 +232,9 @@ export default function HomePage() {
   // 9-grid tile whose transition is loading (spinner overlay until the hop)
   const [pendingTile, setPendingTile] = useState<string | null>(null);
   const { minPlaySec, setMinPlaySec } = useMinPlaySec();
+  const { selected: languages } = useLanguagePrefs();
+  const chipPool =
+    languages.length === 1 && languages[0] === "hindi" ? HINDI_CHIP_POOL : VIBE_CHIP_POOL;
   // deterministic on first paint (matches SSR), reshuffled client-side after
   // mount so refreshing/tapping shuffle surfaces different situations
   const [vibeChips, setVibeChips] = useState(() =>
@@ -224,8 +252,8 @@ export default function HomePage() {
   const playerDxRef = useRef(0);
 
   useEffect(() => {
-    setVibeChips(sampleChips(CHIP_DISPLAY_COUNT));
-  }, []);
+    setVibeChips(sampleChips(CHIP_DISPLAY_COUNT, chipPool));
+  }, [chipPool]);
 
   // settings dropdown closes when you click anywhere else
   useEffect(() => {
@@ -348,6 +376,7 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
+          languages: getSelectedLanguages(),
         }),
       });
       if (!res.ok) return;
@@ -386,7 +415,7 @@ export default function HomePage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({ prompt: text, languages: getSelectedLanguages() }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
       const plan = (await res.json()) as { queries: string[] };
@@ -510,6 +539,14 @@ export default function HomePage() {
                 </p>
               </div>
 
+              <div className="space-y-2 border-t border-zinc-800 pt-3 empty:hidden">
+                {/* mid-set, the 9-grid redraws in the new language right away */}
+                <LanguagePicker
+                  label="Song language"
+                  onChange={() => mix.now && refreshGrid(mix.now.meta)}
+                />
+              </div>
+
               <div className="border-t border-zinc-800 pt-3">
                 <Link
                   href="/features"
@@ -576,6 +613,7 @@ export default function HomePage() {
               {busy ? "…" : "Mix it"}
             </button>
           </div>
+          <LanguagePicker label="Songs in" className="justify-center" />
           <div className="flex max-w-2xl flex-col items-center gap-3">
             <div className="flex flex-wrap justify-center gap-2">
               {vibeChips.map((c) => (
@@ -591,7 +629,7 @@ export default function HomePage() {
             {/* deliberately NOT styled like the chips above - it's a utility
                 action (reshuffle the whole set), not a vibe you can pick */}
             <button
-              onClick={() => setVibeChips(sampleChips(CHIP_DISPLAY_COUNT))}
+              onClick={() => setVibeChips(sampleChips(CHIP_DISPLAY_COUNT, chipPool))}
               title="Swap in a different set of suggestions"
               className="flex items-center gap-1.5 rounded-full border border-white/40 px-3.5 py-1.5 text-xs text-white transition hover:border-white active:scale-95"
             >

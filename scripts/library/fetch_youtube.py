@@ -9,7 +9,10 @@ deployed or shared (see README - never sync yt-* entries to a public host).
 Where the song list comes from (combine freely):
   --years 1980-2024      Billboard Year-End Hot 100 for each year (titles and
                          artists read from Wikipedia) - the default
-  --queries FILE         one "Artist - Title" per line
+  --queries FILE         one "Artist - Title" per line; a line starting with
+                         "@" sets genres / tags for the songs below it:
+                           @ genres: Bollywood, Dance | tags: party, club
+  --language hi          language code stored on every song of this run
   --playlist URL         any YouTube playlist / channel URL (repeatable)
 
 Each song is one `ytsearch1:` lookup + one audio download. YouTube's "most
@@ -148,6 +151,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--years", default="1980-2024")
     ap.add_argument("--queries")
+    ap.add_argument("--language", default="en", help="ISO 639-1 code for the songs of this run")
+    ap.add_argument("--tags", default="", help="comma-separated tags added to every song")
     ap.add_argument("--playlist", action="append", default=[])
     ap.add_argument("--limit", type=int, default=0, help="stop after N songs (0 = all)")
     ap.add_argument("--workers", type=int, default=3)
@@ -161,23 +166,38 @@ def main():
     YTDLP = ensure_ytdlp()
     extra = ["--cookies-from-browser", args.cookies_from_browser] if args.cookies_from_browser else []
 
-    # job = (lookup key, yt-dlp target, artist, title, tags)
+    # job = (lookup key, yt-dlp target, artist, title, tags, genres)
     jobs = []
     seen = set()
+    base_tags = [t.strip().lower() for t in args.tags.split(",") if t.strip()]
 
-    def add(key, target, artist, title, tags):
+    def add(key, target, artist, title, tags, genres=()):
         k = key.lower()
         if k not in seen:
             seen.add(k)
-            jobs.append((key, target, artist, title, tags))
+            jobs.append((key, target, artist, title, [*base_tags, *tags], list(genres)))
 
     if args.queries:
+        section = {"genres": [], "tags": []}
         with open(args.queries) as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith("#"):
+                if line.startswith("@"):
+                    section = {"genres": [], "tags": []}
+                    for part in line[1:].split("|"):
+                        name, _, values = part.partition(":")
+                        if name.strip() in section:
+                            section[name.strip()] = [v.strip() for v in values.split(",") if v.strip()]
+                elif line and not line.startswith("#"):
                     artist, _, title = line.partition(" - ")
-                    add(line, f"ytsearch1:{line} official audio", artist if title else None, title or None, [])
+                    add(
+                        line,
+                        f"ytsearch1:{line} official audio",
+                        artist if title else None,
+                        title or None,
+                        [t.lower() for t in section["tags"]],
+                        section["genres"],
+                    )
     for url in args.playlist:
         r = ytdlp(["--flat-playlist", "--print", "%(id)s", url, *extra])
         for vid in r.stdout.split():
@@ -230,7 +250,7 @@ def main():
         return "blocked" if blocked.is_set() else "error"
 
     def one(job):
-        key, target, artist, title, tags = job
+        key, target, artist, title, tags, genres = job
         if blocked.is_set():
             return "blocked"
         cmd = [
@@ -267,8 +287,18 @@ def main():
             refusals[0] = 0
         lid = f"yt-{j['id']}"
         if os.path.exists(os.path.join(meta_dir, f"{lid}.json")):
-            # already in the library (e.g. imported from the old cache)
+            # already in the library (e.g. imported from the old cache, or
+            # listed under a second singer / section): keep the audio, but
+            # let this run's language, genres and tags land on it
             os.remove(os.path.join(OUT, f"{lid}.m4a"))
+            with lock:
+                with open(os.path.join(meta_dir, f"{lid}.json")) as f:
+                    old = json.load(f)
+                old["language"] = args.language
+                old["genres"] = sorted({*(old.get("genres") or []), *genres})
+                old["tags"] = sorted({*(old.get("tags") or []), *tags})
+                with open(os.path.join(meta_dir, f"{lid}.json"), "w") as f:
+                    json.dump(old, f)
         heatmap = [
             {"start": p["start_time"], "end": p["end_time"], "value": p["value"]}
             for p in (j.get("heatmap") or [])
@@ -280,9 +310,9 @@ def main():
                 "title": title or j.get("track") or j.get("title") or "Unknown",
                 "artist": artist or j.get("artist") or j.get("channel") or "Unknown",
                 "album": j.get("album"),
-                "genres": [],
+                "genres": genres,
                 "tags": sorted({*tags, *[t.lower() for t in (j.get("tags") or [])[:10]]}),
-                "language": "en",
+                "language": args.language,
                 "instrumental": False,
                 "popularity": j.get("view_count") or 0,
                 "license": LICENSE,
@@ -291,8 +321,16 @@ def main():
                 "heatmap": heatmap,
                 "famousStart": famous_start(heatmap),
             }
-            with open(os.path.join(OUT, f"{lid}.json"), "w") as f:
-                json.dump(side, f)
+            side_path = os.path.join(OUT, f"{lid}.json")
+            with lock:
+                if os.path.exists(side_path):
+                    # same recording listed twice and not ingested yet
+                    with open(side_path) as f:
+                        prev = json.load(f)
+                    side["genres"] = sorted({*prev.get("genres", []), *genres})
+                    side["tags"] = sorted({*prev.get("tags", []), *side["tags"]})
+                with open(side_path, "w") as f:
+                    json.dump(side, f)
         with lock, open(done_path, "a") as f:
             f.write(json.dumps({"key": key, "id": lid}) + "\n")
         return "ok"

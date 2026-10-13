@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { camelotDistance } from "@/lib/audio/analysis";
+import { toIsoCodes } from "@/lib/languages";
 import { signUrl } from "@/lib/server/cloudfrontSign";
 import type { Track, TrackKind, TrackLicense, TrackMeta } from "@/lib/types";
 
@@ -30,6 +31,8 @@ export interface CatalogRow {
   intensity: number;
   genres: string[];
   tags: string[];
+  /** ISO 639-1 code, null when unknown (untagged or instrumental). */
+  language?: string | null;
   instrumental: boolean;
   popularity: number;
   license: string | null;
@@ -45,6 +48,8 @@ interface Catalog {
   /** Lowercased "title artist genres tags" per row, parallel to `tracks`. */
   haystack: string[];
   maxPopularity: number;
+  /** Songs per language code. */
+  languages: Map<string, number>;
 }
 
 let cached: { catalog: Catalog; stamp: number } | null = null;
@@ -63,8 +68,13 @@ function indexCatalog(all: CatalogRow[]): Catalog {
   const rows = FREE_SONGS
     ? all
     : all.filter((r) => r.kind !== "song" || !FREE_SOURCES.has(r.source));
+  const languages = new Map<string, number>();
+  for (const r of rows)
+    if (r.kind === "song" && r.language)
+      languages.set(r.language, (languages.get(r.language) ?? 0) + 1);
   return {
     tracks: rows,
+    languages,
     byId: new Map(rows.map((r) => [r.id, r])),
     haystack: rows.map((r) =>
       [r.title, r.artist, ...r.genres, ...r.tags].join(" ").toLowerCase()
@@ -97,6 +107,18 @@ export async function loadCatalog(): Promise<Catalog> {
   return cached.catalog;
 }
 
+/**
+ * Keeps the songs in the listener's languages (codes, labels or ISO codes).
+ * No selection - or one the library has nothing in - means no constraint: a
+ * language setting must narrow the picks, never leave the DJ with silence.
+ * FX and loops always pass.
+ */
+function languageFilter(cat: Catalog, languages: unknown): ((r: CatalogRow) => boolean) | null {
+  const want = toIsoCodes(languages).filter((l) => cat.languages.has(l));
+  if (!want.length) return null;
+  return (r) => r.kind !== "song" || (!!r.language && want.includes(r.language));
+}
+
 function coverUrl(id: string, origin: string): string {
   return LIBRARY_URL
     ? signUrl(`${LIBRARY_URL}/covers/${id}.jpg`, 24)
@@ -125,6 +147,8 @@ export interface SearchOptions {
   limit?: number;
   /** "song" (default), "sfx", "loop" or "all". */
   kind?: TrackKind | "all";
+  /** Preferred song languages: filters browsing, ranks first when searching. */
+  languages?: string[];
 }
 
 /**
@@ -136,9 +160,10 @@ export interface SearchOptions {
 export async function searchLibrary(
   query: string,
   origin: string,
-  { limit = 12, kind = "song" }: SearchOptions = {}
+  { limit = 12, kind = "song", languages }: SearchOptions = {}
 ): Promise<Track[]> {
   const cat = await loadCatalog();
+  const inLanguage = languageFilter(cat, languages);
   const q = query.trim();
   if (q.toLowerCase().startsWith("id:")) {
     const row = cat.byId.get(q.slice(3).trim());
@@ -161,6 +186,12 @@ export async function searchLibrary(
     if (bpm !== null && Math.abs(row.bpm - bpm) > 4) return;
     if (key !== null && row.camelot !== key) return;
     let score = 0;
+    // typing a name is asking for that song whatever its language, so the
+    // setting only reorders a search - but it does decide what browsing shows
+    if (inLanguage) {
+      if (inLanguage(row)) score += 1;
+      else if (!words.length) return;
+    }
     if (words.length) {
       const title = row.title.toLowerCase();
       const artist = row.artist.toLowerCase();
@@ -292,12 +323,16 @@ export async function pickNext(opts: {
   arc?: ArcTarget | null;
   exclude?: string[];
   count?: number;
+  languages?: string[];
 }): Promise<Pick[]> {
   const cat = await loadCatalog();
   const cur = resolveCurrent(cat, opts.current);
   const exclude = new Set(opts.exclude ?? []);
   if (cur) exclude.add(cur.id);
-  const pool = cat.tracks.filter((r) => r.kind === "song" && !exclude.has(r.id));
+  const inLanguage = languageFilter(cat, opts.languages);
+  const pool = cat.tracks.filter(
+    (r) => r.kind === "song" && !exclude.has(r.id) && (!inLanguage || inLanguage(r))
+  );
   if (!pool.length) return [];
 
   const target = opts.arc?.energy ?? cur?.intensity ?? 0.6;
@@ -309,8 +344,13 @@ export async function pickNext(opts: {
     // chart hits flow into chart hits, crate-digging into crate-digging: a set
     // of songs everyone knows shouldn't detour into an unknown instrumental
     const sameCrate = cur && r.source === cur.source ? 0.2 : 0;
+    // with no language chosen, a Hindi set still stays mostly Hindi
+    const sameLanguage = cur?.language && r.language === cur.language ? 0.2 : 0;
     // jitter so two sets from the same seed don't play the same order
-    return (0.7 * mix + 0.3 * pop + inWindow + sameCrate) * (0.85 + Math.random() * 0.3);
+    return (
+      (0.7 * mix + 0.3 * pop + inWindow + sameCrate + sameLanguage) *
+      (0.85 + Math.random() * 0.3)
+    );
   };
   const ranked = pool
     .map((row) => ({ row, s: base(row), gap: row.intensity - target }))
@@ -354,14 +394,20 @@ export interface IntentFilter {
 }
 
 /** Build a queue for a vibe: filter the catalog, then order it along the arc. */
-export async function pickForIntent(f: IntentFilter, count = 10): Promise<CatalogRow[]> {
+export async function pickForIntent(
+  f: IntentFilter,
+  count = 10,
+  languages?: string[]
+): Promise<CatalogRow[]> {
   const cat = await loadCatalog();
+  const inLanguage = languageFilter(cat, languages);
   const genres = (f.genres ?? []).map((g) => g.toLowerCase());
   const keywords = (f.keywords ?? []).map((k) => k.toLowerCase());
   const [lo, hi] = f.intensity ?? [0, 1];
   const scored: { row: CatalogRow; s: number }[] = [];
   cat.tracks.forEach((row, i) => {
     if (row.kind !== "song") return;
+    if (inLanguage && !inLanguage(row)) return;
     if (f.instrumental === true && !row.instrumental) return;
     let s = 0;
     if (genres.length) {
@@ -424,9 +470,10 @@ function chainByMixability(rows: CatalogRow[]): CatalogRow[] {
  * Lyric games must pick from these rather than naming songs from memory - a
  * pick that is not in the library cannot be played.
  */
-export async function knownSongs(limit = 500): Promise<CatalogRow[]> {
+export async function knownSongs(limit = 500, languages?: string[]): Promise<CatalogRow[]> {
   const cat = await loadCatalog();
-  const songs = cat.tracks.filter((r) => r.kind === "song");
+  const inLanguage = languageFilter(cat, languages);
+  const songs = cat.tracks.filter((r) => r.kind === "song" && (!inLanguage || inLanguage(r)));
   const hits = songs.filter((r) => r.source === "youtube");
   return (hits.length >= 20 ? hits : songs)
     .sort((a, b) => b.popularity - a.popularity)
@@ -441,6 +488,8 @@ export interface LibraryStats {
   genres: { name: string; count: number }[];
   tags: { name: string; count: number }[];
   licenses: { name: string; count: number }[];
+  /** Every language the library has songs in, whatever the filter. */
+  languages: { code: string; count: number }[];
 }
 
 function tally(values: string[], top: number): { name: string; count: number }[] {
@@ -452,9 +501,11 @@ function tally(values: string[], top: number): { name: string; count: number }[]
     .map(([name, count]) => ({ name, count }));
 }
 
-export async function libraryStats(): Promise<LibraryStats> {
+/** Counts and facets; `languages` narrows the song facets to those languages. */
+export async function libraryStats(languages?: string[]): Promise<LibraryStats> {
   const cat = await loadCatalog();
-  const songs = cat.tracks.filter((r) => r.kind === "song");
+  const inLanguage = languageFilter(cat, languages);
+  const songs = cat.tracks.filter((r) => r.kind === "song" && (!inLanguage || inLanguage(r)));
   return {
     songs: songs.length,
     loops: cat.tracks.filter((r) => r.kind === "loop").length,
@@ -463,5 +514,8 @@ export async function libraryStats(): Promise<LibraryStats> {
     genres: tally(songs.flatMap((r) => r.genres), 40),
     tags: tally(songs.flatMap((r) => r.tags), 60),
     licenses: tally(songs.map((r) => r.license ?? "Unknown"), 30),
+    languages: [...cat.languages.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([code, count]) => ({ code, count })),
   };
 }

@@ -102,6 +102,25 @@ export async function searchTracks(
   return (await res.json()).tracks;
 }
 
+let pendingPlay: Track | null = null;
+
+/**
+ * Hand a track to the home player from another page (the library): the page
+ * calls this in the click, then navigates home, which starts a set on it.
+ */
+export function playOnHome(track: Track) {
+  pendingPlay = track;
+  // still inside the click - unlock audio now, home starts after a navigation
+  getEngine().resume().catch(() => {});
+}
+
+/** One-shot read of the track handed over by playOnHome(). */
+export function takePendingPlay(): Track | null {
+  const t = pendingPlay;
+  pendingPlay = null;
+  return t;
+}
+
 /** Downsample energy array so prompts stay small. */
 function sparseEnergy(energy: number[], buckets = 40): number[] {
   if (energy.length <= buckets) return energy;

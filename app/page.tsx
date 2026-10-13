@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Track } from "@/lib/types";
-import { getEngine, loadTrack, searchTracks } from "@/lib/client/dj";
+import { getEngine, loadTrack, searchTracks, takePendingPlay } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
 import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
@@ -506,22 +506,36 @@ export default function HomePage() {
         mix.setQueue((q) => [...q, ...tracks]);
         await mix.transitionTo(tracks[0]);
       } else {
-        mix.setQueue(tracks);
-        await mix.start({
-          clipLen: "ai",
-          useAi: true,
-          quantize: true,
-          endless: true,
-          minPlaySec,
-          onHop: ({ track }) => track && refreshGrid(track),
-        });
-        mix.prefetch();
-        refreshGrid(tracks[0]);
+        await startSet(tracks);
       }
     } catch (e) {
       setBusy(e instanceof Error ? e.message : "failed");
     }
   }
+
+  async function startSet(tracks: Track[]) {
+    mix.setQueue(tracks);
+    await mix.start({
+      clipLen: "ai",
+      useAi: true,
+      quantize: true,
+      endless: true,
+      minPlaySec,
+      onHop: ({ track }) => track && refreshGrid(track),
+    });
+    mix.prefetch();
+    refreshGrid(tracks[0]);
+  }
+
+  // a song clicked in the library lands here: start a set on it. Deferred a
+  // tick so a dev double-mount cancels the first attempt instead of starting twice
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const track = takePendingPlay();
+      if (track) startSet([track]).catch((e) => setBusy(e instanceof Error ? e.message : "failed"));
+    }, 0);
+    return () => clearTimeout(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function tapTile(s: Suggestion) {
     if (pendingTile) return; // one transition at a time

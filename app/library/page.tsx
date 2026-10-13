@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Track } from "@/lib/types";
-import { searchTracks } from "@/lib/client/dj";
+import { playOnHome, searchTracks } from "@/lib/client/dj";
+import { PlayIcon } from "@/components/icons";
 
 interface Stats {
   songs: number;
@@ -22,6 +24,12 @@ export default function LibraryPage() {
   const [q, setQ] = useState("");
   const [tracks, setTracks] = useState<Track[]>([]);
   const [error, setError] = useState("");
+  const router = useRouter();
+
+  function play(t: Track) {
+    playOnHome(t);
+    router.push("/");
+  }
 
   useEffect(() => {
     fetch("/api/library")
@@ -97,36 +105,44 @@ export default function LibraryPage() {
 
       <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
         {tracks.map((t) => (
-          <li key={t.id} className="flex items-center gap-3 p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={t.thumbnail} alt="" className="h-10 w-16 shrink-0 rounded object-cover" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">
-                {t.sourceUrl ? (
-                  <a href={t.sourceUrl} target="_blank" rel="noreferrer" className="hover:text-cyan-300">
-                    {t.title}
+          <li key={t.id} className="flex items-center gap-3 p-2 transition hover:bg-zinc-900/60">
+            <button
+              onClick={() => play(t)}
+              title={`Play ${t.title}`}
+              className="group flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <span className="relative h-10 w-16 shrink-0 overflow-hidden rounded">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={t.thumbnail} alt="" className="h-full w-full object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-cyan-300 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <PlayIcon size={16} />
+                </span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm group-hover:text-cyan-300">
+                  {t.title}
+                  <span className="text-zinc-400"> · {t.artist}</span>
+                </span>
+                <span className="block truncate text-xs text-zinc-500">{t.genres?.join(", ")}</span>
+              </span>
+            </button>
+            {(t.license || t.sourceUrl) && (
+              <div className="hidden max-w-[9rem] shrink-0 truncate text-right text-[10px] leading-tight text-zinc-500 sm:block">
+                {t.license &&
+                  (t.licenseUrl ? (
+                    <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="block truncate underline decoration-zinc-700 hover:text-zinc-300">
+                      {t.license}
+                    </a>
+                  ) : (
+                    <span className="block truncate">{t.license}</span>
+                  ))}
+                {t.sourceUrl && (
+                  <a href={t.sourceUrl} target="_blank" rel="noreferrer" className="hover:text-zinc-300">
+                    source ↗
                   </a>
-                ) : (
-                  t.title
                 )}
-                <span className="text-zinc-400"> · {t.artist}</span>
-              </p>
-              <p className="truncate text-xs text-zinc-500">
-                {t.genres?.join(", ")}
-                {t.license && (
-                  <>
-                    {" · "}
-                    {t.licenseUrl ? (
-                      <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="underline decoration-zinc-700 hover:text-zinc-300">
-                        {t.license}
-                      </a>
-                    ) : (
-                      t.license
-                    )}
-                  </>
-                )}
-              </p>
-            </div>
+              </div>
+            )}
             <div className="shrink-0 text-right text-[10px] leading-tight text-zinc-500">
               <span className="block text-cyan-400">{Math.round(t.bpm ?? 0)} BPM</span>
               {t.camelot}

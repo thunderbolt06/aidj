@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Track } from "@/lib/types";
 import { getEngine, loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
 import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
-import { LanguagePicker } from "@/components/LanguagePicker";
+import { LanguagePicker, useAvailableLanguages } from "@/components/LanguagePicker";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { BeatTapButton } from "@/components/BeatTapPulse";
@@ -78,8 +78,8 @@ const VIBE_CHIP_POOL = [
   "instrumental only",
 ];
 
-// shown instead when Hindi is the only language picked - these read off the
-// genres and tags of the Hindi collection (scripts/library/collections/hindi.txt)
+// the Hindi side of the list - these read off the genres and tags of the
+// Hindi collection (scripts/library/collections/hindi.txt)
 const HINDI_CHIP_POOL = [
   "bollywood party",
   "shaadi dance floor",
@@ -100,6 +100,37 @@ const HINDI_CHIP_POOL = [
   "devotional morning",
   "patriotic anthems",
 ];
+
+// general situations that work in any language and that the Hindi list has no
+// version of - the rest of VIBE_CHIP_POOL is either covered there ("road
+// trip", "gym workout time") or leans on English-library genres and
+// instrumentals ("jazz", "study focus session")
+const ANY_LANGUAGE_CHIPS = [
+  "chill music while we chat",
+  "fashion store playlist",
+  "late night chill",
+  "morning routine energizer",
+  "cooking in the kitchen",
+  "pre-game hype",
+  "long night drive",
+  "cleaning the house",
+  "poolside chill",
+];
+
+/**
+ * One list for every setup: the general vibes, plus the Hindi ones whenever
+ * the library has Hindi songs and the language choice lets them play. Only
+ * languages the library actually holds count - a leftover setting must not
+ * swap the list for vibes that cannot be played.
+ */
+function chipPoolFor(selected: string[], available: string[]): string[] {
+  if (!available.includes("hindi")) return VIBE_CHIP_POOL;
+  const picked = selected.filter((c) => available.includes(c));
+  if (picked.length === 1 && picked[0] === "hindi")
+    return [...HINDI_CHIP_POOL, ...ANY_LANGUAGE_CHIPS];
+  if (picked.length && !picked.includes("hindi")) return VIBE_CHIP_POOL;
+  return [...VIBE_CHIP_POOL, ...HINDI_CHIP_POOL];
+}
 
 // how many chips show on the hero at once before you have to hit "more"
 const CHIP_DISPLAY_COUNT = 16;
@@ -233,8 +264,15 @@ export default function HomePage() {
   const [pendingTile, setPendingTile] = useState<string | null>(null);
   const { minPlaySec, setMinPlaySec } = useMinPlaySec();
   const { selected: languages } = useLanguagePrefs();
-  const chipPool =
-    languages.length === 1 && languages[0] === "hindi" ? HINDI_CHIP_POOL : VIBE_CHIP_POOL;
+  const availableLanguages = useAvailableLanguages();
+  const chipPool = useMemo(
+    () =>
+      chipPoolFor(
+        languages,
+        availableLanguages.map((l) => l.code)
+      ),
+    [languages, availableLanguages]
+  );
   // deterministic on first paint (matches SSR), reshuffled client-side after
   // mount so refreshing/tapping shuffle surfaces different situations
   const [vibeChips, setVibeChips] = useState(() =>
@@ -415,7 +453,11 @@ export default function HomePage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, languages: getSelectedLanguages() }),
+        body: JSON.stringify({
+          prompt: text,
+          // a Hindi vibe means Hindi songs, even with "All" languages on
+          languages: HINDI_CHIP_POOL.includes(text) ? ["hindi"] : getSelectedLanguages(),
+        }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
       const plan = (await res.json()) as { queries: string[] };

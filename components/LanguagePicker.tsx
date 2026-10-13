@@ -20,6 +20,19 @@ function loadAvailable(): Promise<Language[]> {
   return available;
 }
 
+/** Languages the library has songs in ([] until the first answer lands). */
+export function useAvailableLanguages(): Language[] {
+  const [languages, setLanguages] = useState<Language[]>([]);
+  useEffect(() => {
+    let alive = true;
+    loadAvailable().then((l) => alive && setLanguages(l));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return languages;
+}
+
 /**
  * Song-language switch: "All" or any mix of the languages the library
  * actually has songs in. Renders nothing while there is only one to pick.
@@ -35,15 +48,7 @@ export function LanguagePicker({
   className?: string;
 }) {
   const { selected, toggle, clear } = useLanguagePrefs();
-  const [languages, setLanguages] = useState<Language[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    loadAvailable().then((l) => alive && setLanguages(l));
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const languages = useAvailableLanguages();
 
   if (languages.length < 2) return null;
   const active = selected.filter((c) => languages.some((l) => l.code === c));

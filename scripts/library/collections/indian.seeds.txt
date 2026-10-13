@@ -1,0 +1,560 @@
+# Artists whose most popular songs make up the wide Hindi and Punjabi
+# collections. Built into fetch lists by:  npm run library:collection
+#
+# "@" lines set the language, genres, tags and how many songs to take per
+# artist (top) for the names below them. A trailing " *" takes the artist on
+# the exact spelling alone (for acts the catalogue files under a generic genre).
+
+@ language: hi | genres: Bollywood | tags: bollywood, hits | top: 45
+Arijit Singh
+Shreya Ghoshal
+Sonu Nigam
+Atif Aslam
+KK
+Sunidhi Chauhan
+Mohit Chauhan
+Udit Narayan
+Kumar Sanu
+Alka Yagnik
+Pritam
+A.R. Rahman
+Vishal-Shekhar
+Shankar-Ehsaan-Loy
+
+@ language: hi | genres: Bollywood | tags: bollywood | top: 28
+Jubin Nautiyal
+Neha Kakkar
+Armaan Malik
+Darshan Raval
+Vishal Mishra
+Shaan
+Abhijeet
+Rahat Fateh Ali Khan
+Javed Ali
+Papon
+Ankit Tiwari
+Himesh Reshammiya
+Mika Singh
+Sukhwinder Singh
+Kailash Kher
+Rekha Bhardwaj
+Shilpa Rao
+Neeti Mohan
+Palak Muchhal
+Tulsi Kumar
+Asees Kaur
+Dhvani Bhanushali
+Tony Kakkar
+Stebin Ben
+Sachet Tandon
+Sachet-Parampara
+Tanishk Bagchi
+Mithoon
+Jeet Gannguli
+Amaal Mallik
+Rochak Kohli
+Akhil Sachdeva
+Benny Dayal
+Nakash Aziz
+Dev Negi
+Divya Kumar
+Amit Mishra
+Mohammed Irfan
+Shafqat Amanat Ali
+Adnan Sami
+Amit Trivedi
+Sachin-Jigar
+Salim-Sulaiman
+Sajid-Wajid
+Meet Bros
+Ajay-Atul
+Vishal Dadlani
+Shankar Mahadevan
+Shalmali Kholgade
+Jonita Gandhi
+Antara Mitra
+Kanika Kapoor
+Aastha Gill
+Nikhita Gandhi
+Payal Dev
+Jasleen Royal
+Ayushmann Khurrana
+Farhan Akhtar
+Kunal Ganjawala
+Neeraj Shridhar
+Zubeen Garg
+Monali Thakur
+Aditi Singh Sharma
+Harshdeep Kaur
+Ash King
+Clinton Cerejo
+Raghav Chaitanya
+Varun Jain
+Shashwat Sachdev
+Anirudh Ravichander
+Sneha Khanwalkar
+Ram Sampath
+Swanand Kirkire
+Mustafa Zahid
+Roop Kumar Rathod
+Suresh Wadkar
+Hariharan
+Sadhana Sargam
+Kavita Krishnamurthy
+Anuradha Paudwal
+Alisha Chinai
+Vinod Rathod
+Jatin-Lalit
+Nadeem-Shravan
+Anu Malik
+Anand Raj Anand
+Babul Supriyo
+Sapna Mukherjee
+Poornima
+Jaspinder Narula
+Richa Sharma
+Mahalakshmi Iyer
+Shweta Pandit
+Tochi Raina
+Labh Janjua
+Wajid
+Toshi Sabri
+
+@ language: hi | genres: Bollywood, Dance | tags: party, dance, rap | top: 30
+Badshah
+Yo Yo Honey Singh
+Raftaar
+Ikka
+Mamta Sharma
+Bappi Lahiri
+
+@ language: hi | genres: Retro, Bollywood | tags: retro, classic, evergreen | top: 40
+Kishore Kumar
+Mohammed Rafi
+Lata Mangeshkar
+Asha Bhosle
+Mukesh
+R.D. Burman
+
+@ language: hi | genres: Retro, Bollywood | tags: retro, classic, evergreen | top: 20
+Manna Dey
+Hemant Kumar
+Talat Mahmood
+Geeta Dutt
+Mahendra Kapoor
+Amit Kumar
+Shailendra Singh
+S.P. Balasubrahmanyam
+Yesudas
+Bhupinder Singh
+Usha Uthup
+Nazia Hassan
+Shamshad Begum
+Suraiya
+Noor Jehan
+S.D. Burman
+Laxmikant-Pyarelal
+Kalyanji-Anandji
+Shankar-Jaikishan
+Madan Mohan
+O.P. Nayyar
+Salil Chowdhury
+Khayyam *
+Ravindra Jain
+Rajesh Roshan
+
+@ language: hi | genres: Indie Pop | tags: indie, indipop, pop | top: 22
+Lucky Ali
+Euphoria
+Silk Route
+Indian Ocean
+Falguni Pathak
+Colonial Cousins *
+Shubha Mudgal
+Baba Sehgal
+Bombay Vikings *
+Aryans
+Abhijeet Sawant
+The Local Train *
+Prateek Kuhad *
+Anuv Jain *
+Ritviz
+Aditya Rikhari
+King
+Zaeden
+Arjun Kanungo
+Akull
+Vilen
+Mitraz
+Bharat Chauhan
+Osho Jain
+Taba Chake
+Lifafa *
+When Chai Met Toast *
+Faheem Abdullah
+Tanzeel Khan
+Twin Strings
+Sanam
+Bayaan *
+Kaavish *
+Lisa Mishra
+Raghu Dixit
+Agnee
+Parikrama
+Avial
+Swarathma
+Dream Note
+Yashraj
+Iqlipse Nova
+Rito Riba
+Tanmaya Bhatnagar *
+Anumita Nadesan
+Kushagra
+Saaheal
+Samar Monsoon
+Gini
+Yellow Diary
+The Yellow Diary
+Fiddlecraft
+Nikhil D'Souza
+Ankur Tewari
+Dhruv Visvanath *
+Sunny M.R.
+
+@ language: hi | genres: Pakistani Pop, Indie Pop | tags: pakistani, urdu, pop | top: 22
+Ali Sethi *
+Strings
+Jal
+Junoon *
+Vital Signs
+Ali Zafar
+Asim Azhar
+Kaifi Khalil
+Hasan Raheem *
+Young Stunners *
+Talha Anjum *
+AUR
+Abdul Hannan
+Bilal Khan
+Momina Mustehsan
+Aima Baig *
+Farhan Saeed
+Falak Shabir
+Sajjad Ali
+Noori
+Call
+Roxen
+Annural Khalid *
+Shae Gill
+Maanu
+Coke Studio
+
+@ language: hi | genres: Hip-Hop, Desi Hip-Hop | tags: rap, hip hop, desi hip hop | top: 22
+DIVINE *
+Emiway Bantai
+KR$NA *
+Seedhe Maut *
+MC Stan
+Dino James
+Naezy
+Karma
+Paradox
+Chaar Diwaari *
+Bella
+Raga
+Panther
+Vijay DK *
+MC Square
+Fotty Seven
+Dhanda Nyoliwala *
+Gravity
+Yungsta *
+Lashcurry
+Bharg *
+Sez on the Beat
+Brodha V
+Hanumankind
+Kaam Bhaari
+Spitfire
+Loka
+Srushti Tawade
+UNIYAL
+Farhan Khan
+
+@ language: hi | genres: Sufi | tags: sufi, qawwali, soulful | top: 22
+Nusrat Fateh Ali Khan
+Abida Parveen
+Wadali Brothers
+Sabri Brothers
+Nooran Sisters
+Kavita Seth
+Javed Bashir
+Hans Raj Hans
+Sona Mohapatra
+Amjad Sabri
+Aziz Mian *
+
+@ language: hi | genres: Ghazal | tags: ghazal, mellow, late night | top: 22
+Jagjit Singh
+Ghulam Ali
+Pankaj Udhas
+Mehdi Hassan
+Talat Aziz
+Chitra Singh
+Farida Khanum
+Begum Akhtar
+Anup Jalota
+Bhupinder
+Roop Kumar Rathod
+
+@ language: hi | genres: Devotional | tags: devotional, bhakti, spiritual | top: 15
+Hansraj Raghuwanshi
+Agam Aggarwal
+Narci
+Anup Jalota
+Hari Om Sharan
+Lakhbir Singh Lakkha
+Gulshan Kumar
+Jaya Kishori
+Swati Mishra
+Shankar Sahney
+
+@ language: hi | genres: Haryanvi | tags: haryanvi, desi, dance | top: 15
+Sapna Choudhary
+Renuka Panwar
+Masoom Sharma
+Raju Punjabi
+Ajay Hooda
+Khasa Aala Chahar
+Diler Kharkiya
+Gulzaar Chhaniwala
+Ndee Kundu
+Amit Saini Rohtakiya
+
+@ language: pa | genres: Punjabi, Punjabi Hip-Hop | tags: punjabi, hip hop, swagger | top: 40
+Sidhu Moose Wala
+Diljit Dosanjh
+AP Dhillon
+Karan Aujla
+Shubh
+
+@ language: pa | genres: Punjabi, Punjabi Hip-Hop | tags: punjabi, hip hop, swagger | top: 22
+Arjan Dhillon
+Prem Dhillon
+Navaan Sandhu
+Cheema Y
+Gur Sidhu
+Jassa Dhillon
+Nirvair Pannu
+Tegi Pannu
+Talwiinder
+Harnoor
+Sukha
+Chani Nattan
+Inderpal Moga
+Jerry
+Sultaan
+Wazir Patar
+Bohemia
+Imran Khan
+Sunny Malton
+Ikky
+Zehr Vibe
+Sikander Kahlon
+Fateh
+Raf-Saperra
+Amrit Maan
+Elly Mangat
+Deep Jandu
+Byg Byrd
+Gurinder Gill
+Shinda Kahlon
+Big Boi Deep
+Jxggi
+Hustinder
+Nijjar
+Shivjot
+Gulab Sidhu
+Laddi Chahal
+Khan Bhaini
+R Nait
+Korala Maan
+Singga
+Himmat Sandhu
+Dilpreet Dhillon
+Varinder Brar
+Baaghi
+Kaka
+Simar Doraha
+Ezu
+Bhalwaan
+Signature By SB
+Yeah Proof
+Intense
+The Kidd
+Mxrci
+Kahlon
+Jordan Sandhu
+Mankirt Aulakh
+Parmish Verma
+Tarsem Jassar
+Kulbir Jhinjer
+Sippy Gill
+Ninja
+Karan Randhawa *
+Guri
+Jass Bajwa
+Rajvir Jawanda
+Kambi Rajpuria
+Sabi Bhinder
+G Khan
+Garry Sandhu
+
+@ language: pa | genres: Punjabi, Punjabi Pop | tags: punjabi, pop, romantic | top: 24
+Guru Randhawa
+Harrdy Sandhu
+Ammy Virk
+Jass Manak
+B Praak
+Jaani
+Gippy Grewal
+Amrinder Gill
+Sharry Mann
+Jassie Gill
+Babbal Rai
+Akhil
+Maninder Buttar
+Sunanda Sharma
+Nimrat Khaira
+Kaur B
+Miss Pooja
+Jasmine Sandlas
+Neha Bhasin
+Satinder Sartaaj
+Ranjit Bawa
+Kulwinder Billa
+Gurnam Bhullar
+Asees Kaur
+Afsana Khan
+Mannat Noor
+Shipra Goyal
+Gurlez Akhtar
+Baani Sandhu
+Rupinder Handa
+Preet Harpal
+Roshan Prince
+Geeta Zaildar
+Mehtab Virk
+Happy Raikoti
+Veet Baljit
+A-Kay
+Bilal Saeed
+The PropheC
+Mickey Singh
+PAV Dharia
+Jaz Dhami
+Zack Knight
+Arjun
+Millind Gaba
+Harnoor
+Nikk
+Prabh Gill
+Hardeep Grewal
+Sajjan Adeeb
+Tanishq Kaur
+Barbie Maan
+Simran Kaur Dhadli
+Jenny Johal
+Anmol Gagan Maan
+Raashi Sood
+Inder Chahal
+Kamal Khan
+Feroz Khan
+Nachhatar Gill
+Lakhwinder Wadali
+Shael Oswal
+Sukh-E
+Jugraj Sandhu
+Guri Lahoria
+Davy
+Madhur Sharma
+Aditya A
+Nawab
+Dilnoor
+Romey Maan
+Pari Pandher
+Bunny Johal
+Jyoti Nooran
+Yuvraj Hans
+Harbhajan Mann
+Diljaan
+Sartaj Virk
+Vicky
+
+@ language: pa | genres: Punjabi, Bhangra | tags: punjabi, bhangra, dance, wedding | top: 24
+Daler Mehndi
+Jazzy B
+Babbu Maan
+Gurdas Maan
+Panjabi MC
+RDB
+Malkit Singh
+Sukhbir
+Surjit Bindrakhia
+Sukshinder Shinda
+Lehmber Hussainpuri
+Juggy D
+Rishi Rich
+H-Dhami
+Stereo Nation
+Bally Sagoo
+Dr Zeus
+DJ Sanj
+Tigerstyle
+Jassi Sidhu
+B21
+Sahara
+DCS
+Alaap
+Heera
+Apna Sangeet
+Balwinder Safri
+Shin DCS
+Master Saleem
+Labh Janjua
+Jasbir Jassi
+Sarbjit Cheema
+Bhinda Aujla
+Manak-E
+Angrej Ali
+Nachattar Gill
+Surinder Shinda
+Dilbagh Singh
+Ravinder Grewal
+Resham Singh Anmol
+
+@ language: pa | genres: Punjabi, Punjabi Folk | tags: punjabi, folk, classic | top: 18
+Kuldeep Manak
+Amar Singh Chamkila
+Surinder Kaur
+Sardool Sikander
+Hans Raj Hans
+Kanwar Grewal
+Bir Singh
+Mohammad Sadiq
+Asa Singh Mastana
+Yamla Jatt
+Alam Lohar
+Arif Lohar
+Abrar-ul-Haq *
+Jagmohan Kaur
+Debi Makhsoospuri
+Harjit Harman
+Manmohan Waris
+Kamal Heer
+Sangtar
+Pammi Bai
+Hardev Mahinangal
+Durga Rangila
+Satwinder Bugga
+Major Rajasthani

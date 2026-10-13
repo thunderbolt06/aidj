@@ -33,7 +33,6 @@ import csv
 import io
 import json
 import os
-import socket
 import struct
 import sys
 import time
@@ -41,10 +40,10 @@ import urllib.request
 import zipfile
 import zlib
 
-# This network advertises IPv6 but blackholes it: every connection would stall
-# until timeout before falling back. Resolve IPv4 only.
-_getaddrinfo = socket.getaddrinfo
-socket.getaddrinfo = lambda host, port, family=0, *a, **k: _getaddrinfo(host, port, socket.AF_INET, *a, **k)
+import netfamily
+
+# only one IP family reaches the internet here
+netfamily.pin("os.unil.cloud.switch.ch")
 
 BASE = "https://os.unil.cloud.switch.ch/fma"
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

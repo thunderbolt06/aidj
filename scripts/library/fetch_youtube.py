@@ -9,9 +9,11 @@ deployed or shared (see README - never sync yt-* entries to a public host).
 Where the song list comes from (combine freely):
   --years 1980-2024      Billboard Year-End Hot 100 for each year (titles and
                          artists read from Wikipedia) - the default
-  --queries FILE         one "Artist - Title" per line; a line starting with
+  --queries FILE...      one "Artist - Title" per line; a line starting with
                          "@" sets genres / tags for the songs below it:
                            @ genres: Bollywood, Dance | tags: party, club
+                         and a song can carry its own after the name:
+                           KK - Pal | genres: Bollywood | tags: 90s
   --language hi          language code stored on every song of this run
   --playlist URL         any YouTube playlist / channel URL (repeatable)
 
@@ -29,7 +31,6 @@ import concurrent.futures as cf
 import json
 import os
 import re
-import socket
 import subprocess
 import sys
 import threading
@@ -38,10 +39,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# This network advertises IPv6 but blackholes it: every connection would stall
-# until timeout before falling back. Resolve IPv4 only (yt-dlp gets `-4`).
-_getaddrinfo = socket.getaddrinfo
-socket.getaddrinfo = lambda host, port, family=0, *a, **k: _getaddrinfo(host, port, socket.AF_INET, *a, **k)
+import netfamily
+
+# only one IP family reaches the internet here; yt-dlp is told the same one
+IP_FAMILY = netfamily.pin()
+NETWORK_DOWN = re.compile(r"No remote IPv\d addresses|Unable to download API page|timed out|Network is unreachable", re.I)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 LIBRARY = os.environ.get("LIBRARY_DIR") or os.path.join(ROOT, "library")
@@ -142,15 +144,23 @@ YTDLP = None
 
 
 def ytdlp(args, timeout=300):
-    return subprocess.run(
-        [YTDLP, "-4", "--no-warnings", *args], capture_output=True, text=True, timeout=timeout
-    )
+    global IP_FAMILY
+    r = None
+    for _ in range(2):
+        r = subprocess.run(
+            [YTDLP, f"-{IP_FAMILY}", "--no-warnings", *args], capture_output=True, text=True, timeout=timeout
+        )
+        if r.returncode == 0 or not NETWORK_DOWN.search(r.stderr or ""):
+            break
+        # the working family has flipped mid-run before: probe again, retry once
+        IP_FAMILY = netfamily.pin()
+    return r
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--years", default="1980-2024")
-    ap.add_argument("--queries")
+    ap.add_argument("--queries", nargs="+", default=[], metavar="FILE")
     ap.add_argument("--language", default="en", help="ISO 639-1 code for the songs of this run")
     ap.add_argument("--tags", default="", help="comma-separated tags added to every song")
     ap.add_argument("--playlist", action="append", default=[])
@@ -177,26 +187,34 @@ def main():
             seen.add(k)
             jobs.append((key, target, artist, title, [*base_tags, *tags], list(genres)))
 
-    if args.queries:
-        section = {"genres": [], "tags": []}
-        with open(args.queries) as f:
+    def labels(parts):
+        """'genres: A, B' / 'tags: x, y' pieces → {"genres": [...], "tags": [...]}"""
+        out = {"genres": [], "tags": []}
+        for part in parts:
+            name, _, values = part.partition(":")
+            if name.strip() in out:
+                out[name.strip()] = [v.strip() for v in values.split(",") if v.strip()]
+        return out
+
+    for path in args.queries:
+        section = labels([])
+        with open(path) as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("@"):
-                    section = {"genres": [], "tags": []}
-                    for part in line[1:].split("|"):
-                        name, _, values = part.partition(":")
-                        if name.strip() in section:
-                            section[name.strip()] = [v.strip() for v in values.split(",") if v.strip()]
+                    section = labels(line[1:].split("|"))
                 elif line and not line.startswith("#"):
+                    # a song may carry its own labels after the name
+                    line, *own = [p.strip() for p in line.split(" | ")]
+                    own = labels(own)
                     artist, _, title = line.partition(" - ")
                     add(
                         line,
                         f"ytsearch1:{line} official audio",
                         artist if title else None,
                         title or None,
-                        [t.lower() for t in section["tags"]],
-                        section["genres"],
+                        [t.lower() for t in [*section["tags"], *own["tags"]]],
+                        [*section["genres"], *own["genres"]],
                     )
     for url in args.playlist:
         r = ytdlp(["--flat-playlist", "--print", "%(id)s", url, *extra])

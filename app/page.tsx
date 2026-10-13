@@ -99,9 +99,37 @@ const HINDI_CHIP_POOL = [
   "holi and festive",
   "devotional morning",
   "patriotic anthems",
+  "pakistani pop",
+  "haryanvi dance",
+  "70s evergreen",
 ];
 
-// general situations that work in any language and that the Hindi list has no
+// same for the Punjabi collection (collections/punjabi.txt)
+const PUNJABI_CHIP_POOL = [
+  "punjabi party",
+  "bhangra dance floor",
+  "punjabi hip hop",
+  "punjabi romantic",
+  "punjabi wedding",
+  "punjabi folk classics",
+  "punjabi pop",
+  "uk bhangra 2000s",
+  "punjabi swagger for the gym",
+  "punjabi long drive",
+  "2010s punjabi hits",
+];
+
+/** Languages that bring their own vibes; a vibe from one asks for its songs. */
+const LANGUAGE_CHIPS: Record<string, string[]> = {
+  hindi: HINDI_CHIP_POOL,
+  punjabi: PUNJABI_CHIP_POOL,
+};
+
+function chipLanguage(text: string): string | undefined {
+  return Object.keys(LANGUAGE_CHIPS).find((code) => LANGUAGE_CHIPS[code].includes(text));
+}
+
+// general situations that work in any language and that those lists have no
 // version of - the rest of VIBE_CHIP_POOL is either covered there ("road
 // trip", "gym workout time") or leans on English-library genres and
 // instrumentals ("jazz", "study focus session")
@@ -118,18 +146,19 @@ const ANY_LANGUAGE_CHIPS = [
 ];
 
 /**
- * One list for every setup: the general vibes, plus the Hindi ones whenever
- * the library has Hindi songs and the language choice lets them play. Only
- * languages the library actually holds count - a leftover setting must not
- * swap the list for vibes that cannot be played.
+ * One list for every setup: the general vibes, plus the Hindi / Punjabi ones
+ * whenever the library has those songs and the language choice lets them
+ * play. Only languages the library actually holds count - a leftover setting
+ * must not swap the list for vibes that cannot be played.
  */
 function chipPoolFor(selected: string[], available: string[]): string[] {
-  if (!available.includes("hindi")) return VIBE_CHIP_POOL;
   const picked = selected.filter((c) => available.includes(c));
-  if (picked.length === 1 && picked[0] === "hindi")
-    return [...HINDI_CHIP_POOL, ...ANY_LANGUAGE_CHIPS];
-  if (picked.length && !picked.includes("hindi")) return VIBE_CHIP_POOL;
-  return [...VIBE_CHIP_POOL, ...HINDI_CHIP_POOL];
+  const own = (picked.length ? picked : available).filter((c) => c in LANGUAGE_CHIPS);
+  if (!own.length) return VIBE_CHIP_POOL;
+  const theirs = own.flatMap((c) => LANGUAGE_CHIPS[c]);
+  // nothing but these languages picked: the English-library vibes drop out
+  if (picked.length && own.length === picked.length) return [...theirs, ...ANY_LANGUAGE_CHIPS];
+  return [...VIBE_CHIP_POOL, ...theirs];
 }
 
 // how many chips show on the hero at once before you have to hit "more"
@@ -456,7 +485,7 @@ export default function HomePage() {
         body: JSON.stringify({
           prompt: text,
           // a Hindi vibe means Hindi songs, even with "All" languages on
-          languages: HINDI_CHIP_POOL.includes(text) ? ["hindi"] : getSelectedLanguages(),
+          languages: chipLanguage(text) ? [chipLanguage(text)] : getSelectedLanguages(),
         }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");

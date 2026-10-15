@@ -266,14 +266,19 @@ async function ingestOne(file, fromInbox) {
   return "ok";
 }
 
+const sane = (y) => Number.isInteger(y) && y >= 1900 && y <= new Date().getFullYear() + 1;
+
 /**
- * Release year, as well as it is known: the download's own metadata, else a
- * chart-year tag ("2018"), else the middle of a decade tag ("2010s", "90s").
+ * Release year, as well as it is known: the cross-checked original year from
+ * label_years.mjs, else the download's own metadata (a YouTube date - often an
+ * upload or reissue), else a chart-year tag ("2018"), else the middle of a
+ * decade tag ("2010s", "90s"). Impossible values (a stray 8460) are dropped.
  */
 function yearOf(m) {
-  if (Number.isInteger(m.year) && m.year > 1900) return m.year;
+  if (sane(m.releaseYear)) return m.releaseYear;
+  if (sane(m.year)) return m.year;
   const tags = m.tags ?? [];
-  const exact = tags.find((t) => /^(19|20)\d\d$/.test(t));
+  const exact = tags.find((t) => /^(19|20)\d\d$/.test(t) && sane(Number(t)));
   if (exact) return Number(exact);
   for (const t of tags) {
     const d = /^((?:19|20)?\d0)s$/.exec(t);

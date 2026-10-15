@@ -69,6 +69,9 @@ fi
 # genres + moods for the new songs (a labelling hiccup only leaves them for next month)
 if grep -q "^ANTHROPIC_API_KEY=." .env.local 2>/dev/null || [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   node scripts/library/label_songs.mjs || say "labelling failed - new songs keep no moods until the next run"
+  # original release years, cross-checked: store / YouTube dates are often reissues
+  node --experimental-strip-types --no-warnings scripts/library/label_years.mjs \
+    || say "year labelling failed - new songs keep their store dates until the next run"
 fi
 
 python3 scripts/library/harvest_vibes.py index --month "$MONTH" || exit 1

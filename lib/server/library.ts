@@ -319,6 +319,34 @@ function eraMatch(a: CatalogRow, b: CatalogRow): number {
   return Math.exp(-Math.abs(a.year - b.year) / 8);
 }
 
+/**
+ * A song radio follows an era: 1 for the same year, easing to a floor of 0.2
+ * a few decades away - a 2019 listener gets 2014-2024 songs, only now and then
+ * a 1985 one (the weights are cubed, so the floor is a rare visit). Years of
+ * obscure songs are good to a few years, hence the wide curve.
+ */
+function eraFollow(year: number | null | undefined, r: CatalogRow): number {
+  if (!year || !r.year) return 1;
+  return 0.2 + 0.8 * Math.exp(-Math.abs(year - r.year) / 12);
+}
+
+/**
+ * The era the listener is in: the median year of their last few plays. One
+ * old song that slipped into a modern set must not take the radio back to its
+ * decade with it - the playing song counts, but so does where the set has been.
+ */
+function recentEra(cat: Catalog, recent: unknown): number | null {
+  if (!Array.isArray(recent)) return null;
+  const years: number[] = [];
+  for (const id of recent.slice(0, 8)) {
+    const y = typeof id === "string" ? cat.byId.get(id)?.year : null;
+    if (y) years.push(y);
+  }
+  if (years.length < 4) return null;
+  years.sort((a, b) => a - b);
+  return years[years.length >> 1];
+}
+
 /** A song's energy percentile (0..1); 0.5 for anything not ranked. */
 function energyOf(cat: Catalog, r: CatalogRow): number {
   return cat.energy.get(r.id) ?? 0.5;
@@ -375,23 +403,34 @@ function notRecent(recent: unknown): (id: string) => number {
 }
 
 /**
- * 0..1 by release year. The chart crate holds as many 60s songs as 2020s
- * ones, so with nothing else to go on a pick leans recent.
+ * 0..1 by release year: full marks from 2010, none by 1970. The chart crate
+ * holds as many 60s songs as 2020s ones and the Hindi / Punjabi collections
+ * reach back to the 40s, so with nothing else to go on a pick leans recent.
  */
 function recency(r: CatalogRow): number {
-  return r.year ? Math.min(1, Math.max(0, (r.year - 1975) / 45)) : 0.5;
+  return r.year ? Math.min(1, Math.max(0, (r.year - 1970) / 40)) : 0.5;
+}
+
+/**
+ * How much a song's age counts against it in a set with no era of its own:
+ * 2010+ is untouched, a 2000 song carries 0.7, 1990 0.4, 1980 0.2. It is the
+ * weight itself (or its cube, in the grid), so older songs are not banned,
+ * they just turn up the way a classic does in a modern set - rarely.
+ */
+function freshness(r: CatalogRow): number {
+  return 0.1 + 0.9 * recency(r) ** 1.5;
 }
 
 export const ERA_WORDS = /\b(retro|classics?|evergreen|oldies|old school|nostalgia|\d0s|\d{4}s)\b/i;
 
 /**
  * Playlists mix eras ("100 greatest driving songs" is mostly the 70s) and
- * sets that keep reaching back decades feel dated: a gentle lean toward
- * recent songs - unless the vibe is about an era ("90s nostalgia", "retro classics").
+ * sets that keep reaching back decades feel dated: a lean toward recent
+ * songs - unless the vibe is about an era ("90s nostalgia", "retro classics").
  */
 function recencyLean(vibes: VibeWeight[], era: unknown): (r: CatalogRow) => number {
   if (era || vibes.some((v) => ERA_WORDS.test(v.label))) return () => 1;
-  return (r) => 0.55 + 0.45 * recency(r);
+  return freshness;
 }
 
 /** Vibe labels (or weighted vibes) a caller sent, kept to the ones with data. */
@@ -441,6 +480,12 @@ export async function pickNext(opts: {
     (r) => r.kind === "song" && !exclude.has(r.id) && (!inLanguage || inLanguage(r))
   );
   if (!pool.length) return [];
+  // no language chosen: the song playing sets it. A Hindi set must not wander
+  // into the English crate (spread evenly over 60 years, so mostly old songs)
+  if (!inLanguage && cur?.language) {
+    const same = pool.filter((r) => r.language === cur.language);
+    if (same.length >= 40) pool = same;
+  }
 
   const vibes = vibeWeights(index, opts.vibes);
   const inVibe = index && vibes.length ? vibeScores(index, vibes) : new Map<string, number>();
@@ -453,6 +498,10 @@ export async function pickNext(opts: {
   if (inside.length >= 30) pool = inside;
   const fresh = notRecent(opts.recent);
   const lean = recencyLean(vibes, null);
+  const eraNow = recentEra(cat, opts.recent);
+  // follows the playing song's era and, once there is a history, the set's
+  const follow = (r: CatalogRow) =>
+    !cur ? 1 : eraNow ? 0.5 * eraFollow(cur.year, r) + 0.5 * eraFollow(eraNow, r) : eraFollow(cur.year, r);
 
   const target = opts.arc?.energy ?? (cur ? energyOf(cat, cur) : 0.6);
   const arcBpm = opts.arc?.bpm;
@@ -469,10 +518,12 @@ export async function pickNext(opts: {
     const inWindow = arcBpm && r.bpm >= arcBpm[0] && r.bpm <= arcBpm[1] ? 0.15 : 0;
     // with no language chosen, a Hindi set still stays mostly Hindi
     const sameLanguage = cur?.language && r.language === cur.language ? 0.35 : 0;
-    // a vibe set leans recent; a song radio follows the playing song's era
+    // a vibe set leans recent; a song radio follows the playing song's era (a
+    // set that has both stays near the playing song, and recent)
     return (
       (playlists + style + era + mix + pop + inWindow + sameLanguage) *
       fresh(r.id) *
+      follow(r) *
       (vibes.length ? lean(r) : 1)
     );
   };
@@ -568,8 +619,9 @@ export async function pickForIntent(
       const e = energyOf(cat, row);
       const gap = Math.abs(e - Math.min(Math.max(e, lo), hi));
       const energy = 1 - 0.5 * Math.min(1, gap / 0.3);
-      // squared: core songs come up often, one-playlist songs now and then
-      scored.push({ row, s: v * v * energy * eraFit(row) * lean(row) * fresh(row.id) });
+      // squared: core songs come up often, one-playlist songs now and then; the
+      // age lean is squared too, so a classic is a rare visit, not a fixture
+      scored.push({ row, s: v * v * energy * eraFit(row) * lean(row) ** 2 * fresh(row.id) });
     }
   }
   if (scored.length < Math.max(8, count)) scored = filterScores(cat, songs, f, eraFit, fresh, !era);
@@ -629,7 +681,7 @@ function filterScores(
     s -= Math.abs(e - Math.min(Math.max(e, lo), hi)) * 6; // soft energy window
     if (f.bpm) s -= row.bpm < f.bpm[0] || row.bpm > f.bpm[1] ? 0.5 : 0;
     s += Math.log1p(row.popularity) / Math.log1p(cat.maxPopularity);
-    const lean = leanRecent ? 0.4 + 0.6 * recency(row) : 1;
+    const lean = leanRecent ? freshness(row) ** 2 : 1;
     out.push({ row, s: Math.exp(1.5 * s) * lean * eraFit(row) * fresh(row.id) });
   }
   return out;

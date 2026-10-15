@@ -14,6 +14,9 @@ Where the song list comes from (combine freely):
                            @ genres: Bollywood, Dance | tags: party, club
                          and a song can carry its own after the name:
                            KK - Pal | genres: Bollywood | tags: 90s
+                         plus `language: hi` (overrides --language) and
+                         `video: <id>` (download that exact upload instead
+                         of searching - see harvest_vibes.py)
   --language hi          language code stored on every song of this run
   --playlist URL         any YouTube playlist / channel URL (repeatable)
 
@@ -176,24 +179,27 @@ def main():
     YTDLP = ensure_ytdlp()
     extra = ["--cookies-from-browser", args.cookies_from_browser] if args.cookies_from_browser else []
 
-    # job = (lookup key, yt-dlp target, artist, title, tags, genres)
+    # job = (lookup key, yt-dlp target, artist, title, tags, genres, language, exact upload?)
     jobs = []
     seen = set()
     base_tags = [t.strip().lower() for t in args.tags.split(",") if t.strip()]
 
-    def add(key, target, artist, title, tags, genres=()):
+    def add(key, target, artist, title, tags, genres=(), language=None, exact=False):
         k = key.lower()
         if k not in seen:
             seen.add(k)
-            jobs.append((key, target, artist, title, [*base_tags, *tags], list(genres)))
+            jobs.append((key, target, artist, title, [*base_tags, *tags], list(genres), language or args.language, exact))
 
     def labels(parts):
-        """'genres: A, B' / 'tags: x, y' pieces → {"genres": [...], "tags": [...]}"""
-        out = {"genres": [], "tags": []}
+        """'genres: A, B' / 'tags: x, y' / 'language: hi' / 'video: id' pieces → dict"""
+        out = {"genres": [], "tags": [], "language": None, "video": None}
         for part in parts:
             name, _, values = part.partition(":")
-            if name.strip() in out:
-                out[name.strip()] = [v.strip() for v in values.split(",") if v.strip()]
+            name = name.strip()
+            if name in ("genres", "tags"):
+                out[name] = [v.strip() for v in values.split(",") if v.strip()]
+            elif name in ("language", "video"):
+                out[name] = values.strip() or None
         return out
 
     for path in args.queries:
@@ -208,13 +214,16 @@ def main():
                     line, *own = [p.strip() for p in line.split(" | ")]
                     own = labels(own)
                     artist, _, title = line.partition(" - ")
+                    video = own["video"]
                     add(
                         line,
-                        f"ytsearch1:{line} official audio",
+                        f"https://www.youtube.com/watch?v={video}" if video else f"ytsearch1:{line} official audio",
                         artist if title else None,
-                        title or None,
+                        title or (line if video else None),
                         [t.lower() for t in [*section["tags"], *own["tags"]]],
                         [*section["genres"], *own["genres"]],
+                        own["language"] or section["language"],
+                        bool(video),
                     )
     for url in args.playlist:
         r = ytdlp(["--flat-playlist", "--print", "%(id)s", url, *extra])
@@ -268,7 +277,7 @@ def main():
         return "blocked" if blocked.is_set() else "error"
 
     def one(job):
-        key, target, artist, title, tags, genres = job
+        key, target, artist, title, tags, genres, language, exact = job
         if blocked.is_set():
             return "blocked"
         cmd = [
@@ -312,7 +321,7 @@ def main():
             with lock:
                 with open(os.path.join(meta_dir, f"{lid}.json")) as f:
                     old = json.load(f)
-                old["language"] = args.language
+                old["language"] = language
                 old["genres"] = sorted({*(old.get("genres") or []), *genres})
                 old["tags"] = sorted({*(old.get("tags") or []), *tags})
                 with open(os.path.join(meta_dir, f"{lid}.json"), "w") as f:
@@ -322,15 +331,19 @@ def main():
             for p in (j.get("heatmap") or [])
         ]
         if not os.path.exists(os.path.join(meta_dir, f"{lid}.json")):
+            if exact and j.get("track"):
+                # an exact upload's own music metadata beats a name guessed from its title
+                title, artist = j["track"], j.get("artist") or artist
             side = {
                 "id": lid,
                 "kind": "song",
                 "title": title or j.get("track") or j.get("title") or "Unknown",
                 "artist": artist or j.get("artist") or j.get("channel") or "Unknown",
                 "album": j.get("album"),
+                "year": j.get("release_year"),
                 "genres": genres,
                 "tags": sorted({*tags, *[t.lower() for t in (j.get("tags") or [])[:10]]}),
-                "language": args.language,
+                "language": language,
                 "instrumental": False,
                 "popularity": j.get("view_count") or 0,
                 "license": LICENSE,

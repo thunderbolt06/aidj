@@ -23,10 +23,10 @@ Intent-based music with AI-generated DJ transitions. Every page is an experiment
 
 ## How it works
 
-- **Source**: a local, pre-built **library** (`library/`, git-ignored) instead of live YouTube extraction. Songs come from the Free Music Archive dataset (Creative Commons, English + instrumental, most-listened first); FX one-shots and beat loops from a synthesized kit and Freesound CC0. Nothing is fetched from a third party while you listen, so nothing can be blocked or rate-limited mid-set.
+- **Source**: a local, pre-built **library** (`library/`, git-ignored) instead of live YouTube extraction. Songs are well-known commercial songs (chart lists and curated collections, fetched ahead of time); FX one-shots and beat loops from a synthesized kit and Freesound CC0. Nothing is fetched from a third party while you listen, so nothing can be blocked or rate-limited mid-set.
 - **Precomputed attributes**: at ingest every entry gets BPM + confidence, beat/downbeat grid, key (Camelot), per-second energy, loudness, an intensity score, intro/outro cue points and a hook estimate. The app serves them with the track - the browser only downloads and decodes.
 - **Famous part**: the hook is detected from the audio - the section that is both loud and *recurs* (chroma self-similarity), taking its first occurrence. The seekbar heatmap is that same curve.
-- **Picking what plays next**: tempo / key / genre / intensity matching over the catalog - instant, no LLM round-trip, and every pick is guaranteed playable. Claude is still used to turn a typed vibe into a library filter, and to plan transitions.
+- **Picking what plays next**: vibe playlists first, then tempo / key / intensity - instant, no LLM round-trip, and every pick is guaranteed playable. Every month the public YouTube playlists behind each vibe chip are re-read (`library:vibes`): a song in many of a vibe's playlists is that vibe; songs that keep sharing playlists go together. A set draws from its vibe at random, weighted by how strongly the playlists claim each song, with a lean toward recent releases and the listener's recently played songs pushed far down, so no two sets open the same. Refills and the 9-grid stay inside the set's vibe. Claude only maps typed (non-chip) requests onto the known vibes, and plans transitions.
 - **Transitions**: Web Audio dual-deck engine - equal-power crossfade, bass swap, filter sweep, echo out, cut; optional beat-matching via playback-rate glide.
 - **AI**: Claude plans transitions/vibe filters/banter; OpenAI TTS voices the DJ. Heuristic fallbacks everywhere, so the app works without keys.
 
@@ -36,28 +36,27 @@ Intent-based music with AI-generated DJ transitions. Every page is an experiment
 brew install ffmpeg                      # python3 + node 22 also required
 npm install
 npm run library:kit                      # built-in FX + drum loops (synthesized, instant)
-npm run library:fetch -- --limit 3000    # top-N CC tracks from Free Music Archive (resumable)
+npm run library:youtube                  # well-known chart songs (local experiments only, resumable)
 npm run library:ingest                   # analyze + index everything downloaded
 npm run dev
 ```
 
 | Command | What it does |
 |---|---|
-| `library:fetch` | Reads the 880 GB FMA archive's index over HTTP and downloads only the selected tracks' byte ranges. `--genres Rock,Pop`, `--commercial` (commercial-use licences only), `--allow-nd`, `--dry-run`. The host is slow (~30 tracks/min); re-run to resume. |
-| `library:grow` | Second FMA pass: `library:fetch --untagged` (tracks with no language tag, most-listened first; `FMA_LIMIT`, default 20500 total) with an ingest every 10 minutes. Log: `library/logs/fma-grow.log`. |
 | `library:youtube` | **Local experiments only.** Well-known songs via yt-dlp: Billboard Year-End Hot 100 for `--years 1960-2024` (lists read from Wikipedia), or `--queries file.txt` / `--playlist URL`. Brings YouTube's "most replayed" heatmap, so these tracks get a real famous-part marker. Keeps its own up-to-date yt-dlp in `library/.venv` (a stale one gets HTTP 403 on audio). Throttled and resumable. |
 | `library:hindi` | **Local experiments only.** The Hindi collection: ~800 famous commercial songs across vibes and eras, listed in `scripts/library/collections/hindi.txt` (`@ genres: … \| tags: …` lines label the songs below them). Same fetcher as `library:youtube`, run with `--language hi`; the language picker on the home page appears once the library holds more than one language. |
 | `library:collection` | Builds the wide Hindi and Punjabi fetch lists (`collections/hindi_wide.txt`, `collections/punjabi.txt`) from the artists in `collections/indian.seeds.txt`: each artist's most popular songs with genre and decade, read from Apple's public catalogue (no key). Edit the seeds and re-run; answers are cached in `library/sources/itunes/`. |
 | `library:punjabi` | **Local experiments only.** Fetches the Punjabi list (`--language pa`). `library:hindi` fetches the hand-written and the wide Hindi lists. |
+| `library:vibes` | **Local experiments only.** The monthly vibe refresh: searches YouTube for the public playlists behind every vibe chip (`lib/vibes.json`, per language), downloads the songs they rank highly that the library lacks (`VIBES_MAX`, default 4000 per run), ingests, writes `library/vibes.json` (the index the pickers read) and uploads with `library:push -- --all`. Scheduled by the Claude app task "everplay-monthly-vibe-refresh" (1st of the month, 04:00); `library:vibes:schedule` installs a launchd job instead, which needs Full Disk Access for `/bin/bash` while the repo is in `~/Documents`. Log: `library/logs/vibes-<month>.log`. |
 | `library:import-cache` | Imports songs the old extractor build already downloaded into `.cache/` (English-looking ones; `--all` for everything). |
-| `library:build` | Runs the FMA and YouTube downloads together in the background with an ingest pass every 10 minutes. Logs in `library/logs/`. Re-run to resume. |
+| `library:build` | Runs the YouTube download in the background with an ingest pass every 10 minutes. Logs in `library/logs/`. Re-run to resume. |
 | `library:freesound` | CC0 risers, impacts, scratches and drum loops. Needs a free `FREESOUND_API_KEY`. |
 | `library:kit` | Synthesizes a starter FX/loop kit with ffmpeg - no downloads. |
 | `library:ingest` | Decodes and analyzes new files in parallel, writes `meta/`, `covers/`, `catalog.json`. `--reanalyze` recomputes attributes for the whole library after an analysis change. |
 
 **Your own music**: drop files in `library/inbox/` (`inbox/sfx/` and `inbox/loops/` for elements) and run `library:ingest`.
 
-**Licences**: every track keeps its licence and source link (see `/library`). NoDerivatives tracks are skipped by default because a DJ mix is a derivative work; most of the rest are NonCommercial - pass `--commercial` if the app will earn money.
+**Licences**: every track keeps its licence and source link (see `/library`). The openly-licensed Free Music Archive crate was removed on 2026-10-15 - nobody knew those songs; the library is well-known commercial songs only (`fetch_fma.py` is in git history).
 
 **YouTube tracks are all-rights-reserved.** They carry `source: "youtube"` and exist for local, non-commercial experiments - leave every `yt-*` file out of anything you deploy or share (`rclone sync library … --exclude "yt-*"`, then rebuild the catalog from the remaining metadata).
 

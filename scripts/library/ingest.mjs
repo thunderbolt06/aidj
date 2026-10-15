@@ -266,6 +266,25 @@ async function ingestOne(file, fromInbox) {
   return "ok";
 }
 
+/**
+ * Release year, as well as it is known: the download's own metadata, else a
+ * chart-year tag ("2018"), else the middle of a decade tag ("2010s", "90s").
+ */
+function yearOf(m) {
+  if (Number.isInteger(m.year) && m.year > 1900) return m.year;
+  const tags = m.tags ?? [];
+  const exact = tags.find((t) => /^(19|20)\d\d$/.test(t));
+  if (exact) return Number(exact);
+  for (const t of tags) {
+    const d = /^((?:19|20)?\d0)s$/.exec(t);
+    if (d) {
+      const n = Number(d[1]);
+      return (n < 100 ? (n >= 30 ? 1900 : 2000) + n : n) + 5;
+    }
+  }
+  return null;
+}
+
 /** Compact one-row-per-entry index: what search and next-track picking read. */
 async function buildCatalog() {
   const files = (await readdir(DIRS.meta)).filter((f) => f.endsWith(".json"));
@@ -285,6 +304,7 @@ async function buildCatalog() {
       genres: m.genres ?? [],
       tags: m.tags ?? [],
       language: m.language ?? null,
+      year: yearOf(m),
       instrumental: !!m.instrumental,
       popularity: m.popularity ?? 0,
       license: m.license?.name ?? null,

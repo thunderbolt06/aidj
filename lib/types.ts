@@ -4,7 +4,7 @@
 export type TrackKind = "song" | "sfx" | "loop";
 
 export interface Track {
-  id: string; // library id, e.g. "fma-12345"
+  id: string; // library id, e.g. "yt-dQw4w9WgXcQ"
   title: string;
   artist: string;
   duration: number; // seconds

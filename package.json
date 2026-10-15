@@ -16,9 +16,7 @@
     "library:punjabi": "python3 scripts/library/fetch_youtube.py --queries scripts/library/collections/punjabi.txt --language pa --tags punjabi --workers 2",
     "library:import-cache": "python3 scripts/library/import_cache.py",
     "library:build": "bash scripts/library/build_all.sh",
-    "library:push": "bash scripts/library/sync_s3.sh",
-    "library:vibes": "bash scripts/library/refresh_vibes.sh",
-    "library:vibes:schedule": "bash scripts/library/schedule_vibes.sh"
+    "library:push": "bash scripts/library/sync_s3.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

@@ -23,10 +23,19 @@ const LIBRARY_DIR = process.env.LIBRARY_DIR || path.join(process.cwd(), "library
 const LIBRARY_URL = (process.env.LIBRARY_URL || "").replace(/\/+$/, "");
 const REMOTE_TTL_MS = 30 * 60_000;
 
+export interface VibePlaylist {
+  id: string;
+  title: string;
+  channel?: string;
+  size: number;
+  /** last edit, YYYYMMDD */
+  modified?: string;
+}
+
 interface RawIndex {
   month: string;
   vibes: { label: string; lang: string; playlists: number[] }[];
-  playlists: { id: string; title: string; size: number }[];
+  playlists: VibePlaylist[];
   /** song id -> flat [playlist index, position, playlist index, position, ...] */
   songs: Record<string, number[]>;
 }
@@ -35,6 +44,9 @@ export interface VibeIndex {
   month: string;
   /** Vibe labels that have playlist data. */
   labels: string[];
+  /** The harvested playlists, and which of them each vibe drew on (all languages). */
+  playlists: VibePlaylist[];
+  vibePlaylists: Map<string, number[]>;
   /** vibe label -> song id -> affinity (0..1) */
   affinity: Map<string, Map<string, number>>;
   /** song id -> playlists it is in */
@@ -96,9 +108,14 @@ function build(raw: RawIndex): VibeIndex {
     }
     affinity.set(label, out);
   }
+  const vibePlaylists = new Map<string, number[]>();
+  for (const v of raw.vibes)
+    vibePlaylists.set(v.label, [...(vibePlaylists.get(v.label) ?? []), ...v.playlists]);
   return {
     month: raw.month,
     labels: [...affinity.keys()],
+    playlists: raw.playlists,
+    vibePlaylists,
     affinity,
     memberships,
     members,

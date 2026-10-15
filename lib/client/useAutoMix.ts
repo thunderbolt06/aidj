@@ -14,6 +14,8 @@ import {
 import { camelotCompatible } from "@/lib/audio/analysis";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { notePlayed, recentlyPlayed } from "@/lib/client/history";
+import { flushEvents, logEvent, newSetId } from "@/lib/client/telemetry";
+import type { PlayEnd } from "@/lib/server/events";
 import { timeStretchBuffer } from "@/lib/audio/timestretch";
 import {
   arcEnergyAt,
@@ -211,7 +213,43 @@ export function useAutoMix() {
     interestUntil: 0,
     /** Track position the armed auto-hop timer is aiming at. */
     hopTargetPos: 0,
+    /** Stats (lib/client/telemetry): the set, and the song playing in it. */
+    setId: "",
+    playing: null as { id: string; startPos: number; setId: string; vibes: string[] } | null,
+    /** The vibe changed mid-set: how the song playing now will be logged as ending. */
+    endOverride: null as PlayEnd | null,
   });
+
+  /** Stats: a set starts (also when the vibe changes mid-set). */
+  function beginSet() {
+    const s = st.current;
+    s.setId = newSetId();
+    logEvent({ type: "set", setId: s.setId, vibes: s.opts.vibes ?? [], page: location.pathname });
+  }
+
+  /** Stats: a song starts playing `startPos` seconds in. */
+  function beginPlay(id: string, startPos: number) {
+    const s = st.current;
+    s.playing = { id, startPos, setId: s.setId, vibes: s.opts.vibes ?? [] };
+  }
+
+  /** Stats: the song playing now ends, `pos` seconds in. */
+  function endPlay(end: PlayEnd, pos = getEngine().position()) {
+    const s = st.current;
+    const p = s.playing;
+    if (!p) return;
+    s.playing = null;
+    logEvent({
+      type: "play",
+      setId: p.setId,
+      vibes: p.vibes,
+      page: location.pathname,
+      track: p.id,
+      playedSec: Math.max(0, pos - p.startPos),
+      end: s.endOverride ?? end,
+    });
+    s.endOverride = null;
+  }
 
   /** Sample the energy-arc director at the current set time (null if no arc). */
   function currentArc(): ArcTarget | null {
@@ -293,6 +331,15 @@ export function useAutoMix() {
     return () => clearInterval(id);
   }, []);
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // tab closed mid-song: log it before the page is gone
+    const onHide = () => {
+      endPlay("left");
+      flushEvents();
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
 
   function setQueue(q: Track[] | ((prev: Track[]) => Track[])) {
     // st.current.queue must update synchronously - pages call start()
@@ -326,6 +373,7 @@ export function useAutoMix() {
   }
 
   function stop() {
+    endPlay("stop");
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     getEngine().stop();
@@ -373,7 +421,9 @@ export function useAutoMix() {
   async function start(opts: AutoMixOptions = {}) {
     const q = st.current.queue;
     if (!q.length) return;
+    endPlay("stop");
     st.current.opts = { clipLen: "ai", useAi: true, ...opts };
+    beginSet();
     await getEngine().resume();
     st.current.running = true;
     setRunning(true);
@@ -397,6 +447,7 @@ export function useAutoMix() {
     setSetLog([...st.current.setLog]);
     const famous = first.meta.famousStart ?? 40;
     getEngine().startTrack(first.buffer, Math.max(0, famous - 5), first.analysis);
+    beginPlay(q[0].id, Math.max(0, famous - 5));
     setStatus("");
     prepareNext();
     maybeRefill();
@@ -529,7 +580,7 @@ export function useAutoMix() {
     // interest taps: the user claimed more of this song - never hop inside it
     waitSec = Math.max(waitSec, st.current.interestUntil - pos);
     st.current.hopTargetPos = pos + waitSec;
-    timer.current = setTimeout(() => hopNow(), waitSec * 1000);
+    timer.current = setTimeout(() => hopNow("auto"), waitSec * 1000);
   }
 
   /**
@@ -547,12 +598,15 @@ export function useAutoMix() {
     if (timer.current && s.hopTargetPos < until) {
       clearTimeout(timer.current);
       s.hopTargetPos = until;
-      timer.current = setTimeout(() => hopNow(), (until - pos) * 1000);
+      timer.current = setTimeout(() => hopNow("auto"), (until - pos) * 1000);
     }
   }
 
-  /** Execute the prepared hop instantly. Never loads at hop time. */
-  async function hopNow() {
+  /**
+   * Execute the prepared hop instantly. Never loads at hop time. Called bare
+   * it is the listener's skip; the auto-hop timer and a held-NEXT drop say so.
+   */
+  async function hopNow(reason: "skip" | "drop" | "auto" = "skip") {
     const s = st.current;
     if (!s.running || s.hopping) return;
     s.hopping = true;
@@ -578,7 +632,7 @@ export function useAutoMix() {
           plan: heuristicPlan(next, getEngine().position(), s.current ?? undefined),
         };
       }
-      await executeHop(prepared);
+      await executeHop(prepared, reason);
     } catch (e) {
       setStatus(`hop failed: ${e instanceof Error ? e.message : e} - skipping`);
       // never stall the set: drop the bad track and prepare the following one
@@ -611,7 +665,7 @@ export function useAutoMix() {
           0.08;
         prepared = { trackId: track.id, next, plan };
       }
-      await executeHop(prepared);
+      await executeHop(prepared, "pick");
     } catch (e) {
       setStatus(`transition failed: ${e instanceof Error ? e.message : e}`);
     } finally {
@@ -619,7 +673,7 @@ export function useAutoMix() {
     }
   }
 
-  async function executeHop(prepared: Prepared) {
+  async function executeHop(prepared: Prepared, end: PlayEnd) {
     const s = st.current;
     const current = s.current;
     if (!current || !s.running) return;
@@ -659,6 +713,8 @@ export function useAutoMix() {
     s.interestUntil = 0;
     setInterestUntil(0);
     plan.outPoint = engine.position();
+    endPlay(end, plan.outPoint);
+    beginPlay(prepared.trackId, prepared.matched ? prepared.matched.inPoint : plan.inPoint);
     setLastPlan(plan);
     s.current = next;
     s.prepared = null;
@@ -811,7 +867,16 @@ export function useAutoMix() {
 
   /** Update options mid-set (e.g. switching the forced trick live). */
   function setOptions(partial: Partial<AutoMixOptions>) {
+    const revibe =
+      st.current.running &&
+      !!partial.vibes &&
+      JSON.stringify(partial.vibes) !== JSON.stringify(st.current.opts.vibes ?? []);
     st.current.opts = { ...st.current.opts, ...partial };
+    if (revibe) {
+      // a new vibe mid-set is a new set; the song playing now ends because of it
+      st.current.endOverride = "revibe";
+      beginSet();
+    }
     // a prepared plan may carry the old style; re-apply the hint
     if (partial.styleHint && st.current.prepared)
       st.current.prepared.plan.style = partial.styleHint;

@@ -18,7 +18,7 @@
 const http = require("node:http");
 const { execFile, spawn } = require("node:child_process");
 const { promisify } = require("node:util");
-const { mkdir, readdir, readFile, writeFile, stat } = require("node:fs/promises");
+const { appendFile, mkdir, readdir, readFile, writeFile, stat } = require("node:fs/promises");
 const { createReadStream, existsSync } = require("node:fs");
 const { mkdtemp, rm } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
@@ -40,6 +40,9 @@ const TOKEN = process.env.EXTRACTOR_TOKEN || ""; // optional shared secret
 const CACHE_DIR = process.env.CACHE_DIR || path.join(__dirname, ".cache");
 const AUDIO_DIR = path.join(CACHE_DIR, "audio");
 const META_DIR = path.join(CACHE_DIR, "meta");
+// listening events from the app's stats logging (lib/server/events.ts) -
+// month files of JSON lines; put this on the volume or a redeploy loses them
+const EVENTS_DIR = process.env.EVENTS_DIR || path.join(CACHE_DIR, "events");
 
 // extra yt-dlp args for anti-block , inert until the env vars are set
 function antiBlockArgs() {
@@ -323,6 +326,33 @@ const server = http.createServer(async (req, res) => {
       } finally {
         rm(dir, { recursive: true, force: true }).catch(() => {});
       }
+    }
+
+    // listening events: append a batch / read everything since a time
+    if (p === "/events" && req.method === "POST") {
+      if (!authed(req)) return json(res, 401, { error: "unauthorized" });
+      const { events } = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      if (!Array.isArray(events)) return json(res, 400, { error: "missing events" });
+      await mkdir(EVENTS_DIR, { recursive: true });
+      const byMonth = new Map();
+      for (const e of events.slice(0, 500)) {
+        if (!e || typeof e.at !== "number") continue;
+        const m = new Date(e.at).toISOString().slice(0, 7);
+        byMonth.set(m, (byMonth.get(m) || "") + JSON.stringify(e) + "\n");
+      }
+      for (const [m, lines] of byMonth) await appendFile(path.join(EVENTS_DIR, `${m}.jsonl`), lines);
+      return json(res, 200, { ok: true });
+    }
+    if (p === "/events" && req.method === "GET") {
+      if (!authed(req)) return json(res, 401, { error: "unauthorized" });
+      const since = Number(url.searchParams.get("since")) || 0;
+      const from = new Date(since).toISOString().slice(0, 7);
+      const files = (await readdir(EVENTS_DIR).catch(() => []))
+        .filter((f) => /^\d{4}-\d{2}\.jsonl$/.test(f) && f.slice(0, 7) >= from)
+        .sort();
+      res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+      for (const f of files) res.write(await readFile(path.join(EVENTS_DIR, f)));
+      return res.end();
     }
 
     // video (ffmpeg mux)

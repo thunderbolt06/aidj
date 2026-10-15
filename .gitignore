@@ -51,3 +51,6 @@ next-env.d.ts
 
 # python bytecode
 __pycache__/
+
+# listening events for the stats page (lib/server/events.ts)
+/.data/

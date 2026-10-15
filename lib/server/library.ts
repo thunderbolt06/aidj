@@ -382,7 +382,7 @@ function recency(r: CatalogRow): number {
   return r.year ? Math.min(1, Math.max(0, (r.year - 1975) / 45)) : 0.5;
 }
 
-const ERA_WORDS = /\b(retro|classics?|evergreen|oldies|old school|nostalgia|\d0s|\d{4}s)\b/i;
+export const ERA_WORDS = /\b(retro|classics?|evergreen|oldies|old school|nostalgia|\d0s|\d{4}s)\b/i;
 
 /**
  * Playlists mix eras ("100 greatest driving songs" is mostly the 70s) and

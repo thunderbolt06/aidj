@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractJson } from "@/lib/server/extractJson";
 import {
@@ -8,6 +8,7 @@ import {
   type IntentFilter,
 } from "@/lib/server/library";
 import { loadVibeIndex, resolveVibes } from "@/lib/server/vibes";
+import { recordEvents } from "@/lib/server/events";
 import VIBES from "@/lib/vibes.json";
 
 export const dynamic = "force-dynamic";
@@ -123,6 +124,12 @@ export async function POST(req: NextRequest) {
     }
 
     const vibes = index ? resolveVibes(index, text, plan.vibes) : [];
+    // stats page: what people ask for, and whether a playlist vibe covered it
+    after(() =>
+      recordEvents([
+        { type: "intent", at: Date.now(), listener: "", prompt: text.slice(0, 200), vibes: vibes.map((v) => v.label), chip },
+      ]).catch(() => {})
+    );
     const pickOpts = { vibes, recent, exclude: Array.isArray(exclude) ? exclude : [] };
     let rows = await pickForIntent(plan, 10, languages, pickOpts);
     // a filter that matches nothing (tiny library, odd vibe) falls back to energy alone

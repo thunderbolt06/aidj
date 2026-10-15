@@ -271,7 +271,7 @@ export default function HomePage() {
       if (holdingRef.current) {
         holdingRef.current = false;
         setHolding(false);
-        mix.hopNow(); // transition resets the tension FX
+        mix.hopNow("drop"); // transition resets the tension FX
       } else if (tapToExtend) {
         mix.tapInterest();
       }
@@ -345,7 +345,7 @@ export default function HomePage() {
     if (holdingRef.current) {
       holdingRef.current = false;
       setHolding(false);
-      if (inside) mix.hopNow(); // release on the button = drop
+      if (inside) mix.hopNow("drop"); // release on the button = drop
       else getEngine().tension(false); // dragged off = cancel
     } else if (inside) {
       mix.hopNow(); // quick tap = plain skip
@@ -583,6 +583,19 @@ export default function HomePage() {
                 </Link>
                 <p className="mt-1.5 text-[11px] text-zinc-600">
                   browse the crate by genre, tempo and key · track credits
+                </p>
+                <Link
+                  href="/stats"
+                  onClick={() => setSettingsOpen(false)}
+                  className="mt-3 flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 transition hover:border-cyan-600 hover:text-cyan-300"
+                >
+                  <span>▤ Vibe health</span>
+                  <span aria-hidden className="text-zinc-600">
+                    →
+                  </span>
+                </Link>
+                <p className="mt-1.5 text-[11px] text-zinc-600">
+                  songs, playlists, listeners and skips for every vibe
                 </p>
               </div>
             </div>

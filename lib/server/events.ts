@@ -10,7 +10,10 @@ import path from "node:path";
  * deployment has no disk of its own, so when EXTRACTOR_URL is set they go to
  * the Railway extractor's volume instead (POST / GET /events there).
  */
-const EVENTS_DIR = process.env.EVENTS_DIR || path.join(process.cwd(), ".data", "events");
+// not traced into the deployment bundle: a deployment logs to the extractor
+const EVENTS_DIR =
+  process.env.EVENTS_DIR || path.join(/*turbopackIgnore: true*/ process.cwd(), ".data", "events");
+const monthFile = (name: string) => path.join(/*turbopackIgnore: true*/ EVENTS_DIR, name);
 const EXTRACTOR = (process.env.EXTRACTOR_URL || "").replace(/\/+$/, "");
 const EXTRACTOR_TOKEN = process.env.EXTRACTOR_TOKEN || "";
 
@@ -117,13 +120,13 @@ export async function recordEvents(events: ListenEvent[]): Promise<void> {
     if (!res.ok) throw new Error(`event store answered ${res.status}`);
     return;
   }
-  await mkdir(EVENTS_DIR, { recursive: true });
+  await mkdir(/*turbopackIgnore: true*/ EVENTS_DIR, { recursive: true });
   const byMonth = new Map<string, string>();
   for (const e of events) {
     const m = monthOf(e.at);
     byMonth.set(m, (byMonth.get(m) ?? "") + JSON.stringify(e) + "\n");
   }
-  for (const [m, lines] of byMonth) await appendFile(path.join(EVENTS_DIR, `${m}.jsonl`), lines);
+  for (const [m, lines] of byMonth) await appendFile(/*turbopackIgnore: true*/ monthFile(`${m}.jsonl`), lines);
 }
 
 function parseLines(text: string, since: number): ListenEvent[] {
@@ -152,13 +155,13 @@ export async function readEvents(since = 0): Promise<ListenEvent[]> {
   }
   let files: string[];
   try {
-    files = (await readdir(EVENTS_DIR)).filter((f) => /^\d{4}-\d{2}\.jsonl$/.test(f)).sort();
+    files = (await readdir(/*turbopackIgnore: true*/ EVENTS_DIR)).filter((f) => /^\d{4}-\d{2}\.jsonl$/.test(f)).sort();
   } catch {
     return []; // nothing logged yet
   }
   const from = monthOf(since);
   const texts = await Promise.all(
-    files.filter((f) => f.slice(0, 7) >= from).map((f) => readFile(path.join(EVENTS_DIR, f), "utf8"))
+    files.filter((f) => f.slice(0, 7) >= from).map((f) => readFile(/*turbopackIgnore: true*/ monthFile(f), "utf8"))
   );
   return parseLines(texts.join(""), since).sort((a, b) => a.at - b.at);
 }

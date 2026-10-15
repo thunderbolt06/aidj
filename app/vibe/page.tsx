@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { recentlyPlayed } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
 interface VibePlan {
@@ -12,6 +13,7 @@ interface VibePlan {
   energyArc: string;
   transitionStyleHint: string;
   queries: string[];
+  vibes?: string[];
 }
 
 // Web Speech API (Chrome/Safari)
@@ -45,6 +47,7 @@ export default function VibePage() {
           prompt: text,
           history: history.current.join(" → ") || undefined,
           languages: getSelectedLanguageLabels(),
+          recent: recentlyPlayed(),
         }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
@@ -65,8 +68,9 @@ export default function VibePage() {
       mix.setQueue(tracks);
       setBusy("");
       if (!wasRunning) {
-        await mix.start({ clipLen: "ai", useAi: true, quantize: true, endless: true });
+        await mix.start({ clipLen: "ai", useAi: true, quantize: true, endless: true, vibes: p.vibes });
       } else {
+        mix.setOptions({ vibes: p.vibes });
         // vibe change mid-set: hop into the new queue immediately
         await mix.transitionTo(tracks[0]);
       }

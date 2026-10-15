@@ -7,11 +7,13 @@ import { getEngine, loadTrack, searchTracks, takePendingPlay } from "@/lib/clien
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
 import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
+import { recentlyPlayed } from "@/lib/client/history";
 import { LanguagePicker, useAvailableLanguages } from "@/components/LanguagePicker";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { BeatTapButton } from "@/components/BeatTapPulse";
 import { PauseIcon, PlayIcon, ShuffleIcon, SkipForwardIcon } from "@/components/icons";
+import VIBES from "@/lib/vibes.json";
 
 /**
  * Home = the Compilation deck. A streaming-app shell (bottom player dock,
@@ -32,92 +34,13 @@ interface Suggestion {
 
 // situations someone reaches for music in, plus the genres the library is
 // deep in - shuffled a chunk at a time so the hero doesn't turn into a wall
-// of pills. Each chip becomes a filter over the pre-analyzed library (genre,
-// tags, intensity), so every one of them resolves to real, playable tracks.
-const VIBE_CHIP_POOL = [
-  "road trip",
-  "study focus session",
-  "background for a house party",
-  "chill music while we chat",
-  "fashion store playlist",
-  "late night chill",
-  "slow and romantic",
-  "gym workout time",
-  "sad boi hours",
-  "rainy day mood",
-  "morning routine energizer",
-  "cooking in the kitchen",
-  "pre-game hype",
-  "long night drive",
-  "coffee shop acoustic",
-  "yoga and meditation",
-  "cleaning the house",
-  "exam stress relief",
-  "airport lounge / traveling",
-  "office lo-fi background",
-  "late night coding",
-  "poolside chill",
-  "video background music",
-  // genres
-  "indie rock",
-  "electronic",
-  "hip hop beats",
-  "folk and acoustic",
-  "pop",
-  "jazz",
-  "classical piano",
-  "ambient soundscapes",
-  "cinematic soundtrack",
-  "chiptune",
-  "punk energy",
-  "techno",
-  "house",
-  "funk and soul",
-  "blues",
-  "country",
-  "instrumental only",
-];
-
-// the Hindi side of the list - these read off the genres and tags of the
-// Hindi collection (scripts/library/collections/hindi.txt)
-const HINDI_CHIP_POOL = [
-  "bollywood party",
-  "shaadi dance floor",
-  "sangeet night",
-  "romantic bollywood",
-  "heartbreak hours",
-  "sufi night",
-  "retro classics",
-  "90s nostalgia",
-  "2000s hits",
-  "indie pop",
-  "desi hip hop",
-  "road trip with friends",
-  "gym motivation",
-  "monsoon rain",
-  "late night ghazal",
-  "holi and festive",
-  "devotional morning",
-  "patriotic anthems",
-  "pakistani pop",
-  "haryanvi dance",
-  "70s evergreen",
-];
-
-// same for the Punjabi collection (collections/punjabi.txt)
-const PUNJABI_CHIP_POOL = [
-  "punjabi party",
-  "bhangra dance floor",
-  "punjabi hip hop",
-  "punjabi romantic",
-  "punjabi wedding",
-  "punjabi folk classics",
-  "punjabi pop",
-  "uk bhangra 2000s",
-  "punjabi swagger for the gym",
-  "punjabi long drive",
-  "2010s punjabi hits",
-];
+// of pills. The list lives in lib/vibes.json because the monthly playlist
+// harvest (scripts/library/harvest_vibes.py) reads it too: every chip is
+// backed by the public playlists found for it, so each resolves to songs
+// people actually file under that vibe.
+const VIBE_CHIP_POOL: string[] = VIBES.general;
+const HINDI_CHIP_POOL: string[] = VIBES.hindi;
+const PUNJABI_CHIP_POOL: string[] = VIBES.punjabi;
 
 /** Languages that bring their own vibes; a vibe from one asks for its songs. */
 const LANGUAGE_CHIPS: Record<string, string[]> = {
@@ -133,17 +56,7 @@ function chipLanguage(text: string): string | undefined {
 // version of - the rest of VIBE_CHIP_POOL is either covered there ("road
 // trip", "gym workout time") or leans on English-library genres and
 // instrumentals ("jazz", "study focus session")
-const ANY_LANGUAGE_CHIPS = [
-  "chill music while we chat",
-  "fashion store playlist",
-  "late night chill",
-  "morning routine energizer",
-  "cooking in the kitchen",
-  "pre-game hype",
-  "long night drive",
-  "cleaning the house",
-  "poolside chill",
-];
+const ANY_LANGUAGE_CHIPS: string[] = VIBES.anyLanguage;
 
 /**
  * One list for every setup: the general vibes, plus the Hindi / Punjabi ones
@@ -307,6 +220,9 @@ export default function HomePage() {
   const [vibeChips, setVibeChips] = useState(() =>
     VIBE_CHIP_POOL.slice(0, CHIP_DISPLAY_COUNT)
   );
+  // the playlist vibes the current set came from (intent plan), so the
+  // 9-grid and refills keep to them; empty = a song radio off the playing song
+  const vibesRef = useRef<string[]>([]);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdingRef = useRef(false);
   const dragFrom = useRef<number | null>(null);
@@ -444,6 +360,9 @@ export default function HomePage() {
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
           languages: getSelectedLanguages(),
+          vibes: vibesRef.current,
+          recent: recentlyPlayed(),
+          exclude: mix.queue.slice(-150).map((t) => t.id),
         }),
       });
       if (!res.ok) return;
@@ -486,10 +405,12 @@ export default function HomePage() {
           prompt: text,
           // a Hindi vibe means Hindi songs, even with "All" languages on
           languages: chipLanguage(text) ? [chipLanguage(text)] : getSelectedLanguages(),
+          recent: recentlyPlayed(),
+          exclude: mix.running ? mix.queue.slice(-150).map((t) => t.id) : [],
         }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
-      const plan = (await res.json()) as { queries: string[] };
+      const plan = (await res.json()) as { queries: string[]; vibes?: string[] };
       setBusy("finding the songs…");
       const found = await Promise.all(
         plan.queries.map((q) =>
@@ -502,24 +423,28 @@ export default function HomePage() {
       if (!tracks.length) throw new Error("no songs found - try another vibe");
       setBusy("");
       setHomeView(false);
+      vibesRef.current = plan.vibes ?? [];
       if (mix.running) {
+        mix.setOptions({ vibes: vibesRef.current });
         mix.setQueue((q) => [...q, ...tracks]);
         await mix.transitionTo(tracks[0]);
       } else {
-        await startSet(tracks);
+        await startSet(tracks, vibesRef.current);
       }
     } catch (e) {
       setBusy(e instanceof Error ? e.message : "failed");
     }
   }
 
-  async function startSet(tracks: Track[]) {
+  async function startSet(tracks: Track[], vibes: string[] = []) {
+    vibesRef.current = vibes;
     mix.setQueue(tracks);
     await mix.start({
       clipLen: "ai",
       useAi: true,
       quantize: true,
       endless: true,
+      vibes,
       minPlaySec,
       onHop: ({ track }) => track && refreshGrid(track),
     });

@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { recentlyPlayed } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
 /**
@@ -21,6 +22,8 @@ export default function ReelsPage() {
   const refillLock = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const activeId = useRef<string | null>(null);
+  // the playlist vibes the feed came from, so refills keep to them
+  const vibesRef = useRef<string[]>([]);
 
   async function buildFeed() {
     if (!seed.trim()) return;
@@ -29,10 +32,15 @@ export default function ReelsPage() {
       const res = await fetch("/api/ai/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: seed, languages: getSelectedLanguageLabels() }),
+        body: JSON.stringify({
+          prompt: seed,
+          languages: getSelectedLanguageLabels(),
+          recent: recentlyPlayed(),
+        }),
       });
       if (!res.ok) throw new Error("intent failed - ANTHROPIC_API_KEY?");
       const plan = await res.json();
+      vibesRef.current = plan.vibes ?? [];
       const found = await Promise.all(
         (plan.queries as string[]).map((q) =>
           searchTracks(q).then((r) => r[0] ?? null).catch(() => null)
@@ -60,7 +68,9 @@ export default function ReelsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
-          vibe: seed,
+          vibes: vibesRef.current,
+          recent: recentlyPlayed(),
+          exclude: feed.map((t) => t.id),
           languages: getSelectedLanguageLabels(),
         }),
       });

@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { recentlyPlayed } from "@/lib/client/history";
 import { ARC_SHAPES, arcEnergyAt, type ArcShape } from "@/lib/audio/arc";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
@@ -82,10 +83,11 @@ export default function ArcPage() {
         body: JSON.stringify({
           prompt: `${text} (energy arc: ${shape})`,
           languages: getSelectedLanguageLabels(),
+          recent: recentlyPlayed(),
         }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");
-      const plan: { queries: string[] } = await res.json();
+      const plan: { queries: string[]; vibes?: string[] } = await res.json();
       setBusy("finding the opening songs…");
       const found = await Promise.all(
         plan.queries.map((q) =>
@@ -105,6 +107,7 @@ export default function ArcPage() {
         endless: true,
         keyLock: true,
         arc: { shape, durationMin },
+        vibes: plan.vibes,
       });
       mix.prefetch();
     } catch (e) {

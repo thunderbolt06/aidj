@@ -27,6 +27,7 @@ EXTRA=()
 for a in "$@"; do [ "$a" = "--all" ] && ALL=1 || EXTRA+=("$a"); done
 EXCLUDE=(--exclude "yt-*")
 CATALOG="catalog.public.json"
+VIBES="vibes.public.json"
 if [ "$ALL" = 1 ]; then
   DIST="${CLOUDFRONT_DISTRIBUTION_ID:-$(fromenv CLOUDFRONT_DISTRIBUTION_ID)}"
   : "${DIST:?--all needs CLOUDFRONT_DISTRIBUTION_ID (env or .env.local)}"
@@ -39,6 +40,7 @@ if [ "$ALL" = 1 ]; then
   [ "$public" = "True" ] || { echo "refusing --all: bucket $S3_BUCKET allows public access"; exit 1; }
   EXCLUDE=()
   CATALOG="catalog.json"
+  VIBES="vibes.json"
 fi
 
 "$AWS" sts get-caller-identity >/dev/null 2>&1 || { echo "Not signed in to AWS. Run:  $AWS login --region $S3_REGION"; exit 1; }
@@ -55,4 +57,9 @@ done
 # the hosted catalog is the public one, under the name the app reads
 "$AWS" s3 cp "$LIB/$CATALOG" "$DEST/catalog.json" --region "$S3_REGION" \
   --content-type application/json --cache-control "public, max-age=300" ${EXTRA[@]+"${EXTRA[@]}"}
+# the vibe playlists index (harvest_vibes.py index), when one has been built
+if [ -f "$LIB/$VIBES" ]; then
+  "$AWS" s3 cp "$LIB/$VIBES" "$DEST/vibes.json" --region "$S3_REGION" \
+    --content-type application/json --cache-control "public, max-age=300" ${EXTRA[@]+"${EXTRA[@]}"}
+fi
 echo "done. LIBRARY_URL=https://$S3_BUCKET.s3.$S3_REGION.amazonaws.com"

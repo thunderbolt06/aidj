@@ -3,6 +3,13 @@ import path from "node:path";
 import { camelotDistance } from "@/lib/audio/analysis";
 import { toIsoCodes } from "@/lib/languages";
 import { signUrl } from "@/lib/server/cloudfrontSign";
+import {
+  loadVibeIndex,
+  relatedSongs,
+  vibeScores,
+  type VibeIndex,
+  type VibeWeight,
+} from "@/lib/server/vibes";
 import type { Track, TrackKind, TrackLicense, TrackMeta } from "@/lib/types";
 
 /**
@@ -31,8 +38,12 @@ export interface CatalogRow {
   intensity: number;
   genres: string[];
   tags: string[];
+  /** Feel of the song ("romantic", "hype", "melancholic"), from label_songs.mjs. */
+  moods?: string[];
   /** ISO 639-1 code, null when unknown (untagged or instrumental). */
   language?: string | null;
+  /** Release year (exact, or the middle of a decade tag), null when unknown. */
+  year?: number | null;
   instrumental: boolean;
   popularity: number;
   license: string | null;
@@ -45,9 +56,15 @@ export interface CatalogRow {
 interface Catalog {
   tracks: CatalogRow[];
   byId: Map<string, CatalogRow>;
-  /** Lowercased "title artist genres tags" per row, parallel to `tracks`. */
+  /** Lowercased "title artist genres moods tags" per row, parallel to `tracks`. */
   haystack: string[];
   maxPopularity: number;
+  /**
+   * Song id -> energy as a percentile among songs (0..1). The analyzer's raw
+   * intensity bunches up (most chart songs land between 0.56 and 0.81), so
+   * "a bit calmer" or "peak energy" only mean something as ranks.
+   */
+  energy: Map<string, number>;
   /** Songs per language code. */
   languages: Map<string, number>;
 }
@@ -60,14 +77,17 @@ function indexCatalog(rows: CatalogRow[]): Catalog {
   for (const r of rows)
     if (r.kind === "song" && r.language)
       languages.set(r.language, (languages.get(r.language) ?? 0) + 1);
+  const songs = rows.filter((r) => r.kind === "song").sort((a, b) => a.intensity - b.intensity);
+  const energy = new Map(songs.map((r, i) => [r.id, songs.length > 1 ? i / (songs.length - 1) : 0.5]));
   return {
     tracks: rows,
     languages,
     byId: new Map(rows.map((r) => [r.id, r])),
     haystack: rows.map((r) =>
-      [r.title, r.artist, ...r.genres, ...r.tags].join(" ").toLowerCase()
+      [r.title, r.artist, ...r.genres, ...(r.moods ?? []), ...r.tags].join(" ").toLowerCase()
     ),
     maxPopularity: rows.reduce((m, r) => Math.max(m, r.popularity), 1),
+    energy,
   };
 }
 
@@ -267,16 +287,41 @@ function tempoGap(a: number, b: number): number {
   return Math.min(r, Math.abs(r - 1));
 }
 
-function sharesGenre(a: CatalogRow, b: CatalogRow): boolean {
-  return a.genres.some((g) => b.genres.includes(g));
-}
-
-/** 0..1: how cleanly `b` mixes out of `a` (tempo, key, genre). */
+/**
+ * 0..1: how cleanly `b` mixes out of `a` by tempo and key. Only a
+ * tie-breaker - the transition planner bridges any tempo gap (echo out,
+ * filter sweep); a near tempo just earns the beat-matched blend (within 8%).
+ */
 function mixability(a: CatalogRow, b: CatalogRow): number {
   const tempo = Math.exp(-Math.pow(tempoGap(a.bpm, b.bpm) / 0.1, 2));
   const dist = camelotDistance(a.camelot, b.camelot);
   const key = dist === 0 ? 1 : dist === 1 ? 0.85 : dist === 2 ? 0.45 : 0.15;
-  return 0.4 * tempo + 0.35 * key + 0.25 * (sharesGenre(a, b) ? 1 : 0.3);
+  return 0.55 * tempo + 0.45 * key;
+}
+
+function styleSet(r: CatalogRow): Set<string> {
+  return new Set([...r.genres, ...(r.moods ?? [])].map((x) => x.toLowerCase()));
+}
+
+/** 0..1: shared genres and moods (cosine over the two label sets), 0 when either has none. */
+function styleMatch(a: CatalogRow, b: CatalogRow): number {
+  const sa = styleSet(a);
+  const sb = styleSet(b);
+  if (!sa.size || !sb.size) return 0;
+  let both = 0;
+  for (const x of sa) if (sb.has(x)) both++;
+  return both / Math.sqrt(sa.size * sb.size);
+}
+
+/** 0..1: released close together (a 2019 song after a 2020 one, not a 1975 one). */
+function eraMatch(a: CatalogRow, b: CatalogRow): number {
+  if (!a.year || !b.year) return 0.4;
+  return Math.exp(-Math.abs(a.year - b.year) / 8);
+}
+
+/** A song's energy percentile (0..1); 0.5 for anything not ranked. */
+function energyOf(cat: Catalog, r: CatalogRow): number {
+  return cat.energy.get(r.id) ?? 0.5;
 }
 
 export interface ArcTarget {
@@ -302,9 +347,79 @@ function resolveCurrent(cat: Catalog, current: string | undefined): CatalogRow |
 }
 
 /**
+ * A random order in which heavier items tend to come first (Efraimidis-
+ * Spirakis: sort by u^(1/w)). Sorting by score plus a little jitter served
+ * the same top songs every time; this keeps the best ones likely, never certain.
+ */
+function weightedOrder<T>(items: T[], weight: (t: T) => number): T[] {
+  return items
+    .map((t) => ({ t, k: Math.log(Math.random()) / Math.max(1e-9, weight(t)) }))
+    .sort((a, b) => b.k - a.k)
+    .map((x) => x.t);
+}
+
+/**
+ * The listener's history (ids, newest first): the last ~40 plays are as good
+ * as excluded, older ones only fade - a small vibe must still be able to play.
+ */
+function notRecent(recent: unknown): (id: string) => number {
+  const at = new Map<string, number>();
+  if (Array.isArray(recent))
+    recent.slice(0, 300).forEach((id, i) => {
+      if (typeof id === "string" && !at.has(id)) at.set(id, i);
+    });
+  return (id) => {
+    const i = at.get(id);
+    return i === undefined ? 1 : i < 40 ? 0.03 : 0.3;
+  };
+}
+
+/**
+ * 0..1 by release year. The chart crate holds as many 60s songs as 2020s
+ * ones, so with nothing else to go on a pick leans recent.
+ */
+function recency(r: CatalogRow): number {
+  return r.year ? Math.min(1, Math.max(0, (r.year - 1975) / 45)) : 0.5;
+}
+
+const ERA_WORDS = /\b(retro|classics?|evergreen|oldies|old school|nostalgia|\d0s|\d{4}s)\b/i;
+
+/**
+ * Playlists mix eras ("100 greatest driving songs" is mostly the 70s) and
+ * sets that keep reaching back decades feel dated: a gentle lean toward
+ * recent songs - unless the vibe is about an era ("90s nostalgia", "retro classics").
+ */
+function recencyLean(vibes: VibeWeight[], era: unknown): (r: CatalogRow) => number {
+  if (era || vibes.some((v) => ERA_WORDS.test(v.label))) return () => 1;
+  return (r) => 0.55 + 0.45 * recency(r);
+}
+
+/** Vibe labels (or weighted vibes) a caller sent, kept to the ones with data. */
+function vibeWeights(index: VibeIndex | null, vibes: unknown): VibeWeight[] {
+  if (!index || !Array.isArray(vibes)) return [];
+  const have = new Set(index.labels);
+  const out: VibeWeight[] = [];
+  for (const v of vibes.slice(0, 3)) {
+    const label = String(typeof v === "string" ? v : v?.label ?? "").toLowerCase();
+    const weight = typeof v === "string" ? [1, 0.6, 0.4][out.length] : Number(v?.weight) || 0;
+    if (have.has(label) && weight > 0) out.push({ label, weight });
+  }
+  return out;
+}
+
+function maxOf(m: Map<string, number>): number {
+  let max = 0;
+  for (const v of m.values()) if (v > max) max = v;
+  return max || 1;
+}
+
+/**
  * The 9-pick spread every "what next?" surface uses - 5 safe, 3 energy
- * shifts, 1 wildcard - chosen from precomputed tempo / key / intensity
- * instead of an LLM round-trip, so refills are instant and always mixable.
+ * shifts, 1 wildcard - chosen without an LLM round-trip, so refills are
+ * instant. What fits comes first from the vibe playlists: songs the set's
+ * vibe claims, and songs that share playlists with the one playing. Tempo /
+ * key / energy then decide what mixes in cleanly. Without playlist data it is
+ * tempo / key / energy alone, as before.
  */
 export async function pickNext(opts: {
   current?: string;
@@ -312,37 +427,60 @@ export async function pickNext(opts: {
   exclude?: string[];
   count?: number;
   languages?: string[];
+  /** The set's vibe, as the intent plan named it: keeps refills inside it. */
+  vibes?: unknown;
+  /** Recently played track ids, newest first. */
+  recent?: unknown;
 }): Promise<Pick[]> {
-  const cat = await loadCatalog();
+  const [cat, index] = await Promise.all([loadCatalog(), loadVibeIndex()]);
   const cur = resolveCurrent(cat, opts.current);
   const exclude = new Set(opts.exclude ?? []);
   if (cur) exclude.add(cur.id);
   const inLanguage = languageFilter(cat, opts.languages);
-  const pool = cat.tracks.filter(
+  let pool = cat.tracks.filter(
     (r) => r.kind === "song" && !exclude.has(r.id) && (!inLanguage || inLanguage(r))
   );
   if (!pool.length) return [];
 
-  const target = opts.arc?.energy ?? cur?.intensity ?? 0.6;
+  const vibes = vibeWeights(index, opts.vibes);
+  const inVibe = index && vibes.length ? vibeScores(index, vibes) : new Map<string, number>();
+  const near = index && cur ? relatedSongs(index, cur.id) : new Map<string, number>();
+  const maxVibe = maxOf(inVibe);
+  const maxNear = maxOf(near);
+  // stay inside the vibe (and the playing song's playlist neighbours) while
+  // there is enough of it to fill the grid; a thin one opens up to everything
+  const inside = pool.filter((r) => inVibe.has(r.id) || near.has(r.id));
+  if (inside.length >= 30) pool = inside;
+  const fresh = notRecent(opts.recent);
+  const lean = recencyLean(vibes, null);
+
+  const target = opts.arc?.energy ?? (cur ? energyOf(cat, cur) : 0.6);
   const arcBpm = opts.arc?.bpm;
+  // what belongs together first - the vibe's playlists, the playing song's
+  // playlist neighbours, shared genres / moods, the same era - and tempo /
+  // key only as a tie-breaker
   const base = (r: CatalogRow) => {
-    const mix = cur ? mixability(cur, r) : 0.5;
-    const pop = Math.log1p(r.popularity) / Math.log1p(cat.maxPopularity);
+    const playlists =
+      (1.2 * (inVibe.get(r.id) ?? 0)) / maxVibe + (0.9 * (near.get(r.id) ?? 0)) / maxNear;
+    const style = cur ? 0.6 * styleMatch(cur, r) : 0;
+    const era = cur ? 0.3 * eraMatch(cur, r) : 0.3 * recency(r);
+    const mix = cur ? 0.25 * mixability(cur, r) : 0.1;
+    const pop = 0.15 * (Math.log1p(r.popularity) / Math.log1p(cat.maxPopularity));
     const inWindow = arcBpm && r.bpm >= arcBpm[0] && r.bpm <= arcBpm[1] ? 0.15 : 0;
-    // chart hits flow into chart hits, crate-digging into crate-digging: a set
-    // of songs everyone knows shouldn't detour into an unknown instrumental
-    const sameCrate = cur && r.source === cur.source ? 0.2 : 0;
     // with no language chosen, a Hindi set still stays mostly Hindi
-    const sameLanguage = cur?.language && r.language === cur.language ? 0.2 : 0;
-    // jitter so two sets from the same seed don't play the same order
+    const sameLanguage = cur?.language && r.language === cur.language ? 0.35 : 0;
+    // a vibe set leans recent; a song radio follows the playing song's era
     return (
-      (0.7 * mix + 0.3 * pop + inWindow + sameCrate + sameLanguage) *
-      (0.85 + Math.random() * 0.3)
+      (playlists + style + era + mix + pop + inWindow + sameLanguage) *
+      fresh(r.id) *
+      (vibes.length ? lean(r) : 1)
     );
   };
-  const ranked = pool
-    .map((row) => ({ row, s: base(row), gap: row.intensity - target }))
-    .sort((a, b) => b.s - a.s);
+  // cubed: the best fits come up most often, but not every time
+  const ranked = weightedOrder(
+    pool.map((row) => ({ row, s: base(row), gap: energyOf(cat, row) - target })),
+    (c) => c.s ** 3
+  );
 
   const picks: Pick[] = [];
   const used = new Set<string>();
@@ -366,7 +504,8 @@ export async function pickNext(opts: {
   // with an arc, "shift" still orbits the arc target rather than drifting off
   take("safe", 5, (c) => Math.abs(c.gap) <= 0.12);
   take("shift", 3, (c) => Math.abs(c.gap) > 0.12 && Math.abs(c.gap) <= (opts.arc ? 0.25 : 0.4));
-  take("wild", 1, (c) => !!cur && !sharesGenre(cur, c.row));
+  // the wildcard: still a good pick, in a different style from the playing song
+  take("wild", 1, (c) => !!cur && styleMatch(cur, c.row) < 0.2);
   // thin library / narrow target: top up with the best remaining
   take("safe", (opts.count ?? 9) - picks.length, () => true);
   return picks.slice(0, opts.count ?? 9);
@@ -374,54 +513,79 @@ export async function pickNext(opts: {
 
 export interface IntentFilter {
   genres?: string[];
+  /** Moods from the library's list ("romantic", "hype"). */
+  moods?: string[];
   keywords?: string[];
   intensity?: [number, number];
   bpm?: [number, number];
   instrumental?: boolean | null;
   energyArc?: "flat" | "build" | "peak_and_release" | "wind_down";
+  /** Release years the vibe asks for ("90s nostalgia"), null = any. */
+  era?: [number, number] | null;
 }
 
-/** Build a queue for a vibe: filter the catalog, then order it along the arc. */
+export interface IntentPickOptions {
+  /** Vibes from the playlist index (resolveVibes); empty = filter only. */
+  vibes?: VibeWeight[];
+  /** Recently played track ids, newest first. */
+  recent?: unknown;
+  exclude?: string[];
+}
+
+/**
+ * Build a queue for a vibe, then order it along the arc. With playlist data
+ * the songs come from the vibe's playlists, drawn at random weighted by how
+ * strongly the vibe claims them - so every request is a fresh set of
+ * on-vibe songs. Otherwise (no index yet, or too few songs in the chosen
+ * languages) the catalog filter: genre / mood / tags / energy.
+ */
 export async function pickForIntent(
   f: IntentFilter,
   count = 10,
-  languages?: string[]
+  languages?: string[],
+  { vibes = [], recent, exclude = [] }: IntentPickOptions = {}
 ): Promise<CatalogRow[]> {
-  const cat = await loadCatalog();
+  const [cat, index] = await Promise.all([loadCatalog(), loadVibeIndex()]);
   const inLanguage = languageFilter(cat, languages);
-  const genres = (f.genres ?? []).map((g) => g.toLowerCase());
-  const keywords = (f.keywords ?? []).map((k) => k.toLowerCase());
+  const fresh = notRecent(recent);
+  const skip = new Set(exclude);
+  const songs = cat.tracks.filter(
+    (r) => r.kind === "song" && !skip.has(r.id) && (!inLanguage || inLanguage(r))
+  );
   const [lo, hi] = f.intensity ?? [0, 1];
-  const scored: { row: CatalogRow; s: number }[] = [];
-  cat.tracks.forEach((row, i) => {
-    if (row.kind !== "song") return;
-    if (inLanguage && !inLanguage(row)) return;
-    if (f.instrumental === true && !row.instrumental) return;
-    let s = 0;
-    if (genres.length) {
-      const hit = row.genres.some((g) => genres.includes(g.toLowerCase()));
-      if (hit) s += 2;
-    }
-    for (const k of keywords) if (cat.haystack[i].includes(k)) s += 1;
-    if ((genres.length || keywords.length) && s === 0) return;
-    const mid = Math.min(Math.max(row.intensity, lo), hi);
-    s -= Math.abs(row.intensity - mid) * 6; // soft intensity window
-    if (f.bpm) s -= (row.bpm < f.bpm[0] || row.bpm > f.bpm[1] ? 0.5 : 0);
-    s += Math.log1p(row.popularity) / Math.log1p(cat.maxPopularity);
-    scored.push({ row, s: s * (0.9 + Math.random() * 0.2) });
-  });
-  scored.sort((a, b) => b.s - a.s);
+  const era = Array.isArray(f.era) && f.era.length === 2 ? f.era : null;
+  const eraFit = (r: CatalogRow) =>
+    !era || !r.year ? 1 : r.year >= era[0] && r.year <= era[1] ? 1 : 0.15;
 
+  let scored: { row: CatalogRow; s: number }[] = [];
+  if (index && vibes.length) {
+    const claim = vibeScores(index, vibes);
+    const lean = recencyLean(vibes, era);
+    for (const row of songs) {
+      const v = claim.get(row.id);
+      if (!v) continue;
+      // the playlists already say what energy the vibe has; this only nudges
+      const e = energyOf(cat, row);
+      const gap = Math.abs(e - Math.min(Math.max(e, lo), hi));
+      const energy = 1 - 0.5 * Math.min(1, gap / 0.3);
+      // squared: core songs come up often, one-playlist songs now and then
+      scored.push({ row, s: v * v * energy * eraFit(row) * lean(row) * fresh(row.id) });
+    }
+  }
+  if (scored.length < Math.max(8, count)) scored = filterScores(cat, songs, f, eraFit, fresh, !era);
+
+  const big = scored.length >= count * 5;
   const chosen: CatalogRow[] = [];
   const perArtist = new Map<string, number>();
-  for (const { row } of scored) {
+  for (const { row } of weightedOrder(scored, (c) => c.s)) {
     if (chosen.length >= count) break;
-    if ((perArtist.get(row.artist) ?? 0) >= 2) continue;
+    // a big pool can afford one song per artist per set
+    if ((perArtist.get(row.artist) ?? 0) >= (big ? 1 : 2)) continue;
     perArtist.set(row.artist, (perArtist.get(row.artist) ?? 0) + 1);
     chosen.push(row);
   }
 
-  const asc = [...chosen].sort((a, b) => a.intensity - b.intensity);
+  const asc = [...chosen].sort((a, b) => energyOf(cat, a) - energyOf(cat, b));
   switch (f.energyArc) {
     case "build":
       return asc;
@@ -436,6 +600,39 @@ export async function pickForIntent(
     default:
       return chainByMixability(chosen);
   }
+}
+
+/** The catalog filter: genre / mood / tag hits within a soft energy window. */
+function filterScores(
+  cat: Catalog,
+  songs: CatalogRow[],
+  f: IntentFilter,
+  eraFit: (r: CatalogRow) => number,
+  fresh: (id: string) => number,
+  leanRecent: boolean
+): { row: CatalogRow; s: number }[] {
+  const genres = (f.genres ?? []).map((g) => g.toLowerCase());
+  const moods = (f.moods ?? []).map((m) => m.toLowerCase());
+  const keywords = (f.keywords ?? []).map((k) => k.toLowerCase());
+  const [lo, hi] = f.intensity ?? [0, 1];
+  const rowIndex = new Map(cat.tracks.map((r, i) => [r.id, i]));
+  const out: { row: CatalogRow; s: number }[] = [];
+  for (const row of songs) {
+    if (f.instrumental === true && !row.instrumental) continue;
+    const hay = cat.haystack[rowIndex.get(row.id)!];
+    let s = 0;
+    if (genres.length && row.genres.some((g) => genres.includes(g.toLowerCase()))) s += 2;
+    for (const m of row.moods ?? []) if (moods.includes(m.toLowerCase())) s += 1.5;
+    for (const k of keywords) if (hay.includes(k)) s += 1;
+    if ((genres.length || moods.length || keywords.length) && s === 0) continue;
+    const e = energyOf(cat, row);
+    s -= Math.abs(e - Math.min(Math.max(e, lo), hi)) * 6; // soft energy window
+    if (f.bpm) s -= row.bpm < f.bpm[0] || row.bpm > f.bpm[1] ? 0.5 : 0;
+    s += Math.log1p(row.popularity) / Math.log1p(cat.maxPopularity);
+    const lean = leanRecent ? 0.4 + 0.6 * recency(row) : 1;
+    out.push({ row, s: Math.exp(1.5 * s) * lean * eraFit(row) * fresh(row.id) });
+  }
+  return out;
 }
 
 /** Greedy nearest-neighbour ordering so each track mixes into the next. */
@@ -474,6 +671,7 @@ export interface LibraryStats {
   sfx: number;
   hours: number;
   genres: { name: string; count: number }[];
+  moods: { name: string; count: number }[];
   tags: { name: string; count: number }[];
   licenses: { name: string; count: number }[];
   /** Every language the library has songs in, whatever the filter. */
@@ -500,6 +698,7 @@ export async function libraryStats(languages?: string[]): Promise<LibraryStats> 
     sfx: cat.tracks.filter((r) => r.kind === "sfx").length,
     hours: +(songs.reduce((s, r) => s + r.duration, 0) / 3600).toFixed(1),
     genres: tally(songs.flatMap((r) => r.genres), 40),
+    moods: tally(songs.flatMap((r) => r.moods ?? []), 40),
     tags: tally(songs.flatMap((r) => r.tags), 60),
     licenses: tally(songs.map((r) => r.license ?? "Unknown"), 30),
     languages: [...cat.languages.entries()]

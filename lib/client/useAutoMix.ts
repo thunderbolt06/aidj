@@ -13,6 +13,7 @@ import {
 } from "@/lib/client/dj";
 import { camelotCompatible } from "@/lib/audio/analysis";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { notePlayed, recentlyPlayed } from "@/lib/client/history";
 import { timeStretchBuffer } from "@/lib/audio/timestretch";
 import {
   arcEnergyAt,
@@ -43,6 +44,11 @@ export interface AutoMixOptions {
   quantizeBeats?: number;
   /** Auto-refill the queue with AI suggestions so the set never ends. */
   endless?: boolean;
+  /**
+   * The playlist vibes the set was built from (the intent plan's `vibes`):
+   * endless refills stay inside them instead of drifting by tempo alone.
+   */
+  vibes?: string[];
   /** Cap transition length (snappy UIs like reels want ≤4s). */
   maxTransitionDur?: number;
   /**
@@ -381,6 +387,7 @@ export function useAutoMix() {
     st.current.nowIdx = 0;
     setNow(first);
     setNowIdx(0);
+    notePlayed(q[0].id);
     st.current.setLog.push({
       title: first.meta.title,
       artist: first.meta.artist,
@@ -690,6 +697,7 @@ export function useAutoMix() {
 
     const hopTrack = s.queue[s.nowIdx];
     if (hopTrack) {
+      notePlayed(hopTrack.id);
       s.setLog.push({
         title: hopTrack.title,
         artist: hopTrack.artist,
@@ -734,6 +742,10 @@ export function useAutoMix() {
             ? { energy: +arc.energy.toFixed(2), phase: arc.phase, bpm: arc.bpm }
             : undefined,
           languages: getSelectedLanguageLabels(),
+          vibes: s.opts.vibes,
+          recent: recentlyPlayed(),
+          // everything already queued, so a refill only brings new songs
+          exclude: s.queue.slice(-150).map((t) => t.id),
         }),
       });
       if (!res.ok) return;

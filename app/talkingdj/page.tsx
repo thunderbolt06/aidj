@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { getEngine, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { recentlyPlayed } from "@/lib/client/history";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 
@@ -71,10 +72,12 @@ export default function TalkingDjPage() {
           body: JSON.stringify({
             prompt: action.prompt,
             languages: getSelectedLanguageLabels(),
+            recent: recentlyPlayed(),
           }),
         });
         if (intentRes.ok) {
           const plan = await intentRes.json();
+          mix.setOptions({ vibes: plan.vibes });
           const found = await Promise.all(
             (plan.queries as string[]).map((q) =>
               searchTracks(q).then((r) => r[0] ?? null).catch(() => null)

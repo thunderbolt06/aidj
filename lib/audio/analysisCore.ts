@@ -477,6 +477,9 @@ function minMax(a: number[], from: number, to: number): number[] {
   return a.map((v, i) => (i >= from && i < to && span > 0 ? (v - lo) / span : 0));
 }
 
+/** The hook is only searched for in the first 75% of the song. */
+const HOOK_SEARCH_FRACTION = 0.75;
+
 /** Peak of the interest curve (skipping intro/outro), snapped back to a bar. */
 function pickHook(
   interest: number[],
@@ -484,9 +487,12 @@ function pickHook(
 ): number | null {
   const n = interest.length;
   if (n < 40) return null;
+  // a peak in the last quarter leaves no room to play the section out and
+  // mix away, so never look there
+  const searchEnd = Math.min(n - 20, Math.floor(n * HOOK_SEARCH_FRACTION));
   let best = -1;
   let bestAt = -1;
-  for (let i = 10; i < n - 20; i++) {
+  for (let i = 10; i < searchEnd; i++) {
     if (interest[i] > best) {
       best = interest[i];
       bestAt = i;

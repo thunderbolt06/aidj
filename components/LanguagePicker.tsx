@@ -5,14 +5,37 @@ import { ALL_LANGUAGES, useLanguagePrefs, type Language } from "@/lib/client/lan
 
 // one request per page load, shared by every picker on screen
 let available: Promise<Language[]> | null = null;
+
+// The answer only changes when the library is re-ingested, so the last one is
+// kept in the browser and the picker paints with it straight away; the fetch
+// below (cold server: downloads and indexes the whole catalog) just refreshes it.
+const CACHE_KEY = "everplay:available-languages";
+
+function readCached(): Language[] {
+  try {
+    const codes = JSON.parse(window.localStorage.getItem(CACHE_KEY) ?? "[]") as string[];
+    return codes
+      .map((c) => ALL_LANGUAGES.find((l) => l.code === c))
+      .filter((l): l is Language => !!l);
+  } catch {
+    return [];
+  }
+}
+
 function loadAvailable(): Promise<Language[]> {
   available ??= fetch("/api/library")
     .then((r) => (r.ok ? r.json() : { languages: [] }))
-    .then((stats: { languages?: { code: string }[] }) =>
-      (stats.languages ?? [])
+    .then((stats: { languages?: { code: string }[] }) => {
+      const found = (stats.languages ?? [])
         .map((l) => ALL_LANGUAGES.find((known) => known.iso === l.code))
-        .filter((l): l is Language => !!l)
-    )
+        .filter((l): l is Language => !!l);
+      if (found.length) {
+        try {
+          window.localStorage.setItem(CACHE_KEY, JSON.stringify(found.map((l) => l.code)));
+        } catch {}
+      }
+      return found;
+    })
     .catch(() => {
       available = null; // let the next mount retry
       return [];
@@ -20,12 +43,15 @@ function loadAvailable(): Promise<Language[]> {
   return available;
 }
 
-/** Languages the library has songs in ([] until the first answer lands). */
+/** Languages the library has songs in (last known answer until the fresh one lands). */
 export function useAvailableLanguages(): Language[] {
   const [languages, setLanguages] = useState<Language[]>([]);
   useEffect(() => {
     let alive = true;
-    loadAvailable().then((l) => alive && setLanguages(l));
+    // read after mount, not in the initial state, so server and client markup match
+    const cached = readCached();
+    if (cached.length) setLanguages(cached);
+    loadAvailable().then((l) => alive && l.length && setLanguages(l));
     return () => {
       alive = false;
     };

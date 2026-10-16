@@ -225,7 +225,7 @@ function Detail({ label, days }: { label: string; days: number }) {
             ["skips < 20s", num(row.listening.earlySkips)],
             ["picked instead", num(row.listening.picks)],
             ["last played", ago(row.listening.lastPlayed)],
-            ["kind", row.era ? "era vibe" : row.anyLanguage ? "all languages" : row.group],
+            ["kind", row.era ? "era / timeless" : row.anyLanguage ? "all languages" : row.group],
           ].map(([k, v]) => (
             <div key={k} className="rounded-lg border border-zinc-800 p-2">
               <dt className="text-[10px] uppercase tracking-widest text-zinc-500">{k}</dt>
@@ -531,7 +531,7 @@ export default function StatsPage() {
                           <span className="block max-w-[16rem] truncate">{r.label}</span>
                           <span className="text-[10px] uppercase tracking-wider text-zinc-500">
                             {r.anyLanguage ? "all languages" : r.group}
-                            {r.era && " · era"}
+                            {r.era && " · era / timeless"}
                           </span>
                         </td>
                         <td className="px-2 py-2 text-right tabular-nums">{num(r.library.songs)}</td>

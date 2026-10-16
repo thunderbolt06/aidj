@@ -6,6 +6,7 @@
 #
 #   npm run library:vibes                     # the whole routine
 #   VIBES_MAX=2000 npm run library:vibes      # cap this run's downloads (default 4000)
+#   VIBES_TOPUP=300 npm run library:vibes     # songs every vibe should have (default 200)
 #   VIBES_PUSH=0 npm run library:vibes        # skip the upload to S3
 #
 # Scheduled monthly by the Claude app task "everplay-monthly-vibe-refresh"
@@ -51,7 +52,8 @@ if ! python3 scripts/library/harvest_vibes.py harvest --month "$MONTH"; then
   notify "Playlist search failed this month - kept last month's vibes. See $LOG"
   exit 1
 fi
-python3 scripts/library/harvest_vibes.py wanted --month "$MONTH" --max "${VIBES_MAX:-4000}" || exit 1
+# --topup: a vibe with fewer than 200 library songs asks for what it lacks first
+python3 scripts/library/harvest_vibes.py wanted --month "$MONTH" --max "${VIBES_MAX:-4000}" --topup "${VIBES_TOPUP:-200}" || exit 1
 WANTED="$LIB/sources/vibes/$MONTH/wanted.txt"
 
 free_gb=$(df -g "$LIB" | awk 'NR==2 {print $4}')

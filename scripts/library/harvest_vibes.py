@@ -12,6 +12,9 @@ song. This script reads those playlists; lib/server/vibes.ts picks from them.
             their songs   -> library/sources/vibes/<YYYY-MM>/
   wanted    the songs those playlists rank highly that the library lacks, in
             fetch_youtube.py --queries format -> .../<YYYY-MM>/wanted.txt
+            (--topup N: a vibe asks only for what it lacks to reach N library
+            songs, so downloads go where the pool is thin; every vibe is
+            guaranteed a share of the cap, not just the biggest hits)
   index     match every playlist song to a library track -> library/vibes.json
             (and vibes.public.json without the yt-* rows)
 
@@ -26,6 +29,7 @@ import argparse
 import collections
 import concurrent.futures as cf
 import datetime as dt
+import functools
 import json
 import os
 import re
@@ -71,6 +75,9 @@ SCRIPTS = {
     "hi": re.compile(r"^[\u0000-ɏऀ-ॿ -⁯\s]*$"),
     "pa": re.compile(r"^[\u0000-ɏऀ-ॿ਀-੿ -⁯\s]*$"),
 }
+# playlists about something no vibe is: worship music turns up for "devotional
+# morning", American holiday sets for "patriotic anthems"
+OFF_THEME = re.compile(r"\b(?:christian|worship|gospel|church|jesus|hymns?|4th of july|fourth of july|veterans?)\b", re.I)
 ONE_LONG_VIDEO = re.compile(r"jukebox|non ?-?stop|mashup|full album|\b\d+\s*(?:hour|hr)s?\b|megamix|back ?to ?back", re.I)
 # a re-recording of the song rather than the song: search for the original
 NOT_ORIGINAL = re.compile(r"slowed|reverb|sped ?up|nightcore|\b8d\b|lo-?fi|remix|cover|karaoke|instrumental|unplugged|reprise", re.I)
@@ -100,6 +107,24 @@ def load_vibes():
     return out, v.get("search", {})
 
 
+@functools.lru_cache(maxsize=1)
+def vibe_lists():
+    with open(VIBES_FILE) as f:
+        return json.load(f)
+
+
+def native(label):
+    """A vibe that only exists in Hindi or Punjabi: its search overrides are already in that language."""
+    v = vibe_lists()
+    return label in v["hindi"] or label in v["punjabi"]
+
+
+def curated(label):
+    """Vibes whose playlists are one channel's uploads by nature (lofi, ambient, royalty-free):
+    a channel dominating the list is the genre, not a sign of an artist catalogue."""
+    return label in vibe_lists().get("curated", [])
+
+
 def queries(label, lang, search):
     words = set(re.findall(r"[a-z]+", label.lower()))
     own = search.get(label)
@@ -109,6 +134,15 @@ def queries(label, lang, search):
     if lang == "en":
         return (own or [f"{label} songs playlist", f"{label} playlist"]) + [f"{label} songs {year}"]
     word = LANG_WORD[lang]
+    # an English label searched in Hindi finds other people's "Chill" playlists:
+    # "<label>|<lang>" gives the phrasing that language's curators actually use
+    own_lang = search.get(f"{label}|{lang}")
+    if own_lang:
+        return own_lang + [f"{label} {word} songs {year}"]
+    if own and native(label):
+        # the year search must name the language too: "70s evergreen songs 2026"
+        # alone finds English chart playlists ("Best Music 2000 to 2026")
+        return own + [f"{label} {word} songs {year}"]
     if words & IMPLIES[lang]:
         return (own or [f"{label} songs playlist", f"best {label} songs"]) + [f"{label} songs {year}"]
     # "late night chill" in Hindi: say so, or the search answers in English
@@ -338,7 +372,7 @@ def playlist_ok(p, lang):
         return False
     if lang == "en" and not SCRIPTS["en"].match(p["title"]):
         return False
-    return not ONE_LONG_VIDEO.search(p["title"])
+    return not (ONE_LONG_VIDEO.search(p["title"]) or OFF_THEME.search(p["title"]))
 
 
 def fetch_playlist(pid, month):
@@ -426,7 +460,7 @@ def harvest_one(label, lang, search, month, log):
             continue
         # "chill Drake playlist" is one artist's catalogue, not a vibe
         top = max(collections.Counter(e["channel"] for e in usable).values())
-        if top > 0.4 * len(usable):
+        if top > (0.9 if curated(label) else 0.4) * len(usable):
             continue
         (old if stale(pl) else kept).append(p["id"])
     # only a thin vibe falls back on old playlists
@@ -559,8 +593,10 @@ def cmd_wanted(args):
     matcher = Matcher(load_catalog())
     # song key -> what we know about it across every vibe
     songs = {}
+    have = {}  # (label, lang) -> library songs it already has
     for label, lang, pl, i, e, artist, title, confident, lid in walk_harvest(args.month, matcher, args.only):
         if lid:
+            have.setdefault((label, lang), set()).add(lid)
             continue
         key = f"{norm_title(title)}|{norm(artist or '')}"
         s = songs.setdefault(key, {"artist": artist, "title": title, "langs": {}, "vibes": {}, "entry": e, "confident": confident})
@@ -576,11 +612,17 @@ def cmd_wanted(args):
         for v, w in s["vibes"].items():
             per_vibe.setdefault(v, []).append((w, key))
     chosen = {}
+    nominated = {}  # vibe -> its picks, best first
     for v, lst in per_vibe.items():
         lst.sort(reverse=True)
         taken = 0
+        # --topup: a vibe asks only for what it lacks to reach N songs (plus a few
+        # fresh ones), so the downloads go where the pool is thin
+        limit = args.per_vibe
+        if args.topup:
+            limit = min(limit, max(args.topup - len(have.get(v, ())), args.fresh))
         for w, key in lst:
-            if taken >= args.per_vibe:
+            if taken >= limit:
                 break
             s = songs[key]
             if line_key(s["artist"], s["title"]).lower() in matcher.done:
@@ -589,8 +631,16 @@ def cmd_wanted(args):
             if w < 0.75 and len(lst) > args.per_vibe * 2:
                 continue
             chosen[key] = max(chosen.get(key, 0), w)
+            nominated.setdefault(v, []).append(key)
             taken += 1
-    ranked = sorted(chosen, key=lambda k: -chosen[k])[: args.max]
+    # The cap used to take the globally best-supported songs, which are hits
+    # many playlists share: niche vibes (jazz, lofi, holi) never got a song in.
+    # Every vibe is now guaranteed its best few before the rest compete.
+    quota = args.max // (2 * max(1, len(nominated)))
+    first = {key for keys in nominated.values() for key in keys[:quota]}
+    rest = sorted((k for k in chosen if k not in first), key=lambda k: -chosen[k])
+    ranked = sorted(first, key=lambda k: -chosen[k]) + rest
+    ranked = sorted(ranked[: args.max], key=lambda k: -chosen[k])
 
     lines = []
     for key in ranked:
@@ -607,7 +657,8 @@ def cmd_wanted(args):
         # song (and so gets the audio upload, which lyrics line up with); one
         # whose title won't parse is taken as the exact upload the playlist
         # holds - unless that upload is a remix / slowed edit of the song
-        if not s["confident"] and not remake(e["title"]):
+        # (lofi / instrumental vibes want the remake: the exact upload, always)
+        if not s["confident"] and (not remake(e["title"]) or any(curated(v[0]) for v in s["vibes"])):
             labels.append(f"video: {e['id']}")
         lines.append(" | ".join([line_key(s["artist"], s["title"]), *labels]))
 
@@ -685,6 +736,8 @@ def main():
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--per-vibe", type=int, default=120, help="wanted: missing songs each vibe may nominate")
     ap.add_argument("--max", type=int, default=6000, help="wanted: cap on the whole list")
+    ap.add_argument("--topup", type=int, default=0, help="wanted: each vibe asks only for the songs it lacks to reach N")
+    ap.add_argument("--fresh", type=int, default=40, help="wanted: with --topup, songs even a full vibe may ask for")
     args = ap.parse_args()
     {"harvest": cmd_harvest, "wanted": cmd_wanted, "index": cmd_index}[args.command](args)
 

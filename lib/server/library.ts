@@ -417,19 +417,31 @@ function recency(r: CatalogRow): number {
  * weight itself (or its cube, in the grid), so older songs are not banned,
  * they just turn up the way a classic does in a modern set - rarely.
  */
-function freshness(r: CatalogRow): number {
+export function freshness(r: CatalogRow): number {
   return 0.1 + 0.9 * recency(r) ** 1.5;
 }
 
 export const ERA_WORDS = /\b(retro|classics?|evergreen|oldies|old school|nostalgia|\d0s|\d{4}s)\b/i;
 
 /**
+ * Genres whose best songs are old: leaning a jazz or ghazal set toward recent
+ * songs just serves the same few modern tracks (measured: jazz and blues
+ * repeated ~70 songs over 400 picks, funk and soul 48). They skip the age
+ * lean like an era vibe does - and a median year in the 70s is not a defect.
+ */
+export const TIMELESS_WORDS = /\b(jazz|blues|funk|soul|ghazal|classical|chiptune)\b/i;
+
+/** A vibe whose songs' age is part of what it is, so it is neither leaned nor flagged. */
+export const ageless = (label: string) => ERA_WORDS.test(label) || TIMELESS_WORDS.test(label);
+
+/**
  * Playlists mix eras ("100 greatest driving songs" is mostly the 70s) and
  * sets that keep reaching back decades feel dated: a lean toward recent
- * songs - unless the vibe is about an era ("90s nostalgia", "retro classics").
+ * songs - unless the vibe is about an era ("90s nostalgia", "retro classics")
+ * or a genre that is old by nature ("jazz", "late night ghazal").
  */
 function recencyLean(vibes: VibeWeight[], era: unknown): (r: CatalogRow) => number {
-  if (era || vibes.some((v) => ERA_WORDS.test(v.label))) return () => 1;
+  if (era || vibes.some((v) => ageless(v.label))) return () => 1;
   return freshness;
 }
 

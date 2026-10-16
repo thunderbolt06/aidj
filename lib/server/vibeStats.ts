@@ -1,5 +1,5 @@
 import VIBES from "@/lib/vibes.json";
-import { ERA_WORDS, loadCatalog, type CatalogRow } from "@/lib/server/library";
+import { ageless, freshness, loadCatalog, type CatalogRow } from "@/lib/server/library";
 import { ALL_VIBES, loadVibeIndex, type VibeIndex } from "@/lib/server/vibes";
 import { readEvents, type ListenEvent, type PlayEnd, type PlayEvent } from "@/lib/server/events";
 
@@ -45,6 +45,7 @@ export interface VibeRow {
   group: "general" | "hindi" | "punjabi";
   /** also harvested in Hindi and Punjabi */
   anyLanguage: boolean;
+  /** an era ("90s nostalgia") or a timeless genre ("jazz"): old songs are the point, so age is never flagged */
   era: boolean;
   library: {
     songs: number;
@@ -56,6 +57,13 @@ export interface VibeRow {
     p75Year: number | null;
     /** share of dated songs from the last 5 years */
     recentShare: number | null;
+    /**
+     * share of what listeners are served that predates 2000: songs weighted
+     * like the picker does (affinity and age lean, both squared). The pool's
+     * median year says what the playlists hold; the picker leans young, so
+     * this says what a set actually sounds like.
+     */
+    oldShare: number | null;
     languages: Record<string, number>;
   };
   listening: Listening;
@@ -151,6 +159,15 @@ function libraryFacts(label: string, index: VibeIndex | null, byId: Map<string, 
   const thisYear = new Date().getFullYear();
   const languages: Record<string, number> = {};
   for (const r of rows) if (r.language) languages[r.language] = (languages[r.language] ?? 0) + 1;
+  const aff = index?.affinity.get(label);
+  let served = 0;
+  let servedOld = 0;
+  for (const r of rows) {
+    if (!r.year) continue;
+    const w = ((aff?.get(r.id) ?? 0) * freshness(r)) ** 2;
+    served += w;
+    if (r.year < 2000) servedOld += w;
+  }
   const entries = ps.reduce((s, p) => s + (index?.playlists[p]?.size ?? 0), 0);
   const have = ps.reduce((s, p) => s + (index?.members[p]?.length ?? 0), 0);
   return {
@@ -165,6 +182,7 @@ function libraryFacts(label: string, index: VibeIndex | null, byId: Map<string, 
       p25Year: median(years, 0.25),
       p75Year: median(years, 0.75),
       recentShare: ratio(years.filter((y) => y >= thisYear - 5).length, years.length),
+      oldShare: ratio(servedOld, served),
       languages,
     },
   };
@@ -200,12 +218,19 @@ function issuesFor(row: Omit<VibeRow, "issues" | "status">): Issue[] {
   else if (l.playlists < 5) out.push({ level: "warning", text: `Only ${l.playlists} playlists behind it` });
   if (l.playlists && l.songs < 60) out.push({ level: "critical", text: `Only ${l.songs} songs - sets will repeat` });
   else if (l.playlists && l.songs < 150) out.push({ level: "warning", text: `Thin: ${l.songs} songs` });
+  // an all-language vibe is also a Hindi and a Punjabi vibe: each needs its own pool
+  if (row.anyLanguage && l.playlists)
+    for (const [code, name] of [["hi", "Hindi"], ["pa", "Punjabi"]] as const) {
+      const n = l.languages[code] ?? 0;
+      if (n < 60) out.push({ level: "critical", text: `Only ${n} ${name} songs - ${name} sets will repeat` });
+      else if (n < 150) out.push({ level: "warning", text: `Thin in ${name}: ${n} songs` });
+    }
   if (l.coverage != null && l.coverage < 0.2)
     out.push({ level: "warning", text: `Library has ${Math.round(l.coverage * 100)}% of its playlists' songs` });
-  if (!row.era && l.medianYear != null && l.medianYear < 2005)
+  if (!row.era && l.oldShare != null && l.oldShare >= 0.2)
     out.push({
-      level: l.medianYear < 1995 ? "critical" : "warning",
-      text: `Leans old: median year ${l.medianYear}`,
+      level: l.oldShare >= 0.4 ? "critical" : "warning",
+      text: `Leans old: ${Math.round(l.oldShare * 100)}% of what's served is from before 2000 (pool median ${l.medianYear})`,
     });
   if (x.skipRate != null && x.plays >= 15 && x.skipRate >= 0.25)
     out.push({
@@ -243,7 +268,7 @@ function vibeRows(
       label,
       group: groupOf(label),
       anyLanguage: VIBES.anyLanguage.includes(label),
-      era: ERA_WORDS.test(label),
+      era: ageless(label),
       library: libraryFacts(label, index, byId).facts,
       listening: listening(playsBy.get(label) ?? [], setsBy.get(label) ?? new Set()),
     };

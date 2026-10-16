@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Track } from "@/lib/types";
 import { getEngine, loadTrack, searchTracks, type LoadedTrack } from "@/lib/client/dj";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 
 interface Design {
   title: string;
@@ -35,8 +37,8 @@ export default function MashupPage() {
   const [status, setStatus] = useState("");
   const [stemError, setStemError] = useState("");
   const [playing, setPlaying] = useState(false);
-  const [nowTitle, setNowTitle] = useState("");
-  const [bedTitle, setBedTitle] = useState("");
+  const [nowTrack, setNowTrack] = useState<Track | null>(null);
+  const [bedTrack, setBedTrack] = useState<Track | null>(null);
 
   const rt = useRef({
     prompt: "",
@@ -149,7 +151,7 @@ export default function MashupPage() {
       const first = r.preloaded.shift()!;
       r.current = first;
       r.anchorBpm = first.analysis.bpm;
-      setNowTitle(first.meta.title);
+      setNowTrack(first.meta);
       getEngine().startTrack(
         first.buffer,
         Math.max(0, (first.meta.famousStart ?? 40) - 2)
@@ -186,7 +188,7 @@ export default function MashupPage() {
             { holdRate: true }
           );
           r.current = next;
-          setNowTitle(next.meta.title);
+          setNowTrack(next.meta);
         }
         tick();
       }, barSec * ROTATE_BARS * 1000);
@@ -208,8 +210,8 @@ export default function MashupPage() {
       r.bed = bed;
       r.preloaded = r.preloaded.slice(2);
       r.anchorBpm = bed.analysis.bpm;
-      setBedTitle(bed.meta.title);
-      setNowTitle(firstVox.meta.title);
+      setBedTrack(bed.meta);
+      setNowTrack(firstVox.meta);
       setStatus("");
       let rate = bed.analysis.bpm / Math.max(firstVox.analysis.bpm, 1);
       if (rate < 0.85 || rate > 1.18) rate = 1;
@@ -273,7 +275,7 @@ export default function MashupPage() {
               offset: Math.max(0, (next.meta.famousStart ?? 40) - 2),
               rate,
             });
-            setNowTitle(next.meta.title);
+            setNowTrack(next.meta);
           } catch {
             setStatus("vocal stem failed - keeping current vocal");
           }
@@ -378,18 +380,26 @@ export default function MashupPage() {
 
       {playing && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {mashMode === "stems" && (
-            <div className="rounded-xl border border-zinc-800 p-3 text-sm">
-              <p className="text-xs uppercase text-zinc-500">instrumental bed</p>
-              <p className="truncate font-semibold">{bedTitle}</p>
+          {mashMode === "stems" && bedTrack && (
+            <div className="flex items-center gap-3 rounded-xl border border-zinc-800 p-3 text-sm">
+              <Cover src={bedTrack.thumbnail} className="h-14 w-14 rounded-lg" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase text-zinc-500">instrumental bed</p>
+                <p className="truncate font-semibold">{bedTrack.title}</p>
+              </div>
             </div>
           )}
-          <div className="rounded-xl border border-cyan-900 p-3 text-sm">
-            <p className="text-xs uppercase text-zinc-500">
-              {mashMode === "stems" ? "vocal on top" : "now playing"}
-            </p>
-            <p className="truncate font-semibold text-cyan-300">{nowTitle}</p>
-          </div>
+          {nowTrack && (
+            <div className="flex items-center gap-3 rounded-xl border border-cyan-900 p-3 text-sm">
+              <Cover src={nowTrack.thumbnail} className="h-14 w-14 rounded-lg" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase text-zinc-500">
+                  {mashMode === "stems" ? "vocal on top" : "now playing"}
+                </p>
+                <p className="truncate font-semibold text-cyan-300">{nowTrack.title}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </main>

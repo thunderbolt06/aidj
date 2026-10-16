@@ -9,6 +9,7 @@ import {
   sliceAudioBuffer,
 } from "@/lib/audio/render";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 
 interface ChainStop {
   track: Track;
@@ -439,7 +440,13 @@ export default function LyricDjPage() {
 
       {!chain.length && <SearchPicker placeholder="Seed song…" onPick={build} />}
       {seed && building && (
-        <p className="animate-pulse text-sm text-amber-400">{status}</p>
+        <div className="flex items-center gap-3">
+          <Cover src={seed.thumbnail} className="h-10 w-10 rounded-lg" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{seed.title}</p>
+            <p className="animate-pulse text-sm text-amber-400">{status}</p>
+          </div>
+        </div>
       )}
       {!building && status && (
         <p
@@ -463,11 +470,19 @@ export default function LyricDjPage() {
                       : "border-zinc-800"
                   }`}
                 >
-                  <p className="truncate font-semibold">
-                    {i + 1}. {stop.track.title}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <Cover src={stop.track.thumbnail} className="h-11 w-11 rounded-lg" />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">
+                        {i + 1}. {stop.track.title}
+                      </p>
+                      <p className="truncate text-xs text-zinc-500">
+                        {stop.track.artist}
+                      </p>
+                    </div>
+                  </div>
                   {stop.handoff && (
-                    <p className="mt-1 text-xs text-zinc-400">
+                    <p className="mt-2 text-xs text-zinc-400">
                       {stop.handoff.sharedWord ? (
                         <>
                           hands off the word{" "}

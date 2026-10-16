@@ -8,7 +8,8 @@
  *        ▼
  *   library/audio/<id>.<ext>   the playable file
  *   library/meta/<id>.json     full metadata + analysis the app serves as-is
- *   library/covers/<id>.jpg    generated cover (hue = musical key)
+ *   library/covers/<id>.jpg    placeholder cover (gradient, hue = musical key) until
+ *                              fetch_covers.py swaps in the song's real album art
  *   library/catalog.json       compact index for search / next-track picking
  *
  * Everything the browser used to compute after "extracting audio…" happens
@@ -162,8 +163,37 @@ function hsl(h, s, l) {
   return `0x${f(0)}${f(8)}${f(4)}`;
 }
 
+/**
+ * Ids whose cover is real album art (decided by fetch_covers.py, logged in its
+ * manifest). Re-ingesting or re-analysing a song must never swap that art back
+ * for a gradient.
+ */
+let realCovers = null;
+async function hasRealCover(id) {
+  if (!realCovers) {
+    realCovers = new Set();
+    let text = "";
+    try {
+      text = await readFile(path.join(LIBRARY, "sources", "covers", "manifest.jsonl"), "utf8");
+    } catch {
+      /* no manifest yet: every cover is still a gradient */
+    }
+    for (const line of text.split("\n")) {
+      try {
+        const row = JSON.parse(line); // the last row of an id wins
+        if (row.status === "itunes" || row.status === "ytmusic" || row.status === "youtube") realCovers.add(row.id);
+        else realCovers.delete(row.id);
+      } catch {
+        /* blank or torn line */
+      }
+    }
+  }
+  return realCovers.has(id);
+}
+
 /** Gradient cover: hue = Camelot number, so tracks that mix well look alike. */
 async function makeCover(id, analysis) {
+  if (existsSync(path.join(DIRS.covers, `${id}.jpg`)) && (await hasRealCover(id))) return;
   const m = /^(\d+)([AB])$/.exec(analysis.camelot ?? "");
   const hue = m ? (parseInt(m[1], 10) - 1) * 30 : parseInt(createHash("md5").update(id).digest("hex").slice(0, 3), 16) % 360;
   const minor = m?.[2] === "A";

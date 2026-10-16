@@ -8,6 +8,7 @@ import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { ARC_SHAPES, arcEnergyAt, type ArcShape } from "@/lib/audio/arc";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 const DURATIONS = [10, 20, 30, 45];
 
@@ -214,7 +215,10 @@ export default function ArcPage() {
           </div>
           {mix.now && (
             <>
-              <p className="font-semibold">{mix.now.meta.title}</p>
+              <div className="flex items-center gap-3">
+                <Cover src={mix.now.meta.thumbnail} className="h-14 w-14 rounded-lg" />
+                <p className="font-semibold">{mix.now.meta.title}</p>
+              </div>
               <HeatmapBar meta={mix.now.meta} position={mix.position} />
               <p className="text-xs text-zinc-500">
                 {mix.now.analysis.bpm} BPM

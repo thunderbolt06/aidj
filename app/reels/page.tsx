@@ -7,6 +7,7 @@ import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 /**
  * Reels for music: every card is a song's famous part. Swiping to the next
@@ -190,16 +191,32 @@ export default function ReelsPage() {
           <section
             key={`${t.id}-${i}`}
             data-idx={i}
-            className="relative flex h-dvh snap-start items-end"
+            className="relative flex h-dvh snap-start flex-col overflow-hidden"
           >
+            {/* Covers are square: cropping one to portrait would lose almost
+                half the art, so a blurred copy fills the frame and the sharp
+                square sits on top. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={t.thumbnail}
               alt=""
-              className={`absolute inset-0 h-full w-full object-cover transition ${
+              aria-hidden
+              loading="lazy"
+              decoding="async"
+              onError={(e) => (e.currentTarget.style.display = "none")}
+              className={`absolute inset-0 h-full w-full scale-125 object-cover blur-3xl transition ${
                 isActive ? "opacity-60" : "opacity-25"
               }`}
             />
+            <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-6 pt-6">
+              <Cover
+                src={t.thumbnail}
+                lazy
+                className={`w-[min(80%,22rem,45dvh)] rounded-2xl shadow-2xl shadow-black/60 transition ${
+                  isActive ? "opacity-100" : "opacity-50"
+                }`}
+              />
+            </div>
             <div className="relative z-10 w-full bg-gradient-to-t from-black via-black/60 to-transparent p-6 pb-12">
               <p className="text-xl font-bold drop-shadow">{t.title}</p>
               <p className="text-sm text-zinc-300">{t.artist}</p>

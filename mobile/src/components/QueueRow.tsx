@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme";
+import { Cover } from "./Cover";
 
 /**
  * One row of the queue sheet: swipe left to delete (slides to reveal a trash
@@ -9,12 +10,14 @@ import { colors } from "../theme";
  */
 export function QueueRow({
   title,
+  thumbnail,
   isNow,
   onDelete,
   onMoveUp,
   onMoveDown,
 }: {
   title: string;
+  thumbnail?: string;
   isNow: boolean;
   onDelete: () => void;
   onMoveUp?: () => void;
@@ -61,6 +64,7 @@ export function QueueRow({
           { transform: [{ translateX: dx }] },
         ]}
       >
+        <Cover uri={thumbnail} style={styles.thumb} />
         <Text
           numberOfLines={1}
           style={[styles.title, isNow && { color: colors.cyan }]}
@@ -105,8 +109,9 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 6,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
   },
+  thumb: { height: 36, width: 36, borderRadius: 4, backgroundColor: colors.surfaceHi },
   title: { flex: 1, color: colors.text, fontSize: 13 },
   chevrons: { flexDirection: "row", gap: 14, paddingLeft: 4 },
   chevron: { color: colors.textGhost, fontSize: 13 },

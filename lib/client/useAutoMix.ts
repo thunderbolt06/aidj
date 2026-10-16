@@ -87,6 +87,8 @@ export interface HopLogEntry {
   artist: string;
   style: TransitionPlan["style"];
   index: number;
+  /** Cover art, kept here so the recap still has it after the song leaves the queue. */
+  thumbnail?: string;
 }
 
 /**
@@ -443,6 +445,7 @@ export function useAutoMix() {
       artist: first.meta.artist,
       style: "crossfade",
       index: 0,
+      thumbnail: first.meta.thumbnail,
     });
     setSetLog([...st.current.setLog]);
     const famous = first.meta.famousStart ?? 40;
@@ -759,6 +762,7 @@ export function useAutoMix() {
         artist: hopTrack.artist,
         style: plan.style,
         index: s.nowIdx,
+        thumbnail: hopTrack.thumbnail,
       });
       setSetLog([...s.setLog]);
     }

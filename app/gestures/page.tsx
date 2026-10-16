@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { getEngine } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 
 /**
  * Gesture deck:
@@ -47,6 +48,8 @@ export default function GesturesPage() {
       getEngine().tension(false);
     }
   }
+
+  const nextTrack = mix.queue[(mix.nowIdx + 1) % mix.queue.length];
 
   return (
     <main className="mx-auto max-w-xl p-6 space-y-6">
@@ -114,6 +117,14 @@ export default function GesturesPage() {
             }}
           >
             <div>
+              {mix.now && (
+                // pointer-events-none: a long press that starts on an <img>
+                // opens the browser's image menu and cancels the hold
+                <Cover
+                  src={mix.now.meta.thumbnail}
+                  className="pointer-events-none mx-auto mb-3 h-20 w-20 rounded-xl"
+                />
+              )}
               <p className="text-lg font-bold">
                 {holding ? "building…" : "HOLD ME"}
               </p>
@@ -126,9 +137,12 @@ export default function GesturesPage() {
             </div>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="truncate text-zinc-400">
-              next:{" "}
-              {mix.queue[(mix.nowIdx + 1) % mix.queue.length]?.title ?? ","}
+            <span className="flex min-w-0 items-center gap-2 text-zinc-400">
+              next:
+              {nextTrack && (
+                <Cover src={nextTrack.thumbnail} className="h-7 w-7 rounded" />
+              )}
+              <span className="truncate">{nextTrack?.title ?? ","}</span>
             </span>
             <button
               onClick={() => mix.stop()}

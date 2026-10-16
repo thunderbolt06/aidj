@@ -8,6 +8,7 @@ import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 type SR = {
   new (): {
@@ -184,7 +185,13 @@ export default function TalkingDjPage() {
 
       {mix.now && (
         <div className="rounded-xl border border-zinc-800 p-4 space-y-2">
-          <p className="truncate font-semibold">{mix.now.meta.title}</p>
+          <div className="flex items-center gap-3">
+            <Cover src={mix.now.meta.thumbnail} className="h-12 w-12 rounded-lg" />
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{mix.now.meta.title}</p>
+              <p className="truncate text-xs text-zinc-400">{mix.now.meta.artist}</p>
+            </div>
+          </div>
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
         </div>
       )}

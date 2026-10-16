@@ -8,6 +8,10 @@ export interface Track {
   title: string;
   artist: string;
   duration: number; // seconds
+  /**
+   * Cover image URL. Songs have square album art (512x512 JPEG); `syn-` FX
+   * and loops keep a 480x270 gradient. Can fail to load - hide, don't break.
+   */
   thumbnail: string;
   // precomputed at ingest - present on everything the library serves
   kind?: TrackKind;

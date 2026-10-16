@@ -7,6 +7,7 @@ import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 interface Suggestion {
   track: Track;
@@ -85,7 +86,10 @@ export default function GridPage() {
 
       {mix.now && (
         <div className="rounded-xl border border-zinc-800 p-4 space-y-2">
-          <p className="truncate font-semibold">{mix.now.meta.title}</p>
+          <div className="flex items-center gap-3">
+            <Cover src={mix.now.meta.thumbnail} className="h-14 w-14 rounded-lg" />
+            <p className="truncate font-semibold">{mix.now.meta.title}</p>
+          </div>
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           {mix.lastPlan && (
             <p className="text-xs text-cyan-300">
@@ -116,11 +120,9 @@ export default function GridPage() {
               onClick={() => tap(s)}
               className={`group relative aspect-square overflow-hidden rounded-lg border-2 ${tagColor[s.tag]}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Cover
                 src={s.track.thumbnail}
-                alt=""
-                className="h-full w-full object-cover transition group-hover:scale-105 group-hover:opacity-60"
+                className="h-full w-full transition group-hover:scale-105 group-hover:opacity-60"
               />
               <span className="absolute inset-x-0 bottom-0 bg-black/70 p-1 text-[10px] leading-tight line-clamp-2">
                 {s.track.title}

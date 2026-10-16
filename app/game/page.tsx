@@ -439,6 +439,8 @@ export default function GamePage() {
       };
       g.roundNo += 1;
       g.prepMsg = "";
+      // not shown until the reveal - fetch it now so it doesn't pop in late
+      if (loaded.meta.thumbnail) new Image().src = loaded.meta.thumbnail;
       const start = Math.max(0, (loaded.meta.famousStart ?? 40) - 5);
       await getEngine().resume();
       getEngine().startTrack(inst, start, loaded.analysis);
@@ -721,6 +723,17 @@ export default function GamePage() {
                 <p className="text-lg font-semibold text-emerald-400">
                   🎉 {g.teams[r.winner!]} takes {r.stealPoints ? "½" : "1"} point!
                 </p>
+              )}
+              {/* the cover only shows once the round is settled - earlier it gives the song away */}
+              {r.loaded.meta.thumbnail && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={r.loaded.meta.id}
+                  src={r.loaded.meta.thumbnail}
+                  alt=""
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  className="mx-auto h-40 w-40 rounded-lg object-cover shadow-lg shadow-black/50"
+                />
               )}
               <p className="text-xl font-bold">{r.loaded.meta.title}</p>
               <p className="text-sm text-zinc-400">{r.loaded.meta.artist}</p>

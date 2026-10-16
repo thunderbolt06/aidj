@@ -4,6 +4,7 @@ import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { FxPad } from "@/components/FxPad";
+import { Cover } from "@/components/Cover";
 
 /**
  * FX pad deck: an endless auto-mixed set with the library's effects and beat
@@ -48,8 +49,9 @@ export default function PadsPage() {
 
       {mix.running && mix.now && (
         <section className="space-y-2">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="min-w-0 truncate text-sm">
+          <div className="flex items-center gap-3">
+            <Cover src={mix.now.meta.thumbnail} className="h-10 w-10 rounded-lg" />
+            <p className="min-w-0 flex-1 truncate text-sm">
               <span className="font-semibold">{mix.now.meta.title}</span>
               <span className="text-zinc-400"> · {mix.now.meta.artist}</span>
             </p>

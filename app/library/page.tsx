@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Track } from "@/lib/types";
 import { playOnHome, searchTracks } from "@/lib/client/dj";
 import { PlayIcon } from "@/components/icons";
+import { Cover } from "@/components/Cover";
 
 interface Stats {
   songs: number;
@@ -111,9 +112,8 @@ export default function LibraryPage() {
               title={`Play ${t.title}`}
               className="group flex min-w-0 flex-1 items-center gap-3 text-left"
             >
-              <span className="relative h-10 w-16 shrink-0 overflow-hidden rounded">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={t.thumbnail} alt="" className="h-full w-full object-cover" />
+              <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded">
+                <Cover src={t.thumbnail} lazy className="h-full w-full" />
                 <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-cyan-300 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
                   <PlayIcon size={16} />
                 </span>

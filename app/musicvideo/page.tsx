@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 import { MusicVisualizer } from "@/components/MusicVisualizer";
 
 /**
@@ -40,16 +41,17 @@ export default function MusicVideoPage() {
           {mix.queue.map((t, i) => (
             <li
               key={`${t.id}-${i}`}
-              className={`flex items-center justify-between rounded px-3 py-1.5 ${
+              className={`flex items-center gap-3 rounded px-3 py-1.5 ${
                 i === mix.nowIdx ? "bg-cyan-950/40 text-cyan-300" : "bg-zinc-900"
               }`}
             >
-              <span className="truncate">
+              <Cover src={t.thumbnail} lazy className="h-8 w-8 rounded" />
+              <span className="min-w-0 flex-1 truncate">
                 {i + 1}. {t.title}
               </span>
               <button
                 onClick={() => mix.setQueue((q) => q.filter((_, j) => j !== i))}
-                className="ml-2 text-zinc-500 hover:text-red-400"
+                className="shrink-0 text-zinc-500 hover:text-red-400"
               >
                 ✕
               </button>
@@ -87,12 +89,15 @@ export default function MusicVideoPage() {
           </>
         )}
         {mix.now && (
-          <span className="text-xs text-zinc-400">
-            {mix.now.meta.title}
-            {mix.now.analysis.camelot && (
-              <span className="ml-1 text-violet-400">· {mix.now.analysis.camelot}</span>
-            )}{" "}
-            · {mix.now.analysis.bpm} BPM
+          <span className="flex items-center gap-2 text-xs text-zinc-400">
+            <Cover src={mix.now.meta.thumbnail} className="h-8 w-8 rounded" />
+            <span>
+              {mix.now.meta.title}
+              {mix.now.analysis.camelot && (
+                <span className="ml-1 text-violet-400">· {mix.now.analysis.camelot}</span>
+              )}{" "}
+              · {mix.now.analysis.bpm} BPM
+            </span>
           </span>
         )}
       </div>

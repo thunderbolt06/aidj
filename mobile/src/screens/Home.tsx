@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Image,
   PanResponder,
   Pressable,
   ScrollView,
@@ -35,6 +34,7 @@ import { HeatmapBar } from "../components/HeatmapBar";
 import { BeatTapButton } from "../components/BeatTapButton";
 import { SearchPicker } from "../components/SearchPicker";
 import { QueueRow } from "../components/QueueRow";
+import { Cover } from "../components/Cover";
 import { GearIcon, PauseIcon, PlayIcon, SkipIcon } from "../components/icons";
 import { colors } from "../theme";
 
@@ -547,7 +547,7 @@ export default function Home() {
                   pendingTile && pendingTile !== s.track.id && { opacity: 0.4 },
                 ]}
               >
-                <Image source={{ uri: s.track.thumbnail }} style={styles.tileImg} />
+                <Cover uri={s.track.thumbnail} style={styles.tileImg} />
                 <View style={styles.tileShade} />
                 <Text numberOfLines={2} style={styles.tileTitle}>
                   {s.track.title}
@@ -601,9 +601,7 @@ export default function Home() {
           disabled={!homeView}
           style={styles.nowPlaying}
         >
-          {mix.now && (
-            <Image source={{ uri: mix.now.meta.thumbnail }} style={styles.nowThumb} />
-          )}
+          {mix.now && <Cover uri={mix.now.meta.thumbnail} style={styles.nowThumb} />}
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={1} style={styles.nowTitle}>
               {mix.now?.meta.title ?? "…"}
@@ -646,6 +644,7 @@ export default function Home() {
             <QueueRow
               key={`${t.id}-${i}`}
               title={t.title}
+              thumbnail={t.thumbnail}
               isNow={i === mix.nowIdx}
               onDelete={() => mix.setQueue((q) => q.filter((_, j) => j !== i))}
               onMoveUp={i > 0 ? () => mix.moveInQueue(i, i - 1) : undefined}
@@ -658,6 +657,7 @@ export default function Home() {
       )}
 
       <Pressable style={styles.queueBar} onPress={() => setQueueOpen((o) => !o)}>
+        {upNext && <Cover uri={upNext.thumbnail} style={styles.queueBarThumb} />}
         <Text numberOfLines={1} style={styles.queueBarText}>
           queue: {upNext?.title ?? "…"}
         </Text>
@@ -932,7 +932,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.surface,
     paddingVertical: 10,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
-  queueBarText: { fontSize: 12, color: colors.textDim, maxWidth: "90%" },
+  queueBarThumb: { height: 22, width: 22, borderRadius: 4, backgroundColor: colors.surface },
+  queueBarText: { fontSize: 12, color: colors.textDim, maxWidth: "90%", flexShrink: 1 },
 });

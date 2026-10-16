@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { loadTrack, type LoadedTrack } from "@/lib/client/dj";
 import { audioBufferToWav, renderReel } from "@/lib/audio/render";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 
 /**
  * Export Reel: pick 2-3 songs, offline-render their famous parts into one
@@ -87,14 +88,16 @@ export default function ExportPage() {
           {tracks.map((t, i) => (
             <li
               key={`${t.id}-${i}`}
-              className="flex items-center justify-between rounded bg-zinc-900 px-3 py-1.5"
+              className="flex items-center gap-3 rounded bg-zinc-900 px-3 py-1.5"
             >
-              <span className="truncate">
+              <Cover src={t.thumbnail} className="h-9 w-9 rounded" />
+              <span className="min-w-0 flex-1 truncate">
                 {i + 1}. {t.title}
+                <span className="text-zinc-500"> · {t.artist}</span>
               </span>
               <button
                 onClick={() => setTracks((cur) => cur.filter((_, j) => j !== i))}
-                className="ml-2 text-zinc-500 hover:text-red-400"
+                className="shrink-0 text-zinc-500 hover:text-red-400"
               >
                 ✕
               </button>

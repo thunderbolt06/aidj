@@ -6,6 +6,20 @@ import { getEngine, loadTrack, type LoadedTrack } from "@/lib/client/dj";
 import { analyzeTrack } from "@/lib/audio/analysis";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
+
+/** The picked song under its search box: square cover, title, tempo. */
+function DeckCover({ loaded }: { loaded: LoadedTrack }) {
+  return (
+    <div className="mt-2 flex items-center gap-3">
+      <Cover src={loaded.meta.thumbnail} className="h-12 w-12 rounded-lg" />
+      <p className="min-w-0 truncate text-sm">
+        {loaded.meta.title}{" "}
+        <span className="text-zinc-500">· {loaded.analysis.bpm} BPM</span>
+      </p>
+    </div>
+  );
+}
 
 /**
  * Generated-bridge mode: instead of blending A into B, an AI-composed clip
@@ -142,20 +156,12 @@ export default function BridgePage() {
         <div>
           <p className="mb-1 text-xs uppercase text-zinc-500">Song A</p>
           <SearchPicker onPick={(t) => pick("A", t)} />
-          {a && (
-            <p className="mt-1 truncate text-sm">
-              {a.meta.title} <span className="text-zinc-500">· {a.analysis.bpm} BPM</span>
-            </p>
-          )}
+          {a && <DeckCover loaded={a} />}
         </div>
         <div>
           <p className="mb-1 text-xs uppercase text-zinc-500">Song B</p>
           <SearchPicker onPick={(t) => pick("B", t)} />
-          {b && (
-            <p className="mt-1 truncate text-sm">
-              {b.meta.title} <span className="text-zinc-500">· {b.analysis.bpm} BPM</span>
-            </p>
-          )}
+          {b && <DeckCover loaded={b} />}
         </div>
       </div>
 
@@ -210,7 +216,10 @@ export default function BridgePage() {
 
       {nowMeta && (
         <div className="rounded-xl border border-zinc-800 p-4 space-y-2">
-          <p className="truncate font-semibold">{nowMeta.title}</p>
+          <div className="flex items-center gap-3">
+            <Cover src={nowMeta.thumbnail} className="h-14 w-14 rounded-lg" />
+            <p className="min-w-0 truncate font-semibold">{nowMeta.title}</p>
+          </div>
           <HeatmapBar meta={nowMeta} position={position} />
         </div>
       )}

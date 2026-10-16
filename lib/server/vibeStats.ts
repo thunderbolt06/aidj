@@ -1,5 +1,5 @@
 import VIBES from "@/lib/vibes.json";
-import { ageless, freshness, loadCatalog, type CatalogRow } from "@/lib/server/library";
+import { ageless, freshness, loadCatalog, toTrack, type CatalogRow } from "@/lib/server/library";
 import { ALL_VIBES, loadVibeIndex, type VibeIndex } from "@/lib/server/vibes";
 import { readEvents, type ListenEvent, type PlayEnd, type PlayEvent } from "@/lib/server/events";
 
@@ -125,6 +125,8 @@ export interface SongStat {
   affinity?: number;
   plays: number;
   skips: number;
+  /** cover art, the same URL a Track carries (a signed link in production) */
+  thumbnail?: string;
 }
 
 export interface VibeDetail {
@@ -402,7 +404,11 @@ export async function overview(days: number | null): Promise<Overview> {
   };
 }
 
-export async function vibeDetail(label: string, days: number | null): Promise<VibeDetail | null> {
+export async function vibeDetail(
+  label: string,
+  days: number | null,
+  origin: string
+): Promise<VibeDetail | null> {
   const { cat, index, plays, sets } = await load(days);
   const row = vibeRows(index, cat.byId, plays, sets).find((r) => r.label === label);
   if (!row) return null;
@@ -424,6 +430,8 @@ export async function vibeDetail(label: string, days: number | null): Promise<Vi
     affinity,
     plays: songPlays.get(r.id)?.plays ?? 0,
     skips: songPlays.get(r.id)?.skips ?? 0,
+    // signed per request: only the catalog and vibe index are cached, never a result
+    thumbnail: toTrack(r, origin).thumbnail,
   });
 
   const aff = index?.affinity.get(label);

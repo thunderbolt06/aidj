@@ -7,6 +7,7 @@ import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 interface VibePlan {
   vibe: string;
@@ -157,13 +158,16 @@ export default function VibePage() {
           {mix.queue.map((t, i) => (
             <li
               key={`${t.id}-${i}`}
-              className={`truncate rounded px-3 py-1.5 ${
+              className={`flex items-center gap-2 rounded px-3 py-1.5 ${
                 i === mix.nowIdx
                   ? "bg-cyan-950/40 text-cyan-300"
                   : "bg-zinc-900"
               }`}
             >
-              {i + 1}. {t.title}
+              <Cover src={t.thumbnail} lazy className="h-8 w-8 rounded" />
+              <span className="truncate">
+                {i + 1}. {t.title}
+              </span>
             </li>
           ))}
         </ul>
@@ -171,7 +175,10 @@ export default function VibePage() {
 
       {mix.now && (
         <div className="rounded-xl border border-zinc-800 p-4 space-y-2">
-          <p className="font-semibold">{mix.now.meta.title}</p>
+          <div className="flex items-center gap-3">
+            <Cover src={mix.now.meta.thumbnail} className="h-14 w-14 rounded-lg" />
+            <p className="font-semibold">{mix.now.meta.title}</p>
+          </div>
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           {mix.lastPlan && (
             <p className="text-xs text-cyan-300">

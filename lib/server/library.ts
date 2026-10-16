@@ -127,10 +127,22 @@ function languageFilter(cat: Catalog, languages: unknown): ((r: CatalogRow) => b
   return (r) => r.kind !== "song" || (!!r.language && want.includes(r.language));
 }
 
+/** Signed static-host link of a cover in remote mode, else null. */
+export function remoteCoverUrl(id: string): string | null {
+  return LIBRARY_URL ? signUrl(`${LIBRARY_URL}/covers/${id}.jpg`, 24) : null;
+}
+
+/**
+ * Where a track's cover lives: square album art for songs (512x512), the
+ * generated 480x270 gradient for the `syn-` FX and loops. Same path either way.
+ */
 function coverUrl(id: string, origin: string): string {
-  return LIBRARY_URL
-    ? signUrl(`${LIBRARY_URL}/covers/${id}.jpg`, 24)
-    : `${origin}/api/cover/${id}`;
+  return remoteCoverUrl(id) ?? `${origin}/api/cover/${id}`;
+}
+
+/** Whether the catalog lists `id` - a cover is expected to exist for it. */
+export async function hasTrack(id: string): Promise<boolean> {
+  return (await loadCatalog()).byId.has(id);
 }
 
 export function toTrack(r: CatalogRow, origin: string): Track {

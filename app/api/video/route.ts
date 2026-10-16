@@ -23,6 +23,12 @@ const FONT_CANDIDATES = [
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ].filter(Boolean) as string[];
 
+/** 1x1 dark PNG standing in for a cover that failed to download. */
+const PLACEHOLDER_COVER = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQV9cCAADxAHkS5TrzAAAAAElFTkSuQmCC",
+  "base64"
+);
+
 /** A centered, bold burned-in caption filter - or "" if no usable font. */
 function captionFilter(caption?: string): string {
   if (!caption) return "";
@@ -80,17 +86,24 @@ export async function POST(req: NextRequest) {
     const wavPath = path.join(dir, "mix.wav");
     await writeFile(wavPath, wav);
 
-    // download thumbnails
+    // download covers; a missing one becomes a flat placeholder so one 404
+    // never costs the whole export
     const imgPaths: string[] = [];
     for (let i = 0; i < meta.clips.length; i++) {
-      const res = await fetch(meta.clips[i].image);
-      if (!res.ok) throw new Error(`thumbnail ${i} failed`);
+      const res = await fetch(meta.clips[i].image).catch(() => null);
       const p = path.join(dir, `img${i}.jpg`);
-      await writeFile(p, Buffer.from(await res.arrayBuffer()));
+      await writeFile(
+        p,
+        res?.ok ? Buffer.from(await res.arrayBuffer()) : PLACEHOLDER_COVER
+      );
       imgPaths.push(p);
     }
 
-    // one looping input per image + audio; scale/crop each to 1080x1920, concat
+    // one looping input per image + audio, concat'ed into 1080x1920. Covers are
+    // square, so cropping one to portrait would drop ~44% of the art and blow
+    // the rest up 4x: instead the cover sits sharp in the middle of a blurred,
+    // darkened fill of itself. (The blur runs on a 1/10-size copy - cheap - and
+    // the bicubic upscale finishes it.) Any aspect ratio fits inside the box.
     const args: string[] = ["-y"];
     meta.clips.forEach((c, i) => {
       args.push("-loop", "1", "-t", String(Math.max(c.duration, 1)), "-i", imgPaths[i]);
@@ -99,8 +112,13 @@ export async function POST(req: NextRequest) {
     const filters = meta.clips
       .map(
         (_, i) =>
-          `[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,` +
-          `crop=1080:1920,setsar=1,fps=30[v${i}]`
+          `[${i}:v]split=2[bgsrc${i}][fgsrc${i}];` +
+          `[bgsrc${i}]scale=108:192:force_original_aspect_ratio=increase,` +
+          `crop=108:192,gblur=sigma=3,scale=1080:1920:flags=bicubic,` +
+          `eq=brightness=-0.2:saturation=1.1[bg${i}];` +
+          `[fgsrc${i}]scale=900:900:force_original_aspect_ratio=decrease[fg${i}];` +
+          // a little above centre: clear of the caption and the Reels UI below
+          `[bg${i}][fg${i}]overlay=(W-w)/2:(H-h)/2-80,setsar=1,fps=30[v${i}]`
       )
       .join(";");
     // optional burned-in trigger-word caption (the viral callout)

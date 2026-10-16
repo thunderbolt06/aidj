@@ -10,6 +10,7 @@ import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { LanguagePicker, useAvailableLanguages } from "@/components/LanguagePicker";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { BeatTapButton } from "@/components/BeatTapPulse";
 import { PauseIcon, PlayIcon, ShuffleIcon, SkipForwardIcon } from "@/components/icons";
@@ -106,6 +107,7 @@ function fmt(sec: number): string {
 function QueueRow({
   index,
   title,
+  thumbnail,
   isNow,
   onDelete,
   onDragStart,
@@ -113,6 +115,7 @@ function QueueRow({
 }: {
   index: number;
   title: string;
+  thumbnail: string;
   isNow: boolean;
   onDelete: () => void;
   onDragStart: () => void;
@@ -138,7 +141,7 @@ function QueueRow({
         🗑
       </div>
       <div
-        className={`relative flex items-center justify-between gap-2 rounded px-3 py-2 ${
+        className={`relative flex items-center justify-between gap-2 rounded px-3 py-1.5 ${
           isNow ? "bg-cyan-950 text-cyan-300" : "bg-zinc-900"
         }`}
         style={{
@@ -179,7 +182,10 @@ function QueueRow({
           }
         }}
       >
-        <span className="truncate">{title}</span>
+        <span className="flex min-w-0 items-center gap-2.5">
+          <Cover src={thumbnail} lazy className="h-8 w-8 rounded" />
+          <span className="truncate">{title}</span>
+        </span>
         <span
           className="cursor-grab select-none text-zinc-600 active:cursor-grabbing"
           title="Drag to reorder"
@@ -690,24 +696,27 @@ export default function HomePage() {
 
         {/* 9-grid next songs (5 safe / 3 shift / 1 wild) - vibe prompting
             lives on the hero (tap the logo); the top bar covers song search */}
-        <div className="flex min-h-0 flex-1 flex-col items-center pt-2">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center pt-2 [container-type:size]">
           {grid.length > 0 ? (
-            <div className="grid min-h-0 w-full max-w-lg flex-1 grid-cols-3 grid-rows-3 gap-1.5">
+            // covers are square, so the grid is the biggest square that fits
+            // between the top bar and the dock (cqw/cqh = that free space)
+            <div
+              className="grid aspect-square w-full max-w-lg grid-cols-3 grid-rows-3 gap-1.5"
+              style={{ width: "min(100cqw, 32rem, 100cqh)" }}
+            >
               {grid.map((s, i) => (
                 <button
                   key={`${s.track.id}-${i}`}
                   onClick={() => tapTile(s)}
-                  className={`group relative h-full w-full min-h-0 min-w-0 overflow-hidden rounded-xl transition ${
+                  className={`group relative h-full w-full min-h-0 min-w-0 overflow-hidden rounded-xl bg-zinc-900 transition ${
                     pendingTile && pendingTile !== s.track.id
                       ? "opacity-40"
                       : "active:scale-[0.97]"
                   }`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Cover
                     src={s.track.thumbnail}
-                    alt=""
-                    className="h-full w-full object-cover transition group-hover:scale-105"
+                    className="absolute inset-0 h-full w-full transition group-hover:scale-105"
                   />
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent px-2 pb-1.5 pt-8 text-xs font-bold leading-tight text-white line-clamp-2">
                     {s.track.title}
@@ -804,12 +813,7 @@ export default function HomePage() {
               className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
             >
               {mix.now && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={mix.now.meta.thumbnail}
-                  alt=""
-                  className="h-11 w-11 shrink-0 rounded-lg object-cover"
-                />
+                <Cover src={mix.now.meta.thumbnail} className="h-11 w-11 rounded-lg" />
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
@@ -871,6 +875,7 @@ export default function HomePage() {
                     key={`${t.id}-${i}`}
                     index={i}
                     title={t.title}
+                    thumbnail={t.thumbnail}
                     isNow={i === mix.nowIdx}
                     onDragStart={() => (dragFrom.current = i)}
                     onDrop={() => {
@@ -900,8 +905,9 @@ export default function HomePage() {
               if (y0 !== null && y1 !== undefined && y0 - y1 > 40) setQueueOpen(true);
             }}
           >
-            <span className="max-w-full truncate px-6">
-              queue: {upNext?.title ?? "…"}
+            <span className="flex max-w-full items-center gap-2 px-6">
+              {upNext && <Cover src={upNext.thumbnail} className="h-5 w-5 rounded-sm" />}
+              <span className="truncate">queue: {upNext?.title ?? "…"}</span>
             </span>
           </button>
         </div>

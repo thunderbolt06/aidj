@@ -4,6 +4,7 @@
 #
 #   aws login                                  # once - signs the CLI in via your browser
 #   npm run library:push [-- --dryrun]         # resumable; re-run to add new tracks
+#   npm run library:push -- --all --only covers   # just the cover images (after fetch_covers.py)
 #
 # Bucket and region come from S3_BUCKET / S3_REGION (env or .env.local).
 # Afterwards set LIBRARY_URL on Vercel to the URL this prints.
@@ -23,8 +24,24 @@ DEST="s3://$S3_BUCKET"
 # Only allowed when the CloudFront distribution serves signed links exclusively
 # (and the app sits behind its login) - otherwise those files would be public.
 ALL=0
+ONLY=""
 EXTRA=()
-for a in "$@"; do [ "$a" = "--all" ] && ALL=1 || EXTRA+=("$a"); done
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --all) ALL=1 ;;
+    --only) ONLY="${2:?--only needs a folder list, e.g. covers or audio,meta}"; shift ;;
+    --only=*) ONLY="${1#--only=}"; : "${ONLY:?--only needs a folder list, e.g. covers or audio,meta}" ;;
+    *) EXTRA+=("$1") ;;
+  esac
+  shift
+done
+SYNC_DIRS=(audio meta covers)
+if [ -n "$ONLY" ]; then
+  IFS=, read -r -a SYNC_DIRS <<< "$ONLY"
+  for d in "${SYNC_DIRS[@]}"; do
+    case "$d" in audio|meta|covers) ;; *) echo "--only takes audio, meta and/or covers (got '$d')"; exit 1 ;; esac
+  done
+fi
 EXCLUDE=(--exclude "yt-*")
 CATALOG="catalog.public.json"
 VIBES="vibes.public.json"
@@ -45,21 +62,57 @@ fi
 
 "$AWS" sts get-caller-identity >/dev/null 2>&1 || { echo "Not signed in to AWS. Run:  $AWS login --region $S3_REGION"; exit 1; }
 
-node --experimental-strip-types --no-warnings scripts/library/ingest.mjs --index-only
-# browsers fetch the audio cross-origin (Web Audio decode), so GET needs CORS
-"$AWS" s3api put-bucket-cors --bucket "$S3_BUCKET" --region "$S3_REGION" --cors-configuration \
-  '{"CORSRules":[{"AllowedMethods":["GET","HEAD"],"AllowedOrigins":["*"],"AllowedHeaders":["*"],"MaxAgeSeconds":86400}]}'
-for d in audio meta covers; do
-  "$AWS" s3 sync "$LIB/$d" "$DEST/$d" --region "$S3_REGION" ${EXCLUDE[@]+"${EXCLUDE[@]}"} \
-    --cache-control "public, max-age=31536000, immutable" --only-show-errors ${EXTRA[@]+"${EXTRA[@]}"}
+if [ -z "$ONLY" ]; then
+  node --experimental-strip-types --no-warnings scripts/library/ingest.mjs --index-only
+  # browsers fetch the audio cross-origin (Web Audio decode), so GET needs CORS
+  "$AWS" s3api put-bucket-cors --bucket "$S3_BUCKET" --region "$S3_REGION" --cors-configuration \
+    '{"CORSRules":[{"AllowedMethods":["GET","HEAD"],"AllowedOrigins":["*"],"AllowedHeaders":["*"],"MaxAgeSeconds":86400}]}'
+fi
+# audio and meta never change once written; a cover can be replaced (a video thumbnail
+# upgraded to album art), so it gets a day instead of "forever"
+STARTED=$(mktemp)
+trap 'rm -f "$STARTED"' EXIT
+for d in "${SYNC_DIRS[@]}"; do
+  CACHE="public, max-age=31536000, immutable"
+  [ "$d" = covers ] && CACHE="public, max-age=86400"
+  # *.tmp: a half-written file left by an interrupted fetcher
+  "$AWS" s3 sync "$LIB/$d" "$DEST/$d" --region "$S3_REGION" ${EXCLUDE[@]+"${EXCLUDE[@]}"} --exclude "*.tmp" \
+    --cache-control "$CACHE" --only-show-errors ${EXTRA[@]+"${EXTRA[@]}"}
   echo "synced $d"
 done
-# the hosted catalog is the public one, under the name the app reads
-"$AWS" s3 cp "$LIB/$CATALOG" "$DEST/catalog.json" --region "$S3_REGION" \
-  --content-type application/json --cache-control "public, max-age=300" ${EXTRA[@]+"${EXTRA[@]}"}
-# the vibe playlists index (harvest_vibes.py index), when one has been built
-if [ -f "$LIB/$VIBES" ]; then
-  "$AWS" s3 cp "$LIB/$VIBES" "$DEST/vibes.json" --region "$S3_REGION" \
+
+if [ -z "$ONLY" ]; then
+  # the hosted catalog is the public one, under the name the app reads
+  "$AWS" s3 cp "$LIB/$CATALOG" "$DEST/catalog.json" --region "$S3_REGION" \
     --content-type application/json --cache-control "public, max-age=300" ${EXTRA[@]+"${EXTRA[@]}"}
+  # the vibe playlists index (harvest_vibes.py index), when one has been built
+  if [ -f "$LIB/$VIBES" ]; then
+    "$AWS" s3 cp "$LIB/$VIBES" "$DEST/vibes.json" --region "$S3_REGION" \
+      --content-type application/json --cache-control "public, max-age=300" ${EXTRA[@]+"${EXTRA[@]}"}
+  fi
 fi
+# CloudFront keeps what it fetched for a day (and the first covers it ever served for a year):
+# when any cover changed since the last push to THIS bucket/distribution/scope, drop the cached
+# ones. Last and non-fatal: a role that may not invalidate must not stop the catalog going up.
+case " ${SYNC_DIRS[*]} " in
+  *" covers "*)
+    DIST="${CLOUDFRONT_DISTRIBUTION_ID:-$(fromenv CLOUDFRONT_DISTRIBUTION_ID)}"
+    MARK="$LIB/.covers-pushed.${S3_BUCKET}.${DIST:-none}.${ALL}"
+    DRY=0; [[ " ${EXTRA[*]-} " == *" --dryrun "* ]] && DRY=1
+    if [ -z "$DIST" ]; then
+      echo "note: no CLOUDFRONT_DISTRIBUTION_ID - cached covers are not invalidated"
+    elif [ ! -e "$MARK" ] || [ -n "$(find "$LIB/covers" -type f -newer "$MARK" -print -quit)" ]; then
+      if [ "$DRY" = 1 ]; then
+        echo "dry run: would invalidate /covers/* on $DIST"
+      elif "$AWS" cloudfront create-invalidation --distribution-id "$DIST" --paths "/covers/*" \
+          --region us-east-1 --query "Invalidation.Status" --output text | sed 's/^/invalidating \/covers\/*: /'; then
+        mv "$STARTED" "$MARK"
+      else
+        echo "warning: could not invalidate /covers/* (needs cloudfront:CreateInvalidation) - old covers may be served from cache for up to a day"
+      fi
+    else
+      mv "$STARTED" "$MARK"
+    fi
+    ;;
+esac
 echo "done. LIBRARY_URL=https://$S3_BUCKET.s3.$S3_REGION.amazonaws.com"

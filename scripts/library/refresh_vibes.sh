@@ -8,6 +8,8 @@
 #   VIBES_MAX=2000 npm run library:vibes      # cap this run's downloads (default 4000)
 #   VIBES_TOPUP=300 npm run library:vibes     # songs every vibe should have (default 200)
 #   VIBES_PUSH=0 npm run library:vibes        # skip the upload to S3
+#   COVERS_ONLINE=0 npm run library:vibes     # skip the (slow, rate-limited) album-art upgrade
+#   COVERS_MINUTES=60 npm run library:vibes   # time box for that upgrade (default 90)
 #
 # Scheduled monthly by the Claude app task "everplay-monthly-vibe-refresh"
 # (1st of the month, 04:00). `npm run library:vibes:schedule` installs a
@@ -76,6 +78,10 @@ if grep -q "^ANTHROPIC_API_KEY=." .env.local 2>/dev/null || [ -n "${ANTHROPIC_AP
     || say "year labelling failed - new songs keep their store dates until the next run"
 fi
 
+# album art for the new songs: the offline pass (cached iTunes answers + YouTube thumbnails) is
+# quick and ships with this refresh; the slow online pass runs after the upload (below)
+python3 scripts/library/fetch_covers.py || say "cover art failed - new songs keep their gradient until the next run"
+
 python3 scripts/library/harvest_vibes.py index --month "$MONTH" || exit 1
 
 pushed=""
@@ -88,3 +94,14 @@ if [ "${VIBES_PUSH:-1}" != "0" ] && grep -q "^S3_BUCKET=" .env.local 2>/dev/null
   fi
 fi
 notify "Vibes refreshed for $MONTH: ${added:-0} new songs$pushed"
+
+# upgrade covers to official album art through YouTube Music + the (rate-limited) iTunes API. Last,
+# time-boxed and non-fatal: a refusal or an outage only delays the upgrade, never the refresh itself.
+# COVERS_ONLINE caps the songs (default 1500, 0 skips), COVERS_MINUTES the time (default 90).
+if [ "${COVERS_ONLINE:-1500}" != "0" ]; then
+  python3 scripts/library/fetch_covers.py --online --limit "${COVERS_ONLINE:-1500}" --max-minutes "${COVERS_MINUTES:-90}" \
+    || say "online cover pass stopped early - it resumes next run"
+  if [ "${VIBES_PUSH:-1}" != "0" ] && grep -q "^S3_BUCKET=" .env.local 2>/dev/null; then
+    bash scripts/library/sync_s3.sh --all --only covers || say "cover upload failed (run: aws login, then npm run library:push -- --all --only covers)"
+  fi
+fi

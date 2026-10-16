@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { Cover } from "@/components/Cover";
 import type { Overview, VibeDetail, VibeRow } from "@/lib/server/vibeStats";
 
 /**
@@ -306,6 +307,7 @@ function SongList({
       <ul className="max-h-56 divide-y divide-zinc-800/70 overflow-y-auto rounded-lg border border-zinc-800 text-xs">
         {songs.map((s) => (
           <li key={s.id} className="flex items-center gap-2 px-2 py-1.5">
+            <Cover src={s.thumbnail} lazy className="h-6 w-6 rounded" />
             <span className="min-w-0 flex-1 truncate">
               {s.title} <span className="text-zinc-500">· {s.artist}</span>
             </span>

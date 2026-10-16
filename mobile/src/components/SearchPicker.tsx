@@ -4,7 +4,6 @@ import {
   TextInput,
   Pressable,
   Text,
-  Image,
   FlatList,
   ActivityIndicator,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 import type { Track } from "../types";
 import { searchTracks } from "../audio/dj";
 import { colors } from "../theme";
+import { Cover } from "./Cover";
 
 /**
  * Pill-shaped search bar for the deck's top bar — results float over the
@@ -82,7 +82,7 @@ export function SearchPicker({
                 }}
                 style={({ pressed }) => [styles.result, pressed && { backgroundColor: colors.surface }]}
               >
-                <Image source={{ uri: t.thumbnail }} style={styles.thumb} />
+                <Cover uri={t.thumbnail} style={styles.thumb} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={styles.title}>
                     {t.title}
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderDim,
   },
-  thumb: { height: 40, width: 64, borderRadius: 4, backgroundColor: colors.surface },
+  thumb: { height: 40, width: 40, borderRadius: 4, backgroundColor: colors.surface },
   title: { color: colors.text, fontSize: 13 },
   subtitle: { color: colors.textDim, fontSize: 11, marginTop: 1 },
 });

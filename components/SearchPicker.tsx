@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
+import { Cover } from "@/components/Cover";
 
 /**
  * variant="card": inline block, results push content below (queue sheets,
@@ -130,12 +131,7 @@ export function SearchPicker({
                 }}
                 className="flex w-full items-center gap-3 p-2 text-left hover:bg-zinc-900"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={t.thumbnail}
-                  alt=""
-                  className="h-10 w-16 rounded object-cover"
-                />
+                <Cover src={t.thumbnail} lazy className="h-10 w-10 rounded" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm">{t.title}</span>
                   <span className="block truncate text-xs text-zinc-400">

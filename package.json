@@ -10,6 +10,8 @@
     "library:kit": "node scripts/library/synth_kit.mjs",
     "library:freesound": "node scripts/library/fetch_freesound.mjs",
     "library:ingest": "node --experimental-strip-types --no-warnings scripts/library/ingest.mjs",
+    "library:covers": "python3 scripts/library/fetch_covers.py",
+    "library:covers:online": "python3 scripts/library/fetch_covers.py --online",
     "library:youtube": "python3 scripts/library/fetch_youtube.py",
     "library:collection": "python3 scripts/library/build_collection.py scripts/library/collections/indian.seeds.txt --skip scripts/library/collections/hindi.txt --out hi=scripts/library/collections/hindi_wide.txt:3500 --out pa=scripts/library/collections/punjabi.txt:2000",
     "library:hindi": "python3 scripts/library/fetch_youtube.py --queries scripts/library/collections/hindi.txt scripts/library/collections/hindi_wide.txt --language hi --tags hindi --workers 2",

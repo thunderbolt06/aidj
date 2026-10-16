@@ -11,6 +11,7 @@ import {
 } from "@/lib/client/dj";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 type Slot = {
   track: Track | null;
@@ -120,8 +121,13 @@ export default function MixPage() {
             <SearchPicker onPick={onPick} />
             {slot.track && (
               <div className="text-sm">
-                <p className="truncate font-medium">{slot.track.title}</p>
-                <p className="truncate text-zinc-400">{slot.track.artist}</p>
+                <div className="flex items-center gap-3">
+                  <Cover src={slot.track.thumbnail} className="h-16 w-16 rounded-lg" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{slot.track.title}</p>
+                    <p className="truncate text-zinc-400">{slot.track.artist}</p>
+                  </div>
+                </div>
                 {slot.status && (
                   <p className="mt-1 animate-pulse text-xs text-amber-400">
                     {slot.status}

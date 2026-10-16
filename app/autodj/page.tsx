@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { TransitionStyle } from "@/lib/types";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
+import { Cover } from "@/components/Cover";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { MusicVisualizer } from "@/components/MusicVisualizer";
 import { BeatTapPulse } from "@/components/BeatTapPulse";
@@ -82,8 +83,11 @@ export default function AutoDjPage() {
                   : "bg-zinc-900"
               }`}
             >
-              <span className="truncate">
-                {i + 1}. {t.title}
+              <span className="flex min-w-0 items-center gap-2">
+                <Cover src={t.thumbnail} lazy className="h-8 w-8 rounded" />
+                <span className="truncate">
+                  {i + 1}. {t.title}
+                </span>
               </span>
               <button
                 onClick={() =>
@@ -301,7 +305,14 @@ export default function AutoDjPage() {
 
       {mix.now && (
         <div className="rounded-xl border border-zinc-800 p-4 space-y-2">
-          <p className="font-semibold">{mix.now.meta.title}</p>
+          <div className="flex items-center gap-3">
+            <Cover
+              key={mix.now.meta.id}
+              src={mix.now.meta.thumbnail}
+              className="h-14 w-14 rounded-lg"
+            />
+            <p className="font-semibold">{mix.now.meta.title}</p>
+          </div>
           <HeatmapBar meta={mix.now.meta} position={mix.position} />
           <p className="text-xs text-zinc-500">
             {mix.now.analysis.bpm} BPM
@@ -385,13 +396,16 @@ export default function AutoDjPage() {
             {mix.setLog.map((e, i) => (
               <li
                 key={`${e.index}-${i}`}
-                className={`flex items-baseline justify-between gap-2 ${
+                className={`flex items-center justify-between gap-2 ${
                   i === mix.setLog.length - 1 ? "text-cyan-300" : "text-zinc-300"
                 }`}
               >
-                <span className="truncate">
-                  {i + 1}. {e.title}{" "}
-                  <span className="text-zinc-500">, {e.artist}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <Cover src={e.thumbnail} lazy className="h-7 w-7 rounded" />
+                  <span className="truncate">
+                    {i + 1}. {e.title}{" "}
+                    <span className="text-zinc-500">, {e.artist}</span>
+                  </span>
                 </span>
                 {i > 0 && (
                   <span className="shrink-0 text-xs text-zinc-500">{e.style}</span>

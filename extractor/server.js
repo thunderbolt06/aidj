@@ -195,17 +195,24 @@ function captionFilter(caption) {
   );
 }
 
+// 1x1 dark PNG standing in for a cover that failed to download
+const PLACEHOLDER_COVER = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQV9cCAADxAHkS5TrzAAAAAElFTkSuQmCC",
+  "base64"
+);
+
 async function renderVideo(wav, meta, res) {
   const dir = await mkdtemp(path.join(tmpdir(), "aidj-reel-"));
   try {
     const wavPath = path.join(dir, "mix.wav");
     await writeFile(wavPath, wav);
+    // a missing cover becomes a flat placeholder so one 404 never costs the
+    // whole export
     const imgPaths = [];
     for (let i = 0; i < meta.clips.length; i++) {
-      const r = await fetch(meta.clips[i].image);
-      if (!r.ok) throw new Error(`thumbnail ${i} failed`);
+      const r = await fetch(meta.clips[i].image).catch(() => null);
       const p = path.join(dir, `img${i}.jpg`);
-      await writeFile(p, Buffer.from(await r.arrayBuffer()));
+      await writeFile(p, r?.ok ? Buffer.from(await r.arrayBuffer()) : PLACEHOLDER_COVER);
       imgPaths.push(p);
     }
     const args = ["-y"];
@@ -213,11 +220,20 @@ async function renderVideo(wav, meta, res) {
       args.push("-loop", "1", "-t", String(Math.max(c.duration, 1)), "-i", imgPaths[i]);
     });
     args.push("-i", wavPath);
+    // Covers are square, so cropping one to portrait would drop ~44% of the art
+    // and blow the rest up 4x: instead the cover sits sharp in the middle of a
+    // blurred, darkened fill of itself (blur on a 1/10-size copy, then upscaled).
+    // Keep in step with app/api/video/route.ts.
     const filters = meta.clips
       .map(
         (_, i) =>
-          `[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,` +
-          `crop=1080:1920,setsar=1,fps=30[v${i}]`
+          `[${i}:v]split=2[bgsrc${i}][fgsrc${i}];` +
+          `[bgsrc${i}]scale=108:192:force_original_aspect_ratio=increase,` +
+          `crop=108:192,gblur=sigma=3,scale=1080:1920:flags=bicubic,` +
+          `eq=brightness=-0.2:saturation=1.1[bg${i}];` +
+          `[fgsrc${i}]scale=900:900:force_original_aspect_ratio=decrease[fg${i}];` +
+          // a little above centre: clear of the caption and the Reels UI below
+          `[bg${i}][fg${i}]overlay=(W-w)/2:(H-h)/2-80,setsar=1,fps=30[v${i}]`
       )
       .join(";");
     const cap = captionFilter(meta.caption);

@@ -55,7 +55,9 @@ npm run dev
 | `library:build` | Runs the YouTube download in the background with an ingest pass every 10 minutes. Logs in `library/logs/`. Re-run to resume. |
 | `library:freesound` | CC0 risers, impacts, scratches and drum loops. Needs a free `FREESOUND_API_KEY`. |
 | `library:kit` | Synthesizes a starter FX/loop kit with ffmpeg - no downloads. |
-| `library:ingest` | Decodes and analyzes new files in parallel, writes `meta/`, `covers/`, `catalog.json`. `--reanalyze` recomputes attributes for the whole library after an analysis change. |
+| `library:ingest` | Decodes and analyzes new files in parallel, writes `meta/`, `catalog.json` and a placeholder gradient in `covers/` (never over real album art). `--reanalyze` recomputes attributes for the whole library after an analysis change. |
+| `library:covers` | Real album art for every song, as a 512x512 JPEG in `covers/<id>.jpg` (the file the app and the S3 push already use). Offline pass: iTunes answers already cached in `library/sources/itunes/` (zero API calls), then the song's own YouTube thumbnail (album art for "Topic" uploads, a video frame otherwise; black bars trimmed, blank frames skipped, centre-cropped square). Minutes for the whole library; only songs without a cover are touched. Every decision (source, confidence, matched track) is logged in `library/sources/covers/manifest.jsonl`; `scripts/library/cover_sheet.py` renders a numbered, captioned contact sheet to check them by eye. |
+| `library:covers:online` | The upgrade to official artwork, most popular songs first, resumable (stop it any time): YouTube Music search (fast, ~140 songs/min), then Apple's iTunes Search API for what is left. A match is accepted only when title, artist and duration agree: karaoke / tribute / cover-band / re-recorded / remix versions, "(Trap Mix) - Single" re-releases, same-name sibling songs ("Part 2", "Teri Yaad") and YouTube *video* results are rejected, and ties go to the original release. Apple answers 403/429 per IP when pushed - and counts its image CDN in the same limit, so never run this while bulk-downloading artwork - so iTunes calls are paced, every worker pauses when refused, and an artist's songs are settled with one catalogue lookup. A service that will not answer never counts as "no match" (4 failures in a row stop the run, exit 3). Flags: `--limit N`, `--max-minutes N`, `--sources ytmusic,itunes`, `--ids ...`, `--redo`, `--dry-run --sample N`, `--revalidate` (re-score every stored match with the current rules and drop the ones that no longer pass). One run at a time. |
 
 **Your own music**: drop files in `library/inbox/` (`inbox/sfx/` and `inbox/loops/` for elements) and run `library:ingest`.
 
@@ -71,6 +73,7 @@ Only the open-licensed set goes up (~70 GB); `yt-*` stays local. The bucket and 
 /opt/homebrew/bin/aws login --region ap-southeast-2   # once: signs the CLI in through your browser (no access keys)
 npm run library:push -- --dryrun                      # preview
 npm run library:push                                  # upload (resumable; re-run to add new tracks). Sets CORS too.
+npm run library:push -- --all --only covers           # just the cover images (also invalidates CloudFront's /covers/* when any changed)
 vercel env add LIBRARY_URL production                 # the URL the push prints
 ```
 

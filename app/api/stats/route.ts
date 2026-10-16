@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const vibe = q.get("vibe");
     if (vibe) {
-      const detail = await vibeDetail(vibe, days);
+      const detail = await vibeDetail(vibe, days, req.nextUrl.origin);
       return detail
         ? NextResponse.json(detail)
         : NextResponse.json({ error: "unknown vibe" }, { status: 404 });

@@ -6,6 +6,7 @@ import type { LyricLine, Track } from "@/lib/types";
 import { getEngine, loadStem, loadTrack, type LoadedTrack } from "@/lib/client/dj";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
+import { Cover } from "@/components/Cover";
 
 async function fetchLyrics(t: Track): Promise<{ lines: LyricLine[]; synced: boolean }> {
   const clean = t.title.replace(/[([].*?[)\]]/g, "").trim();
@@ -120,13 +121,19 @@ export default function KaraokePage() {
 
       <SearchPicker placeholder="What are we singing?" onPick={pick} />
       {track && (
-        <p className="truncate text-sm">
-          {track.title}{" "}
-          {synced && <span className="text-emerald-400">· synced ✓</span>}
-          {stemStatus === "ready" && (
-            <span className="ml-1 text-emerald-400">· vocals stripped ✓</span>
-          )}
-        </p>
+        <div className="flex items-center gap-3">
+          <Cover src={track.thumbnail} className="h-14 w-14 rounded-lg" />
+          <div className="min-w-0">
+            <p className="truncate text-sm">
+              {track.title}{" "}
+              {synced && <span className="text-emerald-400">· synced ✓</span>}
+              {stemStatus === "ready" && (
+                <span className="ml-1 text-emerald-400">· vocals stripped ✓</span>
+              )}
+            </p>
+            <p className="truncate text-xs text-zinc-400">{track.artist}</p>
+          </div>
+        </div>
       )}
       {waitingOnStem && (
         <p className="animate-pulse text-sm text-amber-400">

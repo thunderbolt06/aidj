@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { getEngine, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
@@ -73,6 +74,7 @@ export default function TalkingDjPage() {
           body: JSON.stringify({
             prompt: action.prompt,
             languages: getSelectedLanguageLabels(),
+            songSource: getSongSource(),
             recent: recentlyPlayed(),
           }),
         });

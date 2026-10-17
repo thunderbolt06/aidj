@@ -26,8 +26,11 @@ import {
   MIN_PLAY_RANGE,
   MORE_LANGUAGES,
   TOP_LANGUAGES,
+  SONG_SOURCES,
   getSelectedLanguageLabels,
+  getSongSource,
   useLanguagePrefs,
+  useSongSourcePrefs,
   useMinPlaySec,
 } from "../prefs";
 import { HeatmapBar } from "../components/HeatmapBar";
@@ -145,6 +148,24 @@ function fmt(sec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** Whether the library holds both open-licence and commercial songs (the only time there is a choice). */
+function useHasBothSources(): boolean {
+  const [both, setBoth] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch(apiUrl("/api/library"))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((stats: { sources?: { open: number; commercial: number } } | null) => {
+        if (alive && stats?.sources) setBoth(stats.sources.open > 0 && stats.sources.commercial > 0);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return both;
+}
+
 export default function Home() {
   const mix = useAutoMix();
   const insets = useSafeAreaInsets();
@@ -161,6 +182,8 @@ export default function Home() {
   // 9-grid tile whose transition is loading (spinner overlay until the hop)
   const [pendingTile, setPendingTile] = useState<string | null>(null);
   const { selected: langSelected, toggle: toggleLang } = useLanguagePrefs();
+  const { source: songSource, choose: chooseSongSource } = useSongSourcePrefs();
+  const hasBothSources = useHasBothSources();
   const { minPlaySec, setMinPlaySec } = useMinPlaySec();
   const [vibeChips, setVibeChips] = useState(() => sampleChips(CHIP_DISPLAY_COUNT));
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -260,6 +283,7 @@ export default function Home() {
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
         }),
       });
       if (!res.ok) return;
@@ -299,7 +323,11 @@ export default function Home() {
       const res = await fetch(apiUrl("/api/ai/intent"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, languages: getSelectedLanguageLabels() }),
+        body: JSON.stringify({
+          prompt: text,
+          languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
+        }),
       });
       if (!res.ok) throw new Error("intent failed - is the backend up?");
       const plan = (await res.json()) as { queries: string[] };
@@ -477,6 +505,32 @@ export default function Home() {
           <Text style={styles.settingsFoot}>none selected - mixes everything</Text>
         )}
       </View>
+
+      {hasBothSources && (
+        <View style={styles.settingsSection}>
+          <Text style={styles.settingsLabel}>SONG LIBRARY</Text>
+          <View style={styles.chipWrap}>
+            {SONG_SOURCES.map((o) => (
+              <Pressable
+                key={o.code}
+                onPress={() => chooseSongSource(o.code)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: songSource === o.code }}
+                style={[styles.langChip, songSource === o.code && styles.langChipOn]}
+              >
+                <Text
+                  style={[styles.langChipText, songSource === o.code && { color: colors.cyan }]}
+                >
+                  {o.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.settingsFoot}>
+            {SONG_SOURCES.find((o) => o.code === songSource)?.hint}
+          </Text>
+        </View>
+      )}
       </ScrollView>
     </View>
   );

@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
@@ -36,6 +37,7 @@ export default function ReelsPage() {
         body: JSON.stringify({
           prompt: seed,
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
           recent: recentlyPlayed(),
         }),
       });
@@ -73,6 +75,7 @@ export default function ReelsPage() {
           recent: recentlyPlayed(),
           exclude: feed.map((t) => t.id),
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
         }),
       });
       if (!res.ok) return;

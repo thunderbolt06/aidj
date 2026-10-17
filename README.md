@@ -23,7 +23,7 @@ Intent-based music with AI-generated DJ transitions. Every page is an experiment
 
 ## How it works
 
-- **Source**: a local, pre-built **library** (`library/`, git-ignored) instead of live YouTube extraction. Songs are well-known commercial songs (chart lists and curated collections, fetched ahead of time); FX one-shots and beat loops from a synthesized kit and Freesound CC0. Nothing is fetched from a third party while you listen, so nothing can be blocked or rate-limited mid-set.
+- **Source**: a local, pre-built **library** (`library/`, git-ignored) instead of live YouTube extraction. Songs come in two crates: well-known commercial songs (chart lists and curated collections, fetched ahead of time) and openly licensed music from the Free Music Archive (Creative Commons). A **Song library** setting (Hits / Open licence / Both) picks which crate plays; FX one-shots and beat loops from a synthesized kit and Freesound CC0. Nothing is fetched from a third party while you listen, so nothing can be blocked or rate-limited mid-set.
 - **Precomputed attributes**: at ingest every entry gets BPM + confidence, beat/downbeat grid, key (Camelot), per-second energy, loudness, an intensity score, intro/outro cue points and a hook estimate. The app serves them with the track - the browser only downloads and decodes.
 - **Famous part**: the hook is detected from the audio - the section that is both loud and *recurs* (chroma self-similarity), taking its first occurrence. The seekbar heatmap is that same curve.
 - **Picking what plays next**: vibe playlists first, then tempo / key / intensity - instant, no LLM round-trip, and every pick is guaranteed playable. Every month the public YouTube playlists behind each vibe chip are re-read (`library:vibes`): a song in many of a vibe's playlists is that vibe; songs that keep sharing playlists go together. A set draws from its vibe at random, weighted by how strongly the playlists claim each song, with a lean toward recent releases and the listener's recently played songs pushed far down, so no two sets open the same. Refills and the 9-grid stay inside the set's vibe; beyond the playlists they weigh shared genres and moods (`library:label`) and release era, with tempo / key only as a tie-breaker - the transition planner bridges any tempo gap. Energy is compared as a percentile across the library, since raw analyzer intensity bunches up. Claude only maps typed (non-chip) requests onto the known vibes, and plans transitions.
@@ -36,6 +36,7 @@ Intent-based music with AI-generated DJ transitions. Every page is an experiment
 brew install ffmpeg                      # python3 + node 22 also required
 npm install
 npm run library:kit                      # built-in FX + drum loops (synthesized, instant)
+npm run library:fetch -- --limit 3000    # top-N Creative-Commons tracks from the Free Music Archive (resumable)
 npm run library:youtube                  # well-known chart songs (local experiments only, resumable)
 npm run library:ingest                   # analyze + index everything downloaded
 npm run dev
@@ -43,6 +44,8 @@ npm run dev
 
 | Command | What it does |
 |---|---|
+| `library:fetch` | Reads the 880 GB FMA archive's index over HTTP and downloads only the selected tracks' byte ranges. `--genres Rock,Pop`, `--commercial` (commercial-use licences only), `--allow-nd`, `--dry-run`. The host is slow (~30 tracks/min); re-run to resume. Tracks land in `library/incoming/fma/` and join the catalog at the next `library:ingest`. |
+| `library:grow` | Second FMA pass: `library:fetch --untagged` (tracks with no language tag, most-listened first; `FMA_LIMIT`, default 20500 total) with an ingest every 10 minutes. Stops when less than `FMA_MIN_FREE_GB` (default 30) is free - every track is ~6 MB of AAC, so the full pass is over 100 GB. Log: `library/logs/fma-grow.log`. |
 | `library:youtube` | **Local experiments only.** Well-known songs via yt-dlp: Billboard Year-End Hot 100 for `--years 1960-2024` (lists read from Wikipedia), or `--queries file.txt` / `--playlist URL`. Brings YouTube's "most replayed" heatmap, so these tracks get a real famous-part marker. Keeps its own up-to-date yt-dlp in `library/.venv` (a stale one gets HTTP 403 on audio). Throttled and resumable. |
 | `library:hindi` | **Local experiments only.** The Hindi collection: ~800 famous commercial songs across vibes and eras, listed in `scripts/library/collections/hindi.txt` (`@ genres: … \| tags: …` lines label the songs below them). Same fetcher as `library:youtube`, run with `--language hi`; the language picker on the home page appears once the library holds more than one language. |
 | `library:collection` | Builds the wide Hindi and Punjabi fetch lists (`collections/hindi_wide.txt`, `collections/punjabi.txt`) from the artists in `collections/indian.seeds.txt`: each artist's most popular songs with genre and decade, read from Apple's public catalogue (no key). Edit the seeds and re-run; answers are cached in `library/sources/itunes/`. |
@@ -52,7 +55,7 @@ npm run dev
 | `library:years` | The original release year of every song, cross-checked. The year a download arrives with is often a reissue or upload date, or missing, and the pickers lean on years - so each song gets two independent opinions from Claude over artist / title / album (one shown the store and chart dates as an upper bound, one blind), an arbitration at high effort where they disagree or contradict the dates, and MusicBrainz's first-release date as a final cap. Stored as `releaseYear` + `yearConfidence` / `yearBy` / `yearVotes` in `meta/`, read into the catalog's `year`; every vote is kept in `library/sources/years/`. Resumable, part of `library:vibes`. About $0.0006 a song for the first two opinions, $0.0015 for the arbitration (≈ $10 for the whole library); `-- --stage report` re-checks every stored year against the hard constraints. |
 | `library:years:audit` | Samples songs and looks them up on MusicBrainz to count how often each kind of year is contradicted (later than a documented release). MusicBrainz is only a ceiling - its dates are often a remaster's - so a year earlier than its is usually right. |
 | `library:import-cache` | Imports songs the old extractor build already downloaded into `.cache/` (English-looking ones; `--all` for everything). |
-| `library:build` | Runs the YouTube download in the background with an ingest pass every 10 minutes. Logs in `library/logs/`. Re-run to resume. |
+| `library:build` | Runs the FMA and YouTube downloads together in the background with an ingest pass every 10 minutes. Logs in `library/logs/`. Re-run to resume. |
 | `library:freesound` | CC0 risers, impacts, scratches and drum loops. Needs a free `FREESOUND_API_KEY`. |
 | `library:kit` | Synthesizes a starter FX/loop kit with ffmpeg - no downloads. |
 | `library:ingest` | Decodes and analyzes new files in parallel, writes `meta/`, `catalog.json` and a placeholder gradient in `covers/` (never over real album art). `--reanalyze` recomputes attributes for the whole library after an analysis change. |
@@ -61,7 +64,7 @@ npm run dev
 
 **Your own music**: drop files in `library/inbox/` (`inbox/sfx/` and `inbox/loops/` for elements) and run `library:ingest`.
 
-**Licences**: every track keeps its licence and source link (see `/library`). The openly-licensed Free Music Archive crate was removed on 2026-10-15 - nobody knew those songs; the library is well-known commercial songs only (`fetch_fma.py` is in git history).
+**Licences**: every track keeps its licence and source link (see `/library`). NoDerivatives tracks are skipped by default because a DJ mix is a derivative work; most of the rest are NonCommercial - pass `--commercial` if the app will earn money. The open crate was dropped on 2026-10-15 (nobody knew those songs) and came back two days later behind the **Song library** setting: *Hits* (the default - what listeners saw while the crate was gone), *Open licence*, or *Both*. The server filters by crate on every request (`songSource`, `src` for search; `lib/songSource.ts`, `lib/server/library.ts`), strictly - a typed search in Open licence mode never returns a hit. In *Both*, the open crate gets about 30% of a set (70% while an open song is playing), since the vibe playlists only know hits. The setting only shows once the library holds songs from both crates, and a crate the library has none of is ignored rather than leaving the DJ silent.
 
 **YouTube tracks are all-rights-reserved.** They carry `source: "youtube"` and exist for local, non-commercial experiments - leave every `yt-*` file out of anything you deploy or share (`rclone sync library … --exclude "yt-*"`, then rebuild the catalog from the remaining metadata).
 

@@ -1,6 +1,7 @@
 import { DJEngine } from "./engine";
 import { analyzeTrack, camelotCompatible } from "./analysis";
 import { apiUrl } from "../config";
+import { getSongSource } from "../prefs";
 import type { AudioBuffer } from "react-native-audio-api";
 import type { Track, TrackAnalysis, TrackMeta, TransitionPlan } from "../types";
 
@@ -126,7 +127,9 @@ export function loadTrack(
 }
 
 export async function searchTracks(q: string): Promise<Track[]> {
-  const res = await fetch(apiUrl(`/api/search?q=${encodeURIComponent(q)}`));
+  const res = await fetch(
+    apiUrl(`/api/search?q=${encodeURIComponent(q)}&src=${getSongSource()}`)
+  );
   if (!res.ok) throw new Error("search failed");
   return (await res.json()).tracks;
 }

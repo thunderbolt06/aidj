@@ -7,8 +7,10 @@ import { getEngine, loadTrack, searchTracks, takePendingPlay } from "@/lib/clien
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
 import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { LanguagePicker, useAvailableLanguages } from "@/components/LanguagePicker";
+import { SongSourcePicker } from "@/components/SongSourcePicker";
 import { SearchPicker } from "@/components/SearchPicker";
 import { Cover } from "@/components/Cover";
 import { HeatmapBar } from "@/components/HeatmapBar";
@@ -366,6 +368,7 @@ export default function HomePage() {
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
           languages: getSelectedLanguages(),
+          songSource: getSongSource(),
           vibes: vibesRef.current,
           recent: recentlyPlayed(),
           exclude: mix.queue.slice(-150).map((t) => t.id),
@@ -411,6 +414,7 @@ export default function HomePage() {
           prompt: text,
           // a Hindi vibe means Hindi songs, even with "All" languages on
           languages: chipLanguage(text) ? [chipLanguage(text)] : getSelectedLanguages(),
+          songSource: getSongSource(),
           recent: recentlyPlayed(),
           exclude: mix.running ? mix.queue.slice(-150).map((t) => t.id) : [],
         }),
@@ -559,6 +563,13 @@ export default function HomePage() {
                 {/* mid-set, the 9-grid redraws in the new language right away */}
                 <LanguagePicker
                   label="Song language"
+                  onChange={() => mix.now && refreshGrid(mix.now.meta)}
+                />
+              </div>
+
+              <div className="space-y-2 border-t border-zinc-800 pt-3 empty:hidden">
+                <SongSourcePicker
+                  label="Song library"
                   onChange={() => mix.now && refreshGrid(mix.now.meta)}
                 />
               </div>

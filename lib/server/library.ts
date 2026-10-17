@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { camelotDistance } from "@/lib/audio/analysis";
 import { toIsoCodes } from "@/lib/languages";
+import { isOpenSource, parseSongSource } from "@/lib/songSource";
 import { signUrl } from "@/lib/server/cloudfrontSign";
 import {
   loadVibeIndex,
@@ -67,6 +68,11 @@ interface Catalog {
   energy: Map<string, number>;
   /** Songs per language code. */
   languages: Map<string, number>;
+  /** The same counts inside each crate: the open-licence songs and the commercial ones. */
+  crates: Record<
+    "open" | "commercial",
+    { songs: number; languages: Map<string, number>; maxPopularity: number }
+  >;
 }
 
 let cached: { catalog: Catalog; stamp: number } | null = null;
@@ -74,14 +80,26 @@ const REMOTE_TTL_MS = 5 * 60_000;
 
 function indexCatalog(rows: CatalogRow[]): Catalog {
   const languages = new Map<string, number>();
-  for (const r of rows)
-    if (r.kind === "song" && r.language)
+  const crates: Catalog["crates"] = {
+    open: { songs: 0, languages: new Map(), maxPopularity: 1 },
+    commercial: { songs: 0, languages: new Map(), maxPopularity: 1 },
+  };
+  for (const r of rows) {
+    if (r.kind !== "song") continue;
+    const crate = crates[isOpenSource(r.source) ? "open" : "commercial"];
+    crate.songs++;
+    crate.maxPopularity = Math.max(crate.maxPopularity, r.popularity);
+    if (r.language) {
       languages.set(r.language, (languages.get(r.language) ?? 0) + 1);
+      crate.languages.set(r.language, (crate.languages.get(r.language) ?? 0) + 1);
+    }
+  }
   const songs = rows.filter((r) => r.kind === "song").sort((a, b) => a.intensity - b.intensity);
   const energy = new Map(songs.map((r, i) => [r.id, songs.length > 1 ? i / (songs.length - 1) : 0.5]));
   return {
     tracks: rows,
     languages,
+    crates,
     byId: new Map(rows.map((r) => [r.id, r])),
     haystack: rows.map((r) =>
       [r.title, r.artist, ...r.genres, ...(r.moods ?? []), ...r.tags].join(" ").toLowerCase()
@@ -116,15 +134,64 @@ export async function loadCatalog(): Promise<Catalog> {
 }
 
 /**
- * Keeps the songs in the listener's languages (codes, labels or ISO codes).
- * No selection - or one the library has nothing in - means no constraint: a
- * language setting must narrow the picks, never leave the DJ with silence.
- * FX and loops always pass.
+ * The crate the listener chose, or null when every song may play: "both", or
+ * a crate the library has no songs in yet (the setting must narrow the picks,
+ * never leave the DJ with silence).
  */
-function languageFilter(cat: Catalog, languages: unknown): ((r: CatalogRow) => boolean) | null {
-  const want = toIsoCodes(languages).filter((l) => cat.languages.has(l));
+function chosenCrate(cat: Catalog, source: unknown): "open" | "commercial" | null {
+  const mode = parseSongSource(source);
+  return mode !== "both" && cat.crates[mode].songs ? mode : null;
+}
+
+/**
+ * Keeps the songs of the listener's crate. Unlike the language setting this
+ * also holds for a typed search - "open licence only" is a promise about what
+ * can play, not a ranking. FX and loops always pass.
+ */
+function sourceFilter(cat: Catalog, source: unknown): ((r: CatalogRow) => boolean) | null {
+  const crate = chosenCrate(cat, source);
+  if (!crate) return null;
+  return (r) => r.kind !== "song" || isOpenSource(r.source) === (crate === "open");
+}
+
+/**
+ * Keeps the songs in the listener's languages (codes, labels or ISO codes).
+ * No selection - or one the library has nothing in, inside the chosen crate -
+ * means no constraint: a language setting must narrow the picks, never leave
+ * the DJ with silence. FX and loops always pass.
+ */
+function languageFilter(
+  cat: Catalog,
+  languages: unknown,
+  source?: unknown
+): ((r: CatalogRow) => boolean) | null {
+  const crate = chosenCrate(cat, source);
+  const have = crate ? cat.crates[crate].languages : cat.languages;
+  const want = toIsoCodes(languages).filter((l) => have.has(l));
   if (!want.length) return null;
   return (r) => r.kind !== "song" || (!!r.language && want.includes(r.language));
+}
+
+/**
+ * About how much of a "both" set comes from the open crate. Hits are what
+ * people come for; the open crate is the flavour, so it gets a minority share
+ * (and the larger one when the song playing is itself an open-licence song,
+ * so a radio doesn't hop crates every track).
+ */
+const OPEN_SHARE = 0.3;
+
+/**
+ * Gives `open` a fixed share of the total weight against `commercial`, whatever
+ * the two pools' sizes or score scales. The vibe playlists only know chart
+ * songs, so without this an open song could never win a vibe pick.
+ */
+function blend<T extends { s: number }>(commercial: T[], open: T[], share: number): T[] {
+  const sum = (xs: T[]) => xs.reduce((t, c) => t + c.s, 0);
+  const have = sum(commercial);
+  const add = sum(open);
+  if (!have || !add) return [...commercial, ...open];
+  const k = ((share / (1 - share)) * have) / add;
+  return [...commercial, ...open.map((c) => ({ ...c, s: c.s * k }))];
 }
 
 /** Signed static-host link of a cover in remote mode, else null. */
@@ -169,6 +236,8 @@ export interface SearchOptions {
   kind?: TrackKind | "all";
   /** Preferred song languages: filters browsing, ranks first when searching. */
   languages?: string[];
+  /** "open" | "commercial" | "both" (see lib/songSource.ts): which crate may play. */
+  source?: string;
 }
 
 /**
@@ -180,10 +249,11 @@ export interface SearchOptions {
 export async function searchLibrary(
   query: string,
   origin: string,
-  { limit = 12, kind = "song", languages }: SearchOptions = {}
+  { limit = 12, kind = "song", languages, source }: SearchOptions = {}
 ): Promise<Track[]> {
   const cat = await loadCatalog();
-  const inLanguage = languageFilter(cat, languages);
+  const inSource = sourceFilter(cat, source);
+  const inLanguage = languageFilter(cat, languages, source);
   const q = query.trim();
   if (q.toLowerCase().startsWith("id:")) {
     const row = cat.byId.get(q.slice(3).trim());
@@ -203,6 +273,7 @@ export async function searchLibrary(
   const scored: { row: CatalogRow; score: number }[] = [];
   cat.tracks.forEach((row, i) => {
     if (kind !== "all" && row.kind !== kind) return;
+    if (inSource && !inSource(row)) return;
     if (bpm !== null && Math.abs(row.bpm - bpm) > 4) return;
     if (key !== null && row.camelot !== key) return;
     let score = 0;
@@ -220,7 +291,14 @@ export async function searchLibrary(
         score += title.includes(w) ? 3 : artist.includes(w) ? 3 : 1.5;
       }
     }
-    score += Math.log1p(row.popularity) / Math.log1p(cat.maxPopularity);
+    // popularity is judged inside the song's own crate: a hit's view count is
+    // millions, an open track's listen count thousands, so on one scale a
+    // browse in "both" would never show an open song
+    const top =
+      row.kind === "song"
+        ? cat.crates[isOpenSource(row.source) ? "open" : "commercial"].maxPopularity
+        : cat.maxPopularity;
+    score += Math.log1p(row.popularity) / Math.log1p(top);
     scored.push({ row, score });
   });
   scored.sort((a, b) => b.score - a.score);
@@ -490,6 +568,8 @@ export async function pickNext(opts: {
   exclude?: string[];
   count?: number;
   languages?: string[];
+  /** "open" | "commercial" | "both" (see lib/songSource.ts). */
+  source?: string;
   /** The set's vibe, as the intent plan named it: keeps refills inside it. */
   vibes?: unknown;
   /** Recently played track ids, newest first. */
@@ -499,9 +579,14 @@ export async function pickNext(opts: {
   const cur = resolveCurrent(cat, opts.current);
   const exclude = new Set(opts.exclude ?? []);
   if (cur) exclude.add(cur.id);
-  const inLanguage = languageFilter(cat, opts.languages);
+  const inSource = sourceFilter(cat, opts.source);
+  const inLanguage = languageFilter(cat, opts.languages, opts.source);
   let pool = cat.tracks.filter(
-    (r) => r.kind === "song" && !exclude.has(r.id) && (!inLanguage || inLanguage(r))
+    (r) =>
+      r.kind === "song" &&
+      !exclude.has(r.id) &&
+      (!inSource || inSource(r)) &&
+      (!inLanguage || inLanguage(r))
   );
   if (!pool.length) return [];
   // no language chosen: the song playing sets it. A Hindi set must not wander
@@ -517,9 +602,10 @@ export async function pickNext(opts: {
   const maxVibe = maxOf(inVibe);
   const maxNear = maxOf(near);
   // stay inside the vibe (and the playing song's playlist neighbours) while
-  // there is enough of it to fill the grid; a thin one opens up to everything
+  // there is enough of it to fill the grid; a thin one opens up to everything.
+  // Open-licence songs are in no playlist, so they stay in the pool either way
   const inside = pool.filter((r) => inVibe.has(r.id) || near.has(r.id));
-  if (inside.length >= 30) pool = inside;
+  if (inside.length >= 30) pool = [...inside, ...pool.filter((r) => isOpenSource(r.source))];
   const fresh = notRecent(opts.recent);
   const lean = recencyLean(vibes, null);
   const eraNow = recentEra(cat, opts.recent);
@@ -552,9 +638,19 @@ export async function pickNext(opts: {
     );
   };
   // cubed: the best fits come up most often, but not every time
+  const weighted = pool.map((row) => ({
+    row,
+    s: base(row) ** 3,
+    gap: energyOf(cat, row) - target,
+  }));
+  // a "both" pool: the playlists only know hits, so the open crate's share is set here
+  const open = weighted.filter((c) => isOpenSource(c.row.source));
+  const hits = weighted.filter((c) => !isOpenSource(c.row.source));
   const ranked = weightedOrder(
-    pool.map((row) => ({ row, s: base(row), gap: energyOf(cat, row) - target })),
-    (c) => c.s ** 3
+    open.length && hits.length
+      ? blend(hits, open, cur && isOpenSource(cur.source) ? 1 - OPEN_SHARE : OPEN_SHARE)
+      : weighted,
+    (c) => c.s
   );
 
   const picks: Pick[] = [];
@@ -605,6 +701,8 @@ export interface IntentPickOptions {
   /** Recently played track ids, newest first. */
   recent?: unknown;
   exclude?: string[];
+  /** "open" | "commercial" | "both" (see lib/songSource.ts). */
+  source?: string;
 }
 
 /**
@@ -618,14 +716,19 @@ export async function pickForIntent(
   f: IntentFilter,
   count = 10,
   languages?: string[],
-  { vibes = [], recent, exclude = [] }: IntentPickOptions = {}
+  { vibes = [], recent, exclude = [], source }: IntentPickOptions = {}
 ): Promise<CatalogRow[]> {
   const [cat, index] = await Promise.all([loadCatalog(), loadVibeIndex()]);
-  const inLanguage = languageFilter(cat, languages);
+  const inSource = sourceFilter(cat, source);
+  const inLanguage = languageFilter(cat, languages, source);
   const fresh = notRecent(recent);
   const skip = new Set(exclude);
   const songs = cat.tracks.filter(
-    (r) => r.kind === "song" && !skip.has(r.id) && (!inLanguage || inLanguage(r))
+    (r) =>
+      r.kind === "song" &&
+      !skip.has(r.id) &&
+      (!inSource || inSource(r)) &&
+      (!inLanguage || inLanguage(r))
   );
   const [lo, hi] = f.intensity ?? [0, 1];
   const era = Array.isArray(f.era) && f.era.length === 2 ? f.era : null;
@@ -648,7 +751,15 @@ export async function pickForIntent(
       scored.push({ row, s: v * v * energy * eraFit(row) * lean(row) ** 2 * fresh(row.id) });
     }
   }
-  if (scored.length < Math.max(8, count)) scored = filterScores(cat, songs, f, eraFit, fresh, !era);
+  if (scored.length < Math.max(8, count)) {
+    scored = filterScores(cat, songs, f, eraFit, fresh, !era);
+  } else {
+    // the playlists only claim hit songs; the open crate (when the listener
+    // plays both) joins by genre / tag match, with its share set explicitly
+    const openSongs = songs.filter((r) => isOpenSource(r.source));
+    if (openSongs.length)
+      scored = blend(scored, filterScores(cat, openSongs, f, eraFit, fresh, !era), OPEN_SHARE);
+  }
 
   const big = scored.length >= count * 5;
   const chosen: CatalogRow[] = [];
@@ -731,11 +842,18 @@ function chainByMixability(rows: CatalogRow[]): CatalogRow[] {
  * Lyric games must pick from these rather than naming songs from memory - a
  * pick that is not in the library cannot be played.
  */
-export async function knownSongs(limit = 500, languages?: string[]): Promise<CatalogRow[]> {
+export async function knownSongs(
+  limit = 500,
+  languages?: string[],
+  source?: string
+): Promise<CatalogRow[]> {
   const cat = await loadCatalog();
-  const inLanguage = languageFilter(cat, languages);
-  const songs = cat.tracks.filter((r) => r.kind === "song" && (!inLanguage || inLanguage(r)));
-  const hits = songs.filter((r) => r.source === "youtube");
+  const inSource = sourceFilter(cat, source);
+  const inLanguage = languageFilter(cat, languages, source);
+  const songs = cat.tracks.filter(
+    (r) => r.kind === "song" && (!inSource || inSource(r)) && (!inLanguage || inLanguage(r))
+  );
+  const hits = songs.filter((r) => !isOpenSource(r.source));
   return (hits.length >= 20 ? hits : songs)
     .sort((a, b) => b.popularity - a.popularity)
     .slice(0, limit);
@@ -752,6 +870,8 @@ export interface LibraryStats {
   licenses: { name: string; count: number }[];
   /** Every language the library has songs in, whatever the filter. */
   languages: { code: string; count: number }[];
+  /** Songs per crate, whatever the filter: the settings only offer a crate that has songs. */
+  sources: { open: number; commercial: number };
 }
 
 function tally(values: string[], top: number): { name: string; count: number }[] {
@@ -763,11 +883,14 @@ function tally(values: string[], top: number): { name: string; count: number }[]
     .map(([name, count]) => ({ name, count }));
 }
 
-/** Counts and facets; `languages` narrows the song facets to those languages. */
-export async function libraryStats(languages?: string[]): Promise<LibraryStats> {
+/** Counts and facets; `languages` and `source` narrow the song facets to those songs. */
+export async function libraryStats(languages?: string[], source?: string): Promise<LibraryStats> {
   const cat = await loadCatalog();
-  const inLanguage = languageFilter(cat, languages);
-  const songs = cat.tracks.filter((r) => r.kind === "song" && (!inLanguage || inLanguage(r)));
+  const inSource = sourceFilter(cat, source);
+  const inLanguage = languageFilter(cat, languages, source);
+  const songs = cat.tracks.filter(
+    (r) => r.kind === "song" && (!inSource || inSource(r)) && (!inLanguage || inLanguage(r))
+  );
   return {
     songs: songs.length,
     loops: cat.tracks.filter((r) => r.kind === "loop").length,
@@ -780,5 +903,6 @@ export async function libraryStats(languages?: string[]): Promise<LibraryStats> 
     languages: [...cat.languages.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([code, count]) => ({ code, count })),
+    sources: { open: cat.crates.open.songs, commercial: cat.crates.commercial.songs },
   };
 }

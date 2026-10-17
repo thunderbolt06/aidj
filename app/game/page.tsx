@@ -10,6 +10,7 @@ import {
   type LoadedTrack,
 } from "@/lib/client/dj";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 
 /**
  * Sing-It: 2-team party game.
@@ -307,7 +308,11 @@ export default function GamePage() {
       const res = await fetch("/api/ai/game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, languages: getSelectedLanguageLabels() }),
+        body: JSON.stringify({
+          prompt,
+          languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
+        }),
       });
       if (!res.ok) throw new Error("game planning failed - is ANTHROPIC_API_KEY set?");
       const plan = (await res.json()) as {

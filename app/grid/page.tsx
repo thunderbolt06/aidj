@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
@@ -34,6 +35,7 @@ export default function GridPage() {
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
         }),
       });
       if (!res.ok) throw new Error("suggest failed - is ANTHROPIC_API_KEY set?");

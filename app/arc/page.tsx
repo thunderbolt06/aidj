@@ -5,6 +5,7 @@ import type { Track } from "@/lib/types";
 import { searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 import { recentlyPlayed } from "@/lib/client/history";
 import { ARC_SHAPES, arcEnergyAt, type ArcShape } from "@/lib/audio/arc";
 import { HeatmapBar } from "@/components/HeatmapBar";
@@ -84,6 +85,7 @@ export default function ArcPage() {
         body: JSON.stringify({
           prompt: `${text} (energy arc: ${shape})`,
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
           recent: recentlyPlayed(),
         }),
       });

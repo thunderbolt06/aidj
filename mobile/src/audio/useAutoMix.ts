@@ -9,7 +9,7 @@ import {
   type LoadedTrack,
 } from "./dj";
 import { apiUrl } from "../config";
-import { getSelectedLanguageLabels } from "../prefs";
+import { getSelectedLanguageLabels, getSongSource } from "../prefs";
 
 /**
  * Shared auto-mix loop, prepare-ahead edition — port of the web
@@ -456,6 +456,7 @@ export function useAutoMix() {
         body: JSON.stringify({
           current: `${currentTrack.title} - ${currentTrack.artist}`,
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
         }),
       });
       if (!res.ok) return;

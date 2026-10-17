@@ -13,6 +13,7 @@ import {
 } from "@/lib/client/dj";
 import { camelotCompatible } from "@/lib/audio/analysis";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
+import { getSongSource } from "@/lib/client/sourcePrefs";
 import { notePlayed, recentlyPlayed } from "@/lib/client/history";
 import { flushEvents, logEvent, newSetId } from "@/lib/client/telemetry";
 import type { PlayEnd } from "@/lib/server/events";
@@ -802,6 +803,7 @@ export function useAutoMix() {
             ? { energy: +arc.energy.toFixed(2), phase: arc.phase, bpm: arc.bpm }
             : undefined,
           languages: getSelectedLanguageLabels(),
+          songSource: getSongSource(),
           vibes: s.opts.vibes,
           recent: recentlyPlayed(),
           // everything already queued, so a refill only brings new songs

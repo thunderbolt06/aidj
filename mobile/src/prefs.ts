@@ -45,18 +45,40 @@ export const ALL_LANGUAGES: Language[] = [...TOP_LANGUAGES, ...MORE_LANGUAGES];
 
 const LANG_KEY = "everplay:languages";
 const MIN_PLAY_KEY = "everplay:minPlaySec";
+const SOURCE_KEY = "everplay:songSource";
+
+/** Open-licence songs, commercial songs or both - port of lib/songSource.ts. */
+export type SongSource = "open" | "commercial" | "both";
+
+export const SONG_SOURCES: { code: SongSource; label: string; hint: string }[] = [
+  { code: "commercial", label: "Hits", hint: "well-known commercial songs" },
+  { code: "open", label: "Open licence", hint: "Creative Commons music" },
+  { code: "both", label: "Both", hint: "a mix of the two" },
+];
+
+const DEFAULT_SONG_SOURCE: SongSource = "commercial";
+
+function parseSongSource(v: unknown): SongSource {
+  return v === "open" || v === "commercial" || v === "both" ? v : DEFAULT_SONG_SOURCE;
+}
 
 export const DEFAULT_MIN_PLAY_SEC = 25;
 export const MIN_PLAY_RANGE = { min: 10, max: 90, step: 5 } as const;
 
 let langSelected: string[] = [];
 let minPlaySec = DEFAULT_MIN_PLAY_SEC;
+let songSource: SongSource = DEFAULT_SONG_SOURCE;
 
 /** Hydrate the in-memory cache; call once at app start. */
 export async function initPrefs(): Promise<void> {
   try {
-    const [lang, minPlay] = await AsyncStorage.multiGet([LANG_KEY, MIN_PLAY_KEY]);
+    const [lang, minPlay, source] = await AsyncStorage.multiGet([
+      LANG_KEY,
+      MIN_PLAY_KEY,
+      SOURCE_KEY,
+    ]);
     if (lang[1]) langSelected = JSON.parse(lang[1]) as string[];
+    songSource = parseSongSource(source[1]);
     const v = Number(minPlay[1]);
     if (Number.isFinite(v) && v >= MIN_PLAY_RANGE.min && v <= MIN_PLAY_RANGE.max)
       minPlaySec = v;
@@ -80,6 +102,11 @@ export function getSelectedLanguages(): string[] {
 export function getSelectedLanguageLabels(): string[] {
   const codes = new Set(langSelected);
   return ALL_LANGUAGES.filter((l) => codes.has(l.code)).map((l) => l.label);
+}
+
+/** Which crate of songs requests should draw from. */
+export function getSongSource(): SongSource {
+  return songSource;
 }
 
 export function getMinPlaySec(): number {
@@ -107,6 +134,27 @@ export function useLanguagePrefs() {
   }
 
   return { selected, toggle };
+}
+
+/** Reactive song-source choice, shared across mounts. */
+export function useSongSourcePrefs() {
+  const [source, setSource] = useState<SongSource>(songSource);
+
+  useEffect(() => {
+    const onChange = () => setSource(songSource);
+    listeners.push(onChange);
+    return () => {
+      listeners = listeners.filter((fn) => fn !== onChange);
+    };
+  }, []);
+
+  function choose(next: SongSource) {
+    songSource = next;
+    AsyncStorage.setItem(SOURCE_KEY, next).catch(() => {});
+    notify();
+  }
+
+  return { source, choose };
 }
 
 /** Reactive minimum-play floor. */

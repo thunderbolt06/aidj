@@ -78,11 +78,14 @@ function knownVibesLine(labels: string[]): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { prompt, history, languages, recent, exclude } = await req.json();
+  const { prompt, history, languages, songSource, recent, exclude } = await req.json();
   try {
-    // facets of the chosen languages only, so the plan is built from genres
-    // and tags those songs actually carry
-    const [stats, index] = await Promise.all([libraryStats(languages), loadVibeIndex()]);
+    // facets of the chosen languages and crate only, so the plan is built from
+    // genres and tags those songs actually carry
+    const [stats, index] = await Promise.all([
+      libraryStats(languages, songSource),
+      loadVibeIndex(),
+    ]);
     const genreNames = stats.genres.map((g) => g.name);
     const moodNames = stats.moods.map((m) => m.name);
     const text = String(prompt ?? "");
@@ -130,7 +133,12 @@ export async function POST(req: NextRequest) {
         { type: "intent", at: Date.now(), listener: "", prompt: text.slice(0, 200), vibes: vibes.map((v) => v.label), chip },
       ]).catch(() => {})
     );
-    const pickOpts = { vibes, recent, exclude: Array.isArray(exclude) ? exclude : [] };
+    const pickOpts = {
+      vibes,
+      recent,
+      exclude: Array.isArray(exclude) ? exclude : [],
+      source: songSource,
+    };
     let rows = await pickForIntent(plan, 10, languages, pickOpts);
     // a filter that matches nothing (tiny library, odd vibe) falls back to energy alone
     if (rows.length < 4)
@@ -138,7 +146,7 @@ export async function POST(req: NextRequest) {
         { intensity: plan.intensity, energyArc: plan.energyArc },
         10,
         languages,
-        { recent, exclude: pickOpts.exclude }
+        { recent, exclude: pickOpts.exclude, source: songSource }
       );
 
     return NextResponse.json({

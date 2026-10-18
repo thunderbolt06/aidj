@@ -27,7 +27,7 @@ import {
   type ArcTarget,
 } from "@/lib/audio/arc";
 import type { TrackAnalysis } from "@/lib/types";
-import { pickVocalExit, vocalExits } from "@/lib/audio/vocalExits";
+import { HOOK_PLAYOUT, hookEnd, pickVocalExit, vocalExits } from "@/lib/audio/vocalExits";
 import { handoffEntry, handoffExits, handoffTempoOk, type HandoffEntry } from "@/lib/audio/handoff";
 
 export interface AutoMixOptions {
@@ -736,12 +736,20 @@ export function useAutoMix() {
     if (clipLen === "ai") {
       if (!prepared) return; // armed when preparation finishes
       const cur = st.current.current;
-      // the banger must play out: never exit before the famous section
-      // (hook + a phrase ≈ 35s) has fully landed
-      const famousEnd = (cur?.meta.famousStart ?? 40) + 35;
+      // the banger must play out: never exit before the famous section has
+      // landed - until its sung para ends when the vocal map shows where,
+      // else the flat hook + a phrase (35s)
+      const hook = cur
+        ? hookEnd(cur.meta.vocals, cur.analysis, cur.meta.famousStart)
+        : { at: 40 + HOOK_PLAYOUT, fromVocals: false };
+      const famousEnd = hook.at;
       // user-set floor: a song must play at least this long before we leave it
       const minPlay = st.current.opts.minPlaySec ?? 25;
-      let target = Math.max(prepared.plan.outPoint, famousEnd, minPlay);
+      // the song's own structure beats the planner's guess; without it, the
+      // planner may aim far past the hook (a long outro looks tempting) and
+      // half a minute after it is as long as a song is worth waiting on
+      const planned = hook.fromVocals ? famousEnd : Math.min(prepared.plan.outPoint, famousEnd + 30);
+      let target = Math.max(planned, famousEnd, minPlay);
       // don't run off the end of the track
       const dur = cur?.analysis.duration ?? Infinity;
       target = Math.min(target, dur - 12);
@@ -765,7 +773,7 @@ export function useAutoMix() {
     if (clipLen === "ai" && prepared && cur) {
       // leave when a sung line ends, not in the middle of one; the hook
       // play-out may give a few seconds if that is where the singer stops
-      const famousEnd = (cur.meta.famousStart ?? 40) + 35;
+      const famousEnd = hookEnd(cur.meta.vocals, cur.analysis, cur.meta.famousStart).at;
       const desired = pos + waitSec;
       const floor = Math.max(
         st.current.opts.minPlaySec ?? 25,

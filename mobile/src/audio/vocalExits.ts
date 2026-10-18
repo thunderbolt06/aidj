@@ -102,10 +102,36 @@ export function vocalExits(vocals: VocalSegments | undefined, grid: Grid): Vocal
   return exits;
 }
 
+/** Without a vocal map, a hook is assumed to need this long to play out. */
+export const HOOK_PLAYOUT = 35;
+/** A break sooner than this after the hook starts is a pause inside it. */
+const CHORUS_MIN = 20;
+/** Past this, a song that never pauses is not worth waiting on. */
+const CHORUS_MAX = 60;
+
+/**
+ * Where the hook's sung para really ends: the first instrumental break
+ * 20-60 s after the hook starts. Choruses run different lengths, so this
+ * replaces the flat "hook + 35 s" whenever the song has a vocal map and
+ * pauses in that window (`fromVocals`); otherwise it falls back to it.
+ */
+export function hookEnd(
+  vocals: VocalSegments | undefined,
+  grid: Grid,
+  hookStart: number | null | undefined
+): { at: number; fromVocals: boolean } {
+  const start = hookStart ?? 40;
+  const brk = vocalExits(vocals, grid).find(
+    (e) => e.kind === "break" && e.at >= start + CHORUS_MIN && e.at <= start + CHORUS_MAX
+  );
+  return brk ? { at: brk.at, fromVocals: true } : { at: start + HOOK_PLAYOUT, fromVocals: false };
+}
+
 /**
  * The best exit near `desired`: never before `floor`, at most `late` seconds
  * after `desired`, a little earlier only when the floor allows it. Quality
- * wins, but every second away from the desired moment costs a bit.
+ * wins, but every second away from the desired moment costs a bit - waiting
+ * longer costs twice as much as leaving a little early.
  */
 export function pickVocalExit(
   exits: VocalExit[],
@@ -118,7 +144,8 @@ export function pickVocalExit(
   let bestScore = -Infinity;
   for (const e of exits) {
     if (e.at < floor || e.at < desired - early || e.at > desired + late) continue;
-    const s = e.score - 0.015 * Math.abs(e.at - desired);
+    const off = e.at - desired;
+    const s = e.score - (off > 0 ? 0.02 * off : 0.01 * -off);
     if (s > bestScore) {
       bestScore = s;
       best = e;

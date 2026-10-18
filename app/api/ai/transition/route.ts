@@ -72,8 +72,9 @@ Rules:
   famous section play out in full before leaving. If A has famousStart, outPoint must be at
   least famousStart + 35 (the hook plus a phrase), unless the current position is already past
   that. Prefer an energy dip or phrase end after the hook lands. A typical good clip runs
-  40-70s of A before exiting. trackA.vocalBreaks (when present) lists moments where a sung
-  line ends and the band plays alone - the smoothest exits; pick outPoint from that list.
+  40-70s of A before exiting. trackA.vocalBreaks (when present) lists moments 20-60s after the
+  hook starts where a sung line ends and the band plays alone - where the chorus really ends.
+  Set outPoint to the EARLIEST one, even if that is before famousStart + 35.
 - inPoint: start B slightly BEFORE its famous section so the hook lands right as the transition completes (inPoint ≈ famousStart - duration, min 0). If no famousStart, pick a high-energy point after intro.
 - duration: 4-12s for blends. cut/loop_roll/brake/riser/backspin/tape_stop/silence_drop = 0.1
   (the pre-roll happens automatically). double_drop = 4. echo_out = 6-8. gate/stem_acapella = 0.1

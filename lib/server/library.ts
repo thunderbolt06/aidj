@@ -309,6 +309,10 @@ interface StoredMeta
   extends Omit<TrackMeta, "thumbnail" | "license" | "licenseUrl" | "licenseInfo"> {
   file: string;
   license?: TrackLicense;
+  /** Raw vocal loudness curve `vocals` is derived from - pipeline-only. */
+  vocalLevel?: number[];
+  vocalsModel?: string;
+  vocalsVersion?: number;
 }
 
 async function readMeta(id: string): Promise<StoredMeta> {
@@ -328,7 +332,7 @@ async function readMeta(id: string): Promise<StoredMeta> {
 /** Everything the player needs, analysis included - no client-side compute. */
 export async function getTrackMeta(id: string, origin: string): Promise<TrackMeta> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { file, license, ...meta } = await readMeta(id);
+  const { file, license, vocalLevel, vocalsModel, vocalsVersion, ...meta } = await readMeta(id);
   return {
     ...meta,
     thumbnail: coverUrl(id, origin),

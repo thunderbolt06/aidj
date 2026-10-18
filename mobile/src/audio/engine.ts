@@ -281,6 +281,27 @@ export class DJEngine {
     return this.nextGridTime(from, quantBeats, minLead) - this.ctx.currentTime;
   }
 
+  /**
+   * When B enters: at A's track position `dropAt` (a vocal gap the caller
+   * picked) if that is still far enough ahead, else the next phrase boundary
+   * when quantizing, else right after the pre-roll.
+   */
+  private entryTime(
+    from: TrackAnalysis | undefined,
+    preRoll: number,
+    opts?: { quantizeBeats?: number; dropAt?: number }
+  ): number {
+    const A = this.activeDeck;
+    const earliest = this.ctx.currentTime + preRoll + 0.08;
+    if (opts?.dropAt != null && A.playing) {
+      const t = A.ctxTimeAt(opts.dropAt);
+      if (t >= earliest) return t;
+    }
+    return opts?.quantizeBeats && from && A.playing
+      ? this.nextGridTime(from, opts.quantizeBeats, preRoll + 0.08)
+      : earliest;
+  }
+
   private noiseBuffer: AudioBuffer | null = null;
   private getNoise(): AudioBuffer {
     if (!this.noiseBuffer) {
@@ -351,6 +372,8 @@ export class DJEngine {
     opts?: {
       /** Snap the drop to A's grid: phrase length in beats (e.g. 16). */
       quantizeBeats?: number;
+      /** A's track position for B's entry (wins over quantizeBeats). */
+      dropAt?: number;
     }
   ): number {
     const ctx = this.ctx;
@@ -379,11 +402,8 @@ export class DJEngine {
               ? 1 * beatCtx
               : 0;
 
-    // anchor: B's entry, snapped to A's beat grid when quantizing
-    const t0 =
-      opts?.quantizeBeats && analyses?.from && A.playing
-        ? this.nextGridTime(analyses.from, opts.quantizeBeats, preRoll + 0.08)
-        : ctx.currentTime + preRoll + 0.08;
+    // anchor: B's entry - in a vocal gap, or snapped to A's beat grid
+    const t0 = this.entryTime(analyses?.from, preRoll, opts);
     const end = t0 + dur;
 
     B.buffer = nextBuffer;

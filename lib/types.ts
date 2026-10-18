@@ -48,6 +48,8 @@ export interface TrackMeta extends Track {
   /** Where the intro ends / the outro starts - clean mix-in and mix-out points. */
   cueIn?: number;
   cueOut?: number;
+  /** Where someone is singing, [start, end] seconds (Demucs, at ingest). */
+  vocals?: [number, number][];
   tags?: string[];
   album?: string | null;
   instrumental?: boolean;

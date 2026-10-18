@@ -1,5 +1,6 @@
 import { DJEngine } from "./engine";
 import { analyzeTrack, camelotCompatible } from "./analysis";
+import { vocalExits } from "./vocalExits";
 import { apiUrl } from "../config";
 import { getSongSource } from "../prefs";
 import type { AudioBuffer } from "react-native-audio-api";
@@ -172,6 +173,10 @@ export async function planTransition(
           energy: sparseEnergy(from.analysis.energy),
           position: Math.round(position),
           famousStart: from.meta.famousStart,
+          // where a sung line ends and the band plays alone for a bit
+          vocalBreaks: vocalExits(from.meta.vocals, from.analysis)
+            .filter((e) => e.kind === "break" && e.at > position)
+            .map((e) => Math.round(e.at)),
         },
         trackB: {
           title: `${to.meta.title} - ${to.meta.artist}`,

@@ -20,6 +20,8 @@ export interface TrackMeta extends Track {
   famousStart: number | null;
   /** Precomputed at ingest; when present the app skips native analysis. */
   analysis?: TrackAnalysis;
+  /** Where someone is singing, [start, end] seconds (Demucs, at ingest). */
+  vocals?: [number, number][];
 }
 
 export interface TrackAnalysis {

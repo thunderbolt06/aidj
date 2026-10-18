@@ -26,6 +26,7 @@ import {
   type ArcTarget,
 } from "@/lib/audio/arc";
 import type { TrackAnalysis } from "@/lib/types";
+import { pickVocalExit, vocalExits } from "@/lib/audio/vocalExits";
 
 export interface AutoMixOptions {
   /**
@@ -117,6 +118,43 @@ function buildMatched(
     downbeatOffset: to.downbeatOffset * factor,
   };
   return { buffer, analysis, inPoint: inPoint * factor };
+}
+
+/** Margin between the auto-hop timer firing and the planned drop. */
+const VOCAL_GAP_MARGIN = 2.5;
+
+/**
+ * Aim an auto-hop at a vocal gap: the first moment near `desired` where A's
+ * sung line has ended and the band plays alone, so B comes in without cutting
+ * a word off or stacking two singers. Null when A has no vocal map or no gap
+ * fits - the caller then hops at `desired` as before.
+ */
+function aimAtVocalGap(
+  current: LoadedTrack,
+  plan: TransitionPlan,
+  pos: number,
+  desired: number,
+  floor: number
+): { waitSec: number; dropAt: number; room: number; kind: "break" | "line" } | null {
+  const a = current.analysis;
+  const beat = a.bpm > 0 ? 60 / a.bpm : 0.5;
+  // an acapella-in plays B's vocal for 8 beats BEFORE the drop: that lead-in
+  // must sit in the gap too, so it needs a longer one and the drop moves later
+  const stem = plan.style === "stem_acapella";
+  const lead = stem ? 8 * beat : 0;
+  const preRoll = stem ? 8 * beat : 4 * beat; // longest pre-roll per engine path
+  let exits = vocalExits(current.meta.vocals, a);
+  if (stem) exits = exits.filter((e) => e.room >= lead * 0.9);
+  const hardFloor = pos + preRoll + VOCAL_GAP_MARGIN + 0.5;
+  const exit = pickVocalExit(exits, desired, Math.max(floor, hardFloor));
+  if (!exit || exit.at > a.duration - 8) return null;
+  const dropAt = exit.at + lead;
+  return {
+    waitSec: Math.max(0, dropAt - preRoll - VOCAL_GAP_MARGIN - pos),
+    dropAt,
+    room: exit.room - lead,
+    kind: exit.kind,
+  };
 }
 
 /**
@@ -216,6 +254,8 @@ export function useAutoMix() {
     interestUntil: 0,
     /** Track position the armed auto-hop timer is aiming at. */
     hopTargetPos: 0,
+    /** The vocal gap the armed auto-hop lands in (A position + pause length). */
+    vocalGap: null as { dropAt: number; room: number; kind: "break" | "line" } | null,
     /** Stats (lib/client/telemetry): the set, and the song playing in it. */
     setId: "",
     playing: null as { id: string; startPos: number; setId: string; vibes: string[] } | null,
@@ -386,6 +426,7 @@ export function useAutoMix() {
     st.current.prepared = null;
     st.current.preparing = null;
     st.current.interestUntil = 0;
+    st.current.vocalGap = null;
     setInterestUntil(0);
     setRunning(false);
     setPaused(false);
@@ -548,6 +589,7 @@ export function useAutoMix() {
   /** Arm the auto-hop timer. In "ai" mode the plan's outPoint decides. */
   function armTimer(prepared?: Prepared | null) {
     if (timer.current) clearTimeout(timer.current);
+    st.current.vocalGap = null;
     // never schedule a hop while paused - prepareNext() can resolve after
     // the user paused; togglePause() re-arms fresh on resume instead
     if (st.current.paused) return;
@@ -583,7 +625,24 @@ export function useAutoMix() {
     }
     // interest taps: the user claimed more of this song - never hop inside it
     waitSec = Math.max(waitSec, st.current.interestUntil - pos);
-    st.current.hopTargetPos = pos + waitSec;
+    const cur = st.current.current;
+    if (clipLen === "ai" && prepared && cur) {
+      // leave when a sung line ends, not in the middle of one; the hook
+      // play-out may give a few seconds if that is where the singer stops
+      const famousEnd = (cur.meta.famousStart ?? 40) + 35;
+      const desired = pos + waitSec;
+      const floor = Math.max(
+        st.current.opts.minPlaySec ?? 25,
+        st.current.interestUntil,
+        Math.min(desired, famousEnd) - 4
+      );
+      const gap = aimAtVocalGap(cur, prepared.plan, pos, desired, floor);
+      if (gap) {
+        waitSec = gap.waitSec;
+        st.current.vocalGap = { dropAt: gap.dropAt, room: gap.room, kind: gap.kind };
+      }
+    }
+    st.current.hopTargetPos = st.current.vocalGap?.dropAt ?? pos + waitSec;
     timer.current = setTimeout(() => hopNow("auto"), waitSec * 1000);
   }
 
@@ -600,7 +659,12 @@ export function useAutoMix() {
     s.interestUntil = until;
     setInterestUntil(until);
     if (timer.current && s.hopTargetPos < until) {
+      if (s.opts.clipLen === "ai" && s.prepared) {
+        armTimer(s.prepared); // re-aims past the claim, at a vocal gap if one fits
+        return;
+      }
       clearTimeout(timer.current);
+      s.vocalGap = null;
       s.hopTargetPos = until;
       timer.current = setTimeout(() => hopNow("auto"), (until - pos) * 1000);
     }
@@ -713,6 +777,18 @@ export function useAutoMix() {
 
     if (s.opts.maxTransitionDur && plan.style !== "cut")
       plan.duration = Math.min(plan.duration, s.opts.maxTransitionDur);
+    // auto-hop aimed at a vocal gap: B enters as A's line ends, and A is gone
+    // before its singer comes back
+    const gap = end === "auto" ? s.vocalGap : null;
+    s.vocalGap = null;
+    const dropAt = gap && gap.dropAt > engine.position() ? gap.dropAt : undefined;
+    if (gap && dropAt != null) {
+      // after a mere breath (dense pop) the blend has to be quick
+      plan.duration = Math.min(plan.duration, Math.max(1.5, gap.room + 1));
+      plan.reasoning = `${plan.reasoning} 🎤 ${
+        gap.kind === "break" ? "Timed to the break after the vocal line." : "Timed to the end of a vocal line."
+      }`;
+    }
     // interest taps apply to the song they were tapped on - reset for the next
     s.interestUntil = 0;
     setInterestUntil(0);
@@ -735,6 +811,7 @@ export function useAutoMix() {
         inPoint: plan.inPoint,
         analyses: { from: current.analysis, to: next.analysis },
         quantizeBeats,
+        dropAt,
       });
     } else if (prepared.matched) {
       // key-locked: play the pre-stretched buffer at rate 1 (pitch preserved)
@@ -742,14 +819,14 @@ export function useAutoMix() {
         prepared.matched.buffer,
         { ...plan, beatMatch: false, inPoint: prepared.matched.inPoint },
         { from: current.analysis, to: prepared.matched.analysis },
-        { quantizeBeats }
+        { quantizeBeats, dropAt }
       );
     } else {
       engine.transition(
         next.buffer,
         plan,
         { from: current.analysis, to: next.analysis },
-        { quantizeBeats }
+        { quantizeBeats, dropAt }
       );
     }
     if (s.opts.keyLock && prepared.matched) setStatus("🔑 key-locked");

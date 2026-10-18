@@ -3,6 +3,7 @@
 import { DJEngine } from "@/lib/audio/engine";
 import { installAudioUnlock } from "@/lib/audio/unlock";
 import { analyzeTrack, camelotCompatible } from "@/lib/audio/analysis";
+import { vocalExits } from "@/lib/audio/vocalExits";
 import { getSelectedLanguages } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
 import type {
@@ -158,6 +159,10 @@ export async function planTransition(
         energy: sparseEnergy(from.analysis.energy),
         position: Math.round(position),
         famousStart: from.meta.famousStart,
+        // where a sung line ends and the band plays alone for a bit
+        vocalBreaks: vocalExits(from.meta.vocals, from.analysis)
+          .filter((e) => e.kind === "break" && e.at > position)
+          .map((e) => Math.round(e.at)),
       },
       trackB: {
         title: `${to.meta.title} - ${to.meta.artist}`,

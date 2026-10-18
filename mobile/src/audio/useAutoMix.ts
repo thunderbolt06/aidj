@@ -10,6 +10,36 @@ import {
 } from "./dj";
 import { apiUrl } from "../config";
 import { getSelectedLanguageLabels, getSongSource } from "../prefs";
+import { pickVocalExit, vocalExits } from "./vocalExits";
+
+/** Margin between the auto-hop timer firing and the planned drop. */
+const VOCAL_GAP_MARGIN = 2.5;
+
+/**
+ * Aim an auto-hop at a vocal gap: the first moment near `desired` where A's
+ * sung line has ended and the band plays alone, so B comes in without cutting
+ * a word off or stacking two singers. Null when A has no vocal map or no gap
+ * fits - the caller then hops at `desired` as before. (Web twin in
+ * lib/client/useAutoMix.ts; no stems here, so no acapella lead-in.)
+ */
+function aimAtVocalGap(
+  current: LoadedTrack,
+  pos: number,
+  desired: number,
+  floor: number
+): { waitSec: number; dropAt: number; room: number; kind: "break" | "line" } | null {
+  const a = current.analysis;
+  const preRoll = 4 * (a.bpm > 0 ? 60 / a.bpm : 0.5); // longest engine pre-roll
+  const hardFloor = pos + preRoll + VOCAL_GAP_MARGIN + 0.5;
+  const exit = pickVocalExit(vocalExits(current.meta.vocals, a), desired, Math.max(floor, hardFloor));
+  if (!exit || exit.at > a.duration - 8) return null;
+  return {
+    waitSec: Math.max(0, exit.at - preRoll - VOCAL_GAP_MARGIN - pos),
+    dropAt: exit.at,
+    room: exit.room,
+    kind: exit.kind,
+  };
+}
 
 /**
  * Shared auto-mix loop, prepare-ahead edition — port of the web
@@ -90,6 +120,8 @@ export function useAutoMix() {
     interestUntil: 0,
     /** Track position the armed auto-hop timer is aiming at. */
     hopTargetPos: 0,
+    /** The vocal gap the armed auto-hop lands in (A position + pause length). */
+    vocalGap: null as { dropAt: number; room: number; kind: "break" | "line" } | null,
   });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -140,6 +172,7 @@ export function useAutoMix() {
     st.current.prepared = null;
     st.current.preparing = null;
     st.current.interestUntil = 0;
+    st.current.vocalGap = null;
     setInterestUntil(0);
     setRunning(false);
     setPaused(false);
@@ -267,6 +300,7 @@ export function useAutoMix() {
   /** Arm the auto-hop timer. In "ai" mode the plan's outPoint decides. */
   function armTimer(prepared?: Prepared | null) {
     if (timer.current) clearTimeout(timer.current);
+    st.current.vocalGap = null;
     // never schedule a hop while paused - prepareNext() can resolve after
     // the user paused; togglePause() re-arms fresh on resume instead
     if (st.current.paused) return;
@@ -293,8 +327,25 @@ export function useAutoMix() {
     }
     // interest taps: the user claimed more of this song - never hop inside it
     waitSec = Math.max(waitSec, st.current.interestUntil - pos);
-    st.current.hopTargetPos = pos + waitSec;
-    timer.current = setTimeout(() => hopNow(), waitSec * 1000);
+    const cur = st.current.current;
+    if (clipLen === "ai" && prepared && cur) {
+      // leave when a sung line ends, not in the middle of one; the hook
+      // play-out may give a few seconds if that is where the singer stops
+      const famousEnd = (cur.meta.famousStart ?? 40) + 35;
+      const desired = pos + waitSec;
+      const floor = Math.max(
+        st.current.opts.minPlaySec ?? 25,
+        st.current.interestUntil,
+        Math.min(desired, famousEnd) - 4
+      );
+      const gap = aimAtVocalGap(cur, pos, desired, floor);
+      if (gap) {
+        waitSec = gap.waitSec;
+        st.current.vocalGap = { dropAt: gap.dropAt, room: gap.room, kind: gap.kind };
+      }
+    }
+    st.current.hopTargetPos = st.current.vocalGap?.dropAt ?? pos + waitSec;
+    timer.current = setTimeout(() => hopNow("auto"), waitSec * 1000);
   }
 
   /**
@@ -309,14 +360,22 @@ export function useAutoMix() {
     s.interestUntil = until;
     setInterestUntil(until);
     if (timer.current && s.hopTargetPos < until) {
+      if (s.opts.clipLen === "ai" && s.prepared) {
+        armTimer(s.prepared); // re-aims past the claim, at a vocal gap if one fits
+        return;
+      }
       clearTimeout(timer.current);
+      s.vocalGap = null;
       s.hopTargetPos = until;
-      timer.current = setTimeout(() => hopNow(), (until - pos) * 1000);
+      timer.current = setTimeout(() => hopNow("auto"), (until - pos) * 1000);
     }
   }
 
-  /** Execute the prepared hop instantly. Never loads at hop time. */
-  async function hopNow() {
+  /**
+   * Execute the prepared hop instantly. Never loads at hop time. Called bare
+   * it is the listener's skip; the auto-hop timer passes "auto".
+   */
+  async function hopNow(reason?: "auto") {
     const s = st.current;
     if (!s.running || s.hopping) return;
     s.hopping = true;
@@ -342,7 +401,7 @@ export function useAutoMix() {
           plan: heuristicPlan(next, getEngine().position(), s.current ?? undefined),
         };
       }
-      await executeHop(prepared);
+      await executeHop(prepared, reason === "auto");
     } catch (e) {
       setStatus(`hop failed: ${e instanceof Error ? e.message : e} - skipping`);
       // never stall the set: drop the bad track and prepare the following one
@@ -382,7 +441,7 @@ export function useAutoMix() {
     }
   }
 
-  async function executeHop(prepared: Prepared) {
+  async function executeHop(prepared: Prepared, auto = false) {
     const s = st.current;
     const current = s.current;
     if (!current || !s.running) return;
@@ -400,6 +459,18 @@ export function useAutoMix() {
 
     if (s.opts.maxTransitionDur && plan.style !== "cut")
       plan.duration = Math.min(plan.duration, s.opts.maxTransitionDur);
+    // auto-hop aimed at a vocal gap: B enters as A's line ends, and A is gone
+    // before its singer comes back
+    const gap = auto ? s.vocalGap : null;
+    s.vocalGap = null;
+    const dropAt = gap && gap.dropAt > engine.position() ? gap.dropAt : undefined;
+    if (gap && dropAt != null) {
+      // after a mere breath (dense pop) the blend has to be quick
+      plan.duration = Math.min(plan.duration, Math.max(1.5, gap.room + 1));
+      plan.reasoning = `${plan.reasoning} 🎤 ${
+        gap.kind === "break" ? "Timed to the break after the vocal line." : "Timed to the end of a vocal line."
+      }`;
+    }
     // interest taps apply to the song they were tapped on - reset for the next
     s.interestUntil = 0;
     setInterestUntil(0);
@@ -418,7 +489,7 @@ export function useAutoMix() {
       next.buffer,
       plan,
       { from: current.analysis, to: next.analysis },
-      { quantizeBeats }
+      { quantizeBeats, dropAt }
     );
     setStatus("");
 

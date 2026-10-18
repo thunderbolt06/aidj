@@ -13,6 +13,9 @@ mkdir -p "$LIB/logs"
 INGEST=(node --experimental-strip-types --no-warnings scripts/library/ingest.mjs --jobs 4)
 # the offline pass only touches songs that have no cover yet (a minute at most)
 COVERS=(python3 scripts/library/fetch_covers.py)
+# vocal maps for the new songs (~5 s each on Apple silicon); capped per round
+# so a big download batch can't stall the ingest loop for hours
+VOCALS=(bash scripts/library/vocal_map.sh --source all --limit 150)
 
 # a multi-hour download stalls every time the Mac idles to sleep
 command -v caffeinate >/dev/null && caffeinate -i -w $$ &
@@ -27,7 +30,9 @@ while kill -0 $FMA 2>/dev/null || kill -0 $YT 2>/dev/null; do
   sleep 600
   "${INGEST[@]}" >> "$LIB/logs/ingest.log" 2>&1
   "${COVERS[@]}" >> "$LIB/logs/covers.log" 2>&1
+  "${VOCALS[@]}" > /dev/null 2>&1
 done
 "${INGEST[@]}" >> "$LIB/logs/ingest.log" 2>&1
 "${COVERS[@]}" >> "$LIB/logs/covers.log" 2>&1
+"${VOCALS[@]}" > /dev/null 2>&1
 echo "library build finished $(date)" >> "$LIB/logs/ingest.log"

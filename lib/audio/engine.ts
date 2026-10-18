@@ -851,7 +851,11 @@ export class DJEngine {
     }
   }
 
+  /** The listener's volume (0..1); ducks come back up to it, not to full. */
+  private volume = 1;
+
   setMasterVolume(v: number) {
+    this.volume = v;
     this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
   }
 
@@ -860,8 +864,8 @@ export class DJEngine {
     const g = this.master.gain;
     const now = this.ctx.currentTime;
     g.cancelScheduledValues(now);
-    g.setTargetAtTime(level, now, 0.2);
-    g.setTargetAtTime(1, now + holdSec, 0.4);
+    g.setTargetAtTime(level * this.volume, now, 0.2);
+    g.setTargetAtTime(this.volume, now + holdSec, 0.4);
   }
 
   // ── Mixtape recording ─────────────────────────────────────────────────────

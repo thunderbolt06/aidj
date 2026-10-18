@@ -235,6 +235,8 @@ export function useAutoMix() {
   const [arcInfo, setArcInfo] = useState<ArcTarget | null>(null);
   /** Track position (sec) the user has "claimed" via interest taps. */
   const [interestUntil, setInterestUntil] = useState(0);
+  /** There is a song to go BACK to. */
+  const [canGoBack, setCanGoBack] = useState(false);
 
   const st = useRef({
     queue: [] as Track[],
@@ -249,6 +251,8 @@ export function useAutoMix() {
     refilling: false,
     hopping: false,
     setLog: [] as HopLogEntry[],
+    /** Songs hopped away from, newest last, with where each was left (sec). */
+    history: [] as { track: Track; at: number }[],
     arcStartedAt: 0,
     /** Interest taps: floor (track position, sec) before which no auto-hop may fire. */
     interestUntil: 0,
@@ -459,6 +463,8 @@ export function useAutoMix() {
     st.current.preparing = null;
     st.current.interestUntil = 0;
     st.current.vocalGap = null;
+    st.current.history = [];
+    setCanGoBack(false);
     setInterestUntil(0);
     setRunning(false);
     setPaused(false);
@@ -504,6 +510,8 @@ export function useAutoMix() {
     st.current.running = true;
     setRunning(true);
     st.current.setLog = [];
+    st.current.history = [];
+    setCanGoBack(false);
     setSetLog([]);
     st.current.arcStartedAt = Date.now();
     setArcInfo(currentArc());
@@ -763,14 +771,17 @@ export function useAutoMix() {
     }
   }
 
-  /** Transition to a specific track. Instant if it was prepared. */
-  async function transitionTo(track: Track) {
+  /**
+   * Transition to a specific track. Instant if it was prepared. `resumeAt`
+   * brings it in at that position instead of its planned entry point.
+   */
+  async function transitionTo(track: Track, resumeAt?: number) {
     const s = st.current;
     if (!s.current || !s.running || s.hopping) return;
     s.hopping = true;
     try {
       let prepared =
-        s.prepared?.trackId === track.id ? s.prepared : null;
+        resumeAt == null && s.prepared?.trackId === track.id ? s.prepared : null;
       if (!prepared) {
         // not prepared: heuristic plan, zero AI latency at click time
         const next = await loadTrack(track.id, setStatus);
@@ -780,9 +791,10 @@ export function useAutoMix() {
           Math.abs(s.current.analysis.bpm - next.analysis.bpm) /
             Math.max(s.current.analysis.bpm, 1) <
           0.08;
+        if (resumeAt != null) plan.inPoint = resumeAt;
         prepared = { trackId: track.id, next, plan };
       }
-      await executeHop(prepared, "pick");
+      await executeHop(prepared, "pick", resumeAt != null);
     } catch (e) {
       setStatus(`transition failed: ${e instanceof Error ? e.message : e}`);
     } finally {
@@ -790,7 +802,27 @@ export function useAutoMix() {
     }
   }
 
-  async function executeHop(prepared: Prepared, end: PlayEnd) {
+  /**
+   * BACK: transition to the song played before this one, picking it up where
+   * it was left. Walks further back on each press.
+   */
+  async function goBack() {
+    const s = st.current;
+    if (!s.running || s.hopping) return;
+    const prev = s.history.pop();
+    if (!prev) return;
+    setCanGoBack(s.history.length > 0);
+    await transitionTo(prev.track, prev.at);
+    // the song came back on purpose: give it a full min-play from here
+    if (st.current.current?.meta.id === prev.track.id) {
+      const until = prev.at + (s.opts.minPlaySec ?? 25);
+      st.current.interestUntil = until;
+      setInterestUntil(until);
+      armTimer(st.current.prepared);
+    }
+  }
+
+  async function executeHop(prepared: Prepared, end: PlayEnd, back = false) {
     const s = st.current;
     const current = s.current;
     if (!current || !s.running) return;
@@ -850,6 +882,14 @@ export function useAutoMix() {
     s.interestUntil = 0;
     setInterestUntil(0);
     plan.outPoint = ranOut ? current.analysis.duration : engine.position();
+    // remember where this song was left, so BACK can return to it (going back
+    // itself doesn't, or BACK would bounce between the same two songs)
+    const leaving = s.queue[s.nowIdx];
+    if (!back && leaving && !ranOut) {
+      s.history.push({ track: leaving, at: plan.outPoint });
+      if (s.history.length > 50) s.history.shift();
+      setCanGoBack(true);
+    }
     endPlay(end, plan.outPoint);
     beginPlay(prepared.trackId, prepared.matched ? prepared.matched.inPoint : plan.inPoint);
     setLastPlan(plan);
@@ -1082,6 +1122,8 @@ export function useAutoMix() {
     togglePause,
     hopNow,
     transitionTo,
+    goBack,
+    canGoBack,
     prepareNext,
     prefetch,
     setOptions,

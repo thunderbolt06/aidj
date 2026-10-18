@@ -14,8 +14,14 @@ import { SongSourcePicker } from "@/components/SongSourcePicker";
 import { SearchPicker } from "@/components/SearchPicker";
 import { Cover } from "@/components/Cover";
 import { HeatmapBar } from "@/components/HeatmapBar";
-import { BeatTapButton } from "@/components/BeatTapPulse";
-import { PauseIcon, PlayIcon, ShuffleIcon, SkipForwardIcon } from "@/components/icons";
+import { VolumeControl } from "@/components/VolumeControl";
+import {
+  PauseIcon,
+  PlayIcon,
+  ShuffleIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
+} from "@/components/icons";
 import VIBES from "@/lib/vibes.json";
 
 /**
@@ -23,7 +29,8 @@ import VIBES from "@/lib/vibes.json";
  * queue sheet) rebuilt around a different listening contract than
  * Spotify/YT Music: songs don't play out, the DJ hops when a song has given
  * its best moment, and YOU steer it physically:
- *   - tap spacebar / the clap button on the beat = "keep it going" (+15s per tap)
+ *   - tap spacebar = "keep it going" (+15s per tap)
+ *   - BACK: transition back to the last song, where it was left
  *   - NEXT: quick tap skips; press & hold builds tension, release drops
  *   - 9-grid = pick the next door instead of a linear queue
  * The seekbar is the replay heatmap: you see WHERE the famous part is, and
@@ -308,9 +315,8 @@ export default function HomePage() {
   }, [mix.running, tapToExtend]);
 
   // hardware/OS media keys (headphones, keyboard, lock screen, car stereo):
-  // play/pause → our pause toggle, next → NEXT's plain-skip tap, and — since
-  // there's no "previous song" here (it's a one-way DJ set) — back → the clap
-  // button, so the physical back button becomes "keep this one going".
+  // play/pause → our pause toggle, next → NEXT's plain-skip tap, back → BACK
+  // (the last song, picked up where it was left).
   const mixRef = useRef(mix);
   mixRef.current = mix;
   useEffect(() => {
@@ -320,7 +326,7 @@ export default function HomePage() {
     ms.setActionHandler("play", () => mixRef.current.togglePause());
     ms.setActionHandler("pause", () => mixRef.current.togglePause());
     ms.setActionHandler("nexttrack", () => mixRef.current.hopNow());
-    ms.setActionHandler("previoustrack", () => mixRef.current.tapInterest());
+    ms.setActionHandler("previoustrack", () => mixRef.current.goBack());
     return () => {
       ms.setActionHandler("play", null);
       ms.setActionHandler("pause", null);
@@ -647,7 +653,7 @@ export default function HomePage() {
             </h1>
             <p className="mt-2 max-w-md text-sm text-zinc-400">
               Tell it a vibe. It plays only the famous parts, transitions like
-              a DJ, and never stops. Clap along to keep a song;
+              a DJ, and never stops. Tap space to keep a song going.
             </p>
           </div>
           <div className="flex w-full max-w-xl gap-2">
@@ -824,8 +830,7 @@ export default function HomePage() {
               if (dx < -64) {
                 mix.hopNow(); // swipe left = next song (transition)
               } else if (dx > 64) {
-                const prev = mix.queue[mix.nowIdx - 1];
-                if (prev) mix.transitionTo(prev); // swipe right = previous song
+                mix.goBack(); // swipe right = previous song, where it was left
               }
             }}
           >
@@ -849,14 +854,17 @@ export default function HomePage() {
               </span>
             </button>
             <div className="flex shrink-0 items-center gap-2">
-              {/* TAP: on the beat = keep this song going (+15s per tap) */}
-              {tapToExtend && (
-                <BeatTapButton
-                  analysis={mix.now?.analysis ?? null}
-                  onTap={() => mix.tapInterest()}
-                  active={mix.running}
-                />
-              )}
+              {/* VOLUME: click = mute · hover = slider */}
+              <VolumeControl />
+              {/* BACK: the last song again, from where it was left */}
+              <button
+                onClick={() => mix.goBack()}
+                disabled={!mix.canGoBack}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/70 text-white transition hover:border-white active:scale-95 disabled:border-white/20 disabled:text-white/30 disabled:active:scale-100"
+                title="Back to the last song, where you left it"
+              >
+                <SkipBackIcon />
+              </button>
               {/* PAUSE: freezes the mix in place; tap again to resume */}
               <button
                 onClick={() => mix.togglePause()}

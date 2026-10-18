@@ -3,7 +3,7 @@
 import { DJEngine } from "@/lib/audio/engine";
 import { installAudioUnlock } from "@/lib/audio/unlock";
 import { analyzeTrack, camelotCompatible } from "@/lib/audio/analysis";
-import { vocalExits } from "@/lib/audio/vocalExits";
+import { pickVocalEntry, vocalEntries, vocalExits } from "@/lib/audio/vocalExits";
 import { getSelectedLanguages } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
 import type {
@@ -190,7 +190,7 @@ export async function planTransition(
     }),
   });
   if (!res.ok) throw new Error("transition planning failed");
-  return res.json();
+  return landOnVocalEntry(await res.json(), to);
 }
 
 const stemCache = new Map<string, Promise<AudioBuffer>>();
@@ -234,7 +234,7 @@ export function heuristicPlan(
   const famous = to.meta.famousStart ?? 45;
   const clash =
     !!from && !camelotCompatible(from.analysis.camelot, to.analysis.camelot);
-  return {
+  return landOnVocalEntry({
     style: clash ? "echo_out" : "crossfade",
     outPoint: position,
     inPoint: Math.max(0, famous - 8),
@@ -243,5 +243,40 @@ export function heuristicPlan(
     reasoning: clash
       ? `Heuristic: keys clash (${from!.analysis.camelot}→${to.analysis.camelot}), echoing out to mask it.`
       : "Heuristic fallback: smooth crossfade into the hook.",
+  }, to);
+}
+
+/**
+ * Where B should start near `desired`: on the beat just before a sung line
+ * (ideally a verse that follows band-only music), so the listener never
+ * lands in a half-sung sentence. `desired` when B has no vocal map or no
+ * line starts close by.
+ */
+export function vocalStart(to: LoadedTrack, desired: number, lead = 4): number {
+  return vocalEntryNear(to, desired, lead)?.at ?? desired;
+}
+
+function vocalEntryNear(to: LoadedTrack, desired: number, lead: number) {
+  const a = to.analysis;
+  const entries = vocalEntries(to.meta.vocals, a, lead).filter((e) => e.at < a.duration - 30);
+  return pickVocalEntry(entries, desired);
+}
+
+/**
+ * Move a plan's in-point to the start of a sung line. The hook detector (and
+ * the AI, which aims just before the hook) often lands mid-verse; this keeps
+ * the hook close but starts B where its singer starts. An acapella-in times
+ * B's vocal stem off the in-point itself, so it is left alone.
+ */
+export function landOnVocalEntry(plan: TransitionPlan, to: LoadedTrack): TransitionPlan {
+  if (plan.style === "stem_acapella") return plan;
+  const e = vocalEntryNear(to, plan.inPoint, Math.min(plan.duration, 8));
+  if (!e) return plan;
+  return {
+    ...plan,
+    inPoint: e.at,
+    reasoning: `${plan.reasoning} 🎙 ${
+      e.kind === "verse" ? "B comes in at the top of a verse." : "B comes in at the start of a sung line."
+    }`,
   };
 }

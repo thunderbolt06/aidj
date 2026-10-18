@@ -102,15 +102,16 @@ function fmt(sec: number): string {
 }
 
 /**
- * One row of the queue sheet: drag the ⠿ handle to reorder (desktop),
- * swipe left to delete (touch) - the row slides to reveal a trash icon and
- * animates out past the threshold.
+ * One row of the queue sheet: tap to transition to that song, drag the ⠿
+ * handle to reorder (desktop), swipe left to delete (touch) - the row slides
+ * to reveal a trash icon and animates out past the threshold.
  */
 function QueueRow({
   index,
   title,
   thumbnail,
   isNow,
+  onSelect,
   onDelete,
   onDragStart,
   onDrop,
@@ -119,6 +120,7 @@ function QueueRow({
   title: string;
   thumbnail: string;
   isNow: boolean;
+  onSelect: () => void;
   onDelete: () => void;
   onDragStart: () => void;
   onDrop: () => void;
@@ -129,6 +131,7 @@ function QueueRow({
   const touch = useRef<{ x: number; y: number; swiping: boolean } | null>(null);
   // live swipe distance - state can lag a fast flick (events batch in a frame)
   const dxRef = useRef(0);
+  const swipedRef = useRef(false);
 
   return (
     <li
@@ -144,8 +147,16 @@ function QueueRow({
       </div>
       <div
         className={`relative flex items-center justify-between gap-2 rounded px-3 py-1.5 ${
-          isNow ? "bg-cyan-950 text-cyan-300" : "bg-zinc-900"
+          isNow ? "bg-cyan-950 text-cyan-300" : "cursor-pointer bg-zinc-900 hover:bg-zinc-800"
         }`}
+        onClick={() => {
+          // a swipe that snapped back still ends in a click - not a pick
+          if (swipedRef.current) {
+            swipedRef.current = false;
+            return;
+          }
+          if (!isNow) onSelect();
+        }}
         style={{
           transform: leaving ? "translateX(-110%)" : `translateX(${dx}px)`,
           transition: swiping ? "none" : "transform 0.2s ease",
@@ -154,6 +165,7 @@ function QueueRow({
         onTouchStart={(e) => {
           const t = e.touches[0];
           touch.current = { x: t.clientX, y: t.clientY, swiping: false };
+          swipedRef.current = false;
         }}
         onTouchMove={(e) => {
           const s = touch.current;
@@ -175,6 +187,7 @@ function QueueRow({
           const s = touch.current;
           touch.current = null;
           setSwiping(false);
+          if (s?.swiping) swipedRef.current = true;
           if (s?.swiping && dxRef.current < -72) {
             setLeaving(true);
             setTimeout(onDelete, 180); // let the slide-out play first
@@ -888,6 +901,7 @@ export default function HomePage() {
                     title={t.title}
                     thumbnail={t.thumbnail}
                     isNow={i === mix.nowIdx}
+                    onSelect={() => mix.transitionTo(t)}
                     onDragStart={() => (dragFrom.current = i)}
                     onDrop={() => {
                       if (dragFrom.current !== null)

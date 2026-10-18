@@ -140,6 +140,23 @@ export function useAutoMix() {
     return () => clearInterval(id);
   }, []);
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // the song ran out before the hop timer fired (it was waiting on a vocal
+    // gap, an interest tap, a slow prepare...) - never sit in silence waiting
+    // for the planned moment: bring the next song in right now
+    const engine = getEngine();
+    const onEnd = () => {
+      const s = st.current;
+      if (!s.running || s.paused) return;
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      hopNow("auto");
+    };
+    engine.onTrackEnd = onEnd;
+    return () => {
+      if (engine.onTrackEnd === onEnd) engine.onTrackEnd = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setQueue(q: Track[] | ((prev: Track[]) => Track[])) {
     // st.current.queue must update synchronously - callers invoke start()
@@ -366,6 +383,18 @@ export function useAutoMix() {
         st.current.vocalGap = { dropAt: gap.dropAt, room: gap.room, kind: gap.kind };
       }
     }
+    // never wait past the end of the song: the floors above (20s, min-play,
+    // interest taps, a vocal gap) can all land after it, and the blend has to
+    // start while A still has audio left to mix out of
+    const songDur = cur?.analysis.duration;
+    if (songDur) {
+      const blend = (prepared?.plan.duration ?? 4) + 1;
+      const latest = Math.max(0, songDur - pos - blend);
+      if (waitSec > latest) {
+        waitSec = latest;
+        st.current.vocalGap = null;
+      }
+    }
     st.current.hopTargetPos = st.current.vocalGap?.dropAt ?? pos + waitSec;
     timer.current = setTimeout(() => hopNow("auto"), waitSec * 1000);
   }
@@ -481,10 +510,19 @@ export function useAutoMix() {
     // beat-grid quantization is handled INSIDE the engine - every ramp and
     // source start is scheduled on the AudioContext clock against the next
     // phrase boundary, so drops land sample-accurate (no timer drift)
-    const quantizeBeats = s.opts.quantize ? (s.opts.quantizeBeats ?? 16) : undefined;
+    const quantizeBeats =
+      s.opts.quantize && engine.isPlaying() ? (s.opts.quantizeBeats ?? 16) : undefined;
     if (quantizeBeats) {
       const wait = engine.timeToDrop(current.analysis, quantizeBeats);
       if (wait > 1) setStatus(`dropping on the phrase in ${wait.toFixed(1)}s…`);
+    }
+
+    // A already played out: there is nothing left to blend, phrase-snap or
+    // pre-roll against - start B now instead of performing a trick on silence
+    const ranOut = !engine.isPlaying();
+    if (ranOut) {
+      plan.style = "cut";
+      plan.reasoning = `${plan.reasoning} ⏭ Song ended before the mix point - next song straight in.`;
     }
 
     if (s.opts.maxTransitionDur && plan.style !== "cut")
@@ -504,7 +542,7 @@ export function useAutoMix() {
     // interest taps apply to the song they were tapped on - reset for the next
     s.interestUntil = 0;
     setInterestUntil(0);
-    plan.outPoint = engine.position();
+    plan.outPoint = ranOut ? current.analysis.duration : engine.position();
     setLastPlan(plan);
     s.current = next;
     s.prepared = null;

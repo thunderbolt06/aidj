@@ -67,6 +67,9 @@ class Deck {
     this.trim.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
   }
 
+  /** Fired when the track plays to the end of its buffer on its own. */
+  onRunOut: (() => void) | null = null;
+
   /** Start playback at context time `when`, from `offset` seconds into the track. */
   play(when: number, offset: number, rate = 1) {
     if (!this.buffer) throw new Error("deck has no buffer");
@@ -80,7 +83,11 @@ class Deck {
     this.startedAt = when - offset / rate;
     this.playing = true;
     src.onEnded = () => {
-      if (this.source === src) this.playing = false;
+      // still our source = it ran off the end of the buffer (stopSource()
+      // clears this.source first, so a planned stop never lands here)
+      if (this.source !== src) return;
+      this.playing = false;
+      this.onRunOut?.();
     };
   }
 
@@ -133,6 +140,11 @@ export class DJEngine {
   private userPaused = false;
   /** Called when a transition completes, with the new active deck index. */
   onTransitionEnd: (() => void) | null = null;
+  /**
+   * Called when the song on the ACTIVE deck reaches the end of its audio
+   * before anything hopped away from it - the cue to bring the next one in now.
+   */
+  onTrackEnd: (() => void) | null = null;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -153,6 +165,10 @@ export class DJEngine {
       new Deck(this.ctx, this.master, delay),
     ];
     this.decks[1].gain.gain.value = 0;
+    for (const d of this.decks)
+      d.onRunOut = () => {
+        if (d === this.activeDeck) this.onTrackEnd?.();
+      };
   }
 
   get activeDeck() {
@@ -204,6 +220,11 @@ export class DJEngine {
 
   position(): number {
     return this.activeDeck.position();
+  }
+
+  /** False once the active deck's song has run out (or nothing is loaded). */
+  isPlaying(): boolean {
+    return this.activeDeck.playing;
   }
 
   stop() {

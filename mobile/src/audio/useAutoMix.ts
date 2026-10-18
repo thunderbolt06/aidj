@@ -6,6 +6,7 @@ import {
   loadTrack,
   planTransition,
   searchTracks,
+  vocalStart,
   type LoadedTrack,
 } from "./dj";
 import { apiUrl } from "../config";
@@ -255,8 +256,10 @@ export function useAutoMix() {
     });
     setSetLog([...st.current.setLog]);
     const famous = first.meta.famousStart ?? 40;
-    getEngine().startTrack(first.buffer, Math.max(0, famous - 5), first.analysis);
-    st.current.startPos = Math.max(0, famous - 5);
+    // open just before a sung line near the hook, not halfway through one
+    const startAt = vocalStart(first, Math.max(0, famous - 5), 2);
+    getEngine().startTrack(first.buffer, startAt, first.analysis);
+    st.current.startPos = startAt;
     notePlayed(q[0].id);
     setStatus("");
     prepareNext();

@@ -127,6 +127,100 @@ export function pickVocalExit(
   return best;
 }
 
+export interface VocalEntry {
+  /** Where to start playing: on the beat grid, in the quiet before the line. */
+  at: number;
+  /** Where the singer comes in. */
+  sing: number;
+  /** Seconds of no singing before `sing`. */
+  room: number;
+  /** 0..1 overall quality - every "verse" outranks every "line". */
+  score: number;
+  /** "verse": a verse or chorus after the band played alone; "line": after a breath. */
+  kind: "verse" | "line";
+}
+
+/**
+ * Entry points for the INCOMING song: the start of a sung line, never the
+ * middle of one. The hook detector often marks a spot halfway through a
+ * verse, so starting there drops the listener into a half-sung sentence.
+ * A verse or chorus that follows a stretch of band-only music is best -
+ * `lead` seconds of that music play first (on the bar line) so the singer
+ * arrives as the blend settles. In dense songs the start of any line will do.
+ */
+export function vocalEntries(
+  vocals: VocalSegments | undefined,
+  grid: Grid,
+  lead = 4
+): VocalEntry[] {
+  if (!vocals?.length) return [];
+  const beat = grid.bpm > 0 ? 60 / grid.bpm : 0;
+  const bar = beat * 4;
+  const anchor = grid.downbeatOffset ?? grid.beatOffset ?? 0;
+  const minRoom = Math.max(MIN_ROOM, bar * 0.9);
+
+  const entries: VocalEntry[] = [];
+  for (let i = 0; i < vocals.length; i++) {
+    const sing = vocals[i][0];
+    const prevEnd = i > 0 ? vocals[i - 1][1] : 0;
+    const room = sing - prevEnd;
+    if (room < LINE_GAP) continue;
+    // the line that starts here must be a real one, not an ad-lib
+    let j = i;
+    while (j + 1 < vocals.length && vocals[j + 1][0] - vocals[j][1] < LINE_GAP) j++;
+    if (vocals[j][1] - sing < MIN_LINE) continue;
+
+    const verse = room >= minRoom;
+    const want = sing - Math.min(lead, room - 0.05);
+    let at = Math.max(0, want);
+    if (beat > 0) {
+      // a verse comes in on the 1; a line on the last beat before the singer.
+      // No beat inside the breath: the engine's grid snap would clip a word.
+      const onBar = anchor + Math.ceil((want - 0.05 - anchor) / bar) * bar;
+      const onBeat = anchor + Math.ceil((want - 0.05 - anchor) / beat) * beat;
+      if (verse && onBar <= sing - 0.2) at = onBar;
+      else if (onBeat <= sing + 0.05) at = onBeat;
+      else continue;
+      if (at < 0) continue;
+    }
+    entries.push({
+      at: round(at),
+      sing: round(sing),
+      room: round(room),
+      score: verse
+        ? round(0.5 + (0.5 * Math.min(room, 8)) / 8)
+        : round(0.1 + (0.15 * Math.min(room, 1.5)) / 1.5),
+      kind: verse ? "verse" : "line",
+    });
+  }
+  return entries;
+}
+
+/**
+ * The best entry near `desired` (the planned in-point): up to `early`
+ * seconds before it - the hook then simply arrives a little later - and at
+ * most `late` after it, where the hook would land while B is still fading in.
+ */
+export function pickVocalEntry(
+  entries: VocalEntry[],
+  desired: number,
+  early = 20,
+  late = 8
+): VocalEntry | null {
+  let best: VocalEntry | null = null;
+  let bestScore = -Infinity;
+  for (const e of entries) {
+    const d = e.at - desired;
+    if (d < -early || d > late) continue;
+    const s = e.score - (d < 0 ? 0.012 * -d : 0.03 * d);
+    if (s > bestScore) {
+      bestScore = s;
+      best = e;
+    }
+  }
+  return best;
+}
+
 function energyDip(energy: number[], paraStart: number, paraEnd: number, at: number, len: number): number {
   const before = mean(energy, paraStart, paraEnd);
   const after = mean(energy, at, at + Math.max(1, len));

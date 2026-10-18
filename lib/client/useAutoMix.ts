@@ -9,6 +9,7 @@ import {
   loadTrack,
   planTransition,
   searchTracks,
+  vocalStart,
   type LoadedTrack,
 } from "@/lib/client/dj";
 import { camelotCompatible } from "@/lib/audio/analysis";
@@ -599,8 +600,10 @@ export function useAutoMix() {
     });
     setSetLog([...st.current.setLog]);
     const famous = first.meta.famousStart ?? 40;
-    getEngine().startTrack(first.buffer, Math.max(0, famous - 5), first.analysis);
-    beginPlay(q[0].id, Math.max(0, famous - 5));
+    // open just before a sung line near the hook, not halfway through one
+    const startAt = vocalStart(first, Math.max(0, famous - 5), 2);
+    getEngine().startTrack(first.buffer, startAt, first.analysis);
+    beginPlay(q[0].id, startAt);
     setStatus("");
     prepareNext();
     maybeRefill();

@@ -9,6 +9,7 @@ import { getSongSource } from "@/lib/client/sourcePrefs";
 import { listenerHistory } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
+import { TransitionRating } from "@/components/TransitionRating";
 
 interface VibePlan {
   vibe: string;
@@ -106,6 +107,7 @@ export default function VibePage() {
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">Vibe Prompt</h1>
         <p className="text-sm text-zinc-400">

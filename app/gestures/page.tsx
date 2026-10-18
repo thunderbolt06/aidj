@@ -5,6 +5,7 @@ import { getEngine } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { Cover } from "@/components/Cover";
+import { TransitionRating } from "@/components/TransitionRating";
 
 /**
  * Gesture deck:
@@ -53,6 +54,7 @@ export default function GesturesPage() {
 
   return (
     <main className="mx-auto max-w-xl p-6 space-y-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">Gestures</h1>
         <p className="text-sm text-zinc-400">

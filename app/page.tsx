@@ -23,6 +23,7 @@ import {
   SkipForwardIcon,
 } from "@/components/icons";
 import VIBES from "@/lib/vibes.json";
+import { TransitionRating } from "@/components/TransitionRating";
 
 /**
  * Home = the Compilation deck. A streaming-app shell (bottom player dock,
@@ -713,6 +714,7 @@ export default function HomePage() {
   // space is left via a real grid-template (pure CSS, reflows on any resize).
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       {cornerNav}
 
       {homeView ? (

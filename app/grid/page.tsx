@@ -9,6 +9,7 @@ import { getSongSource } from "@/lib/client/sourcePrefs";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
+import { TransitionRating } from "@/components/TransitionRating";
 
 interface Suggestion {
   track: Track;
@@ -76,6 +77,7 @@ export default function GridPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">9-Grid Next Song</h1>
         <p className="text-sm text-zinc-400">

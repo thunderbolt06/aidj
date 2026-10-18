@@ -29,6 +29,10 @@ export type PlayEnd =
 
 export const PLAY_ENDS: PlayEnd[] = ["auto", "skip", "drop", "pick", "revibe", "stop", "left"];
 
+/** What set a transition off: how the song before it ended, or BACK. */
+export type HopTrigger = "auto" | "skip" | "drop" | "pick" | "back";
+export const HOP_TRIGGERS: HopTrigger[] = ["auto", "skip", "drop", "pick", "back"];
+
 interface Base {
   at: number;
   listener: string;
@@ -61,7 +65,46 @@ export interface IntentEvent extends Base {
   chip: boolean;
 }
 
-export type ListenEvent = SetEvent | PlayEvent | IntentEvent;
+/** One transition from song A to song B, logged as it starts. */
+export interface HopEvent extends Base {
+  type: "hop";
+  hopId: string;
+  setId: string;
+  vibes: string[];
+  page: string;
+  from: string;
+  fromTitle: string;
+  fromArtist: string;
+  to: string;
+  toTitle: string;
+  toArtist: string;
+  style: string;
+  /** where A was left and B came in, seconds into each song */
+  outSec: number;
+  inSec: number;
+  durSec: number;
+  trigger: HopTrigger;
+  /** A had already ended - B just started, nothing was mixed */
+  ranOut: boolean;
+  beatMatch: boolean;
+  keyLock: boolean;
+  /** timed to A's vocals: "handoff" (vocal_handoff), "break" / "line" (a vocal gap), or "" */
+  vocal: string;
+  bpmFrom: number;
+  bpmTo: number;
+  keyFrom: string;
+  keyTo: string;
+}
+
+/** The listener's like / dislike for a transition (the popup after it). */
+export interface RateEvent extends Base {
+  type: "rate";
+  hopId: string;
+  setId: string;
+  rating: "up" | "down";
+}
+
+export type ListenEvent = SetEvent | PlayEvent | IntentEvent | HopEvent | RateEvent;
 
 const str = (x: unknown, max: number) => (typeof x === "string" ? x.slice(0, max) : "");
 const strs = (x: unknown) =>
@@ -97,6 +140,48 @@ export function cleanEvent(raw: unknown, now = Date.now()): ListenEvent | null {
       playedSec: Math.round(playedSec),
       end,
     };
+  }
+  if (e.type === "hop") {
+    const hopId = str(e.hopId, 40);
+    const from = str(e.from, 60);
+    const to = str(e.to, 60);
+    const style = str(e.style, 30);
+    const trigger = HOP_TRIGGERS.find((x) => x === e.trigger);
+    if (!hopId || !from || !to || !style || !trigger) return null;
+    const sec = (x: unknown, max: number) => Math.round(Math.max(0, Math.min(max, Number(x) || 0)) * 10) / 10;
+    return {
+      type: "hop",
+      at,
+      listener,
+      hopId,
+      setId: str(e.setId, 40),
+      vibes: strs(e.vibes),
+      page: str(e.page, 40),
+      from,
+      fromTitle: str(e.fromTitle, 120),
+      fromArtist: str(e.fromArtist, 120),
+      to,
+      toTitle: str(e.toTitle, 120),
+      toArtist: str(e.toArtist, 120),
+      style,
+      outSec: sec(e.outSec, 3600),
+      inSec: sec(e.inSec, 3600),
+      durSec: sec(e.durSec, 120),
+      trigger,
+      ranOut: !!e.ranOut,
+      beatMatch: !!e.beatMatch,
+      keyLock: !!e.keyLock,
+      vocal: str(e.vocal, 10),
+      bpmFrom: sec(e.bpmFrom, 300),
+      bpmTo: sec(e.bpmTo, 300),
+      keyFrom: str(e.keyFrom, 4),
+      keyTo: str(e.keyTo, 4),
+    };
+  }
+  if (e.type === "rate") {
+    const hopId = str(e.hopId, 40);
+    if (!hopId || (e.rating !== "up" && e.rating !== "down")) return null;
+    return { type: "rate", at, listener, hopId, setId: str(e.setId, 40), rating: e.rating };
   }
   if (e.type === "intent") {
     return { type: "intent", at, listener, prompt: str(e.prompt, 200), vibes: strs(e.vibes), chip: !!e.chip };

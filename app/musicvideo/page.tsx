@@ -5,6 +5,7 @@ import { useAutoMix } from "@/lib/client/useAutoMix";
 import { SearchPicker } from "@/components/SearchPicker";
 import { Cover } from "@/components/Cover";
 import { MusicVisualizer } from "@/components/MusicVisualizer";
+import { TransitionRating } from "@/components/TransitionRating";
 
 /**
  * Immersive music-video mode: queue songs, hit play, and watch a real-time,
@@ -19,6 +20,7 @@ export default function MusicVideoPage() {
 
   return (
     <main className="mx-auto max-w-4xl space-y-5 p-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">
           🎬 Music Video <span className="text-cyan-500">Lab</span>

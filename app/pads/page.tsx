@@ -5,6 +5,7 @@ import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { FxPad } from "@/components/FxPad";
 import { Cover } from "@/components/Cover";
+import { TransitionRating } from "@/components/TransitionRating";
 
 /**
  * FX pad deck: an endless auto-mixed set with the library's effects and beat
@@ -27,6 +28,7 @@ export default function PadsPage() {
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">FX Pad</h1>
         <p className="text-sm text-zinc-400">

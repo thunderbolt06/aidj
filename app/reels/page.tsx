@@ -9,6 +9,7 @@ import { getSongSource } from "@/lib/client/sourcePrefs";
 import { listenerHistory } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
+import { TransitionRating } from "@/components/TransitionRating";
 
 /**
  * Reels for music: every card is a song's famous part. Swiping to the next
@@ -188,6 +189,7 @@ export default function ReelsPage() {
       ref={containerRef}
       className="h-dvh snap-y snap-mandatory overflow-y-scroll"
     >
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       {feed.map((t, i) => {
         const isActive = mix.now?.meta.id === t.id;
         return (

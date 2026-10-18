@@ -1,7 +1,15 @@
 import VIBES from "@/lib/vibes.json";
 import { ageless, freshness, loadCatalog, toTrack, type CatalogRow } from "@/lib/server/library";
 import { ALL_VIBES, loadVibeIndex, type VibeIndex } from "@/lib/server/vibes";
-import { readEvents, type ListenEvent, type PlayEnd, type PlayEvent } from "@/lib/server/events";
+import {
+  readEvents,
+  type HopEvent,
+  type HopTrigger,
+  type ListenEvent,
+  type PlayEnd,
+  type PlayEvent,
+  type RateEvent,
+} from "@/lib/server/events";
 
 /**
  * The numbers behind the stats page (app/stats): for every vibe, what the
@@ -115,6 +123,52 @@ export interface Overview {
   listeners: ListenerRow[];
   vibes: VibeRow[];
   noVibe: Listening;
+  transitions: TransitionStats;
+}
+
+export interface HopRow {
+  hopId: string;
+  at: number;
+  style: string;
+  from: { id: string; title: string; artist: string };
+  to: { id: string; title: string; artist: string };
+  outSec: number;
+  inSec: number;
+  durSec: number;
+  trigger: HopTrigger;
+  ranOut: boolean;
+  vocal: string;
+  keyLock: boolean;
+  bpmFrom: number;
+  bpmTo: number;
+  keyFrom: string;
+  keyTo: string;
+  vibe: string | null;
+  rating: "up" | "down" | null;
+  /** B was skipped within 20s of coming in */
+  quickSkip: boolean;
+}
+
+interface HopTally {
+  hops: number;
+  up: number;
+  down: number;
+  /** liked / rated */
+  likeRate: number | null;
+  /** rated / hops */
+  rateShare: number | null;
+  quickSkips: number;
+  quickSkipRate: number | null;
+}
+
+export interface TransitionStats {
+  totals: HopTally;
+  byStyle: (HopTally & { style: string; avgDur: number | null })[];
+  byTrigger: (HopTally & { trigger: HopTrigger })[];
+  /** songs whose transitions (in or out) were disliked most */
+  songs: { id: string; title: string; artist: string; up: number; down: number; asFrom: number; asTo: number }[];
+  /** newest first */
+  recent: HopRow[];
 }
 
 export interface SongStat {
@@ -253,6 +307,101 @@ async function load(days: number | null) {
 }
 
 const mainVibe = (e: { vibes: string[] }) => e.vibes[0] || NO_VIBE;
+
+function tally(rows: HopRow[]): HopTally {
+  const up = rows.filter((r) => r.rating === "up").length;
+  const down = rows.filter((r) => r.rating === "down").length;
+  const quickSkips = rows.filter((r) => r.quickSkip).length;
+  return {
+    hops: rows.length,
+    up,
+    down,
+    likeRate: ratio(up, up + down),
+    rateShare: ratio(up + down, rows.length),
+    quickSkips,
+    quickSkipRate: ratio(quickSkips, rows.length),
+  };
+}
+
+/**
+ * Transitions and how they landed: the listener's like / dislike from the
+ * popup after each one, plus the silent verdict - B skipped within 20s.
+ */
+function transitionStats(events: ListenEvent[], plays: PlayEvent[]): TransitionStats {
+  const hops = events.filter((e): e is HopEvent => e.type === "hop");
+  const ratings = new Map<string, "up" | "down">();
+  for (const e of events) if (e.type === "rate") ratings.set((e as RateEvent).hopId, (e as RateEvent).rating);
+  // B's play in that set: the first one logged after the hop
+  const playsBy = new Map<string, PlayEvent[]>();
+  for (const p of plays) {
+    const k = `${p.setId}|${p.track}`;
+    playsBy.set(k, [...(playsBy.get(k) ?? []), p]);
+  }
+  const rows: HopRow[] = hops.map((h) => {
+    const b = (playsBy.get(`${h.setId}|${h.to}`) ?? []).find((p) => p.at >= h.at);
+    return {
+      hopId: h.hopId,
+      at: h.at,
+      style: h.style,
+      from: { id: h.from, title: h.fromTitle, artist: h.fromArtist },
+      to: { id: h.to, title: h.toTitle, artist: h.toArtist },
+      outSec: h.outSec,
+      inSec: h.inSec,
+      durSec: h.durSec,
+      trigger: h.trigger,
+      ranOut: h.ranOut,
+      vocal: h.vocal,
+      keyLock: h.keyLock,
+      bpmFrom: h.bpmFrom,
+      bpmTo: h.bpmTo,
+      keyFrom: h.keyFrom,
+      keyTo: h.keyTo,
+      vibe: h.vibes[0] ?? null,
+      rating: ratings.get(h.hopId) ?? null,
+      quickSkip: !!b && b.end === "skip" && b.playedSec < EARLY_SKIP_SEC,
+    };
+  });
+
+  const group = <K extends string>(key: (r: HopRow) => K) => {
+    const m = new Map<K, HopRow[]>();
+    for (const r of rows) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
+    return [...m];
+  };
+  const byStyle = group((r) => r.style)
+    .map(([style, rs]) => ({
+      style,
+      ...tally(rs),
+      avgDur: rs.length ? rs.reduce((s, r) => s + r.durSec, 0) / rs.length : null,
+    }))
+    .sort((a, b) => b.hops - a.hops);
+  const byTrigger = group((r) => r.trigger)
+    .map(([trigger, rs]) => ({ trigger, ...tally(rs) }))
+    .sort((a, b) => b.hops - a.hops);
+
+  const songMap = new Map<string, TransitionStats["songs"][number]>();
+  for (const r of rows) {
+    if (!r.rating) continue;
+    for (const [side, t] of [["from", r.from], ["to", r.to]] as const) {
+      const m = songMap.get(t.id) ?? { ...t, up: 0, down: 0, asFrom: 0, asTo: 0 };
+      m[r.rating]++;
+      if (side === "from") m.asFrom++;
+      else m.asTo++;
+      songMap.set(t.id, m);
+    }
+  }
+  const songs = [...songMap.values()]
+    .filter((s) => s.down)
+    .sort((a, b) => b.down - a.down || a.up - b.up)
+    .slice(0, 20);
+
+  return {
+    totals: tally(rows),
+    byStyle,
+    byTrigger,
+    songs,
+    recent: [...rows].sort((a, b) => b.at - a.at).slice(0, 200),
+  };
+}
 
 function vibeRows(
   index: VibeIndex | null,
@@ -401,6 +550,7 @@ export async function overview(days: number | null): Promise<Overview> {
     listeners: listeners.slice(0, 50),
     vibes,
     noVibe,
+    transitions: transitionStats(events, plays),
   };
 }
 

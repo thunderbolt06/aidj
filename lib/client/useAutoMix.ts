@@ -16,7 +16,7 @@ import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
 import { listenerHistory, notePlayed, noteSkipped, SKIP_SEC } from "@/lib/client/history";
 import { flushEvents, logEvent, newSetId } from "@/lib/client/telemetry";
-import type { PlayEnd } from "@/lib/server/events";
+import type { HopTrigger, PlayEnd } from "@/lib/server/events";
 import { timeStretchBuffer } from "@/lib/audio/timestretch";
 import {
   arcEnergyAt,
@@ -137,6 +137,25 @@ export interface HopLogEntry {
   index: number;
   /** Cover art, kept here so the recap still has it after the song leaves the queue. */
   thumbnail?: string;
+}
+
+/**
+ * One transition, as the like / dislike popup (components/TransitionRating)
+ * and the stats page see it: which songs, where in each, which style.
+ */
+export interface HopInfo {
+  hopId: string;
+  from: { id: string; title: string; artist: string };
+  to: { id: string; title: string; artist: string; thumbnail?: string };
+  style: TransitionPlan["style"];
+  /** where A was left and B came in (seconds into each song) */
+  outSec: number;
+  inSec: number;
+  durSec: number;
+  trigger: HopTrigger;
+  /** wall-clock ms when the blend should be over - the popup waits for it */
+  doneAt: number;
+  rating: "up" | "down" | null;
 }
 
 /**
@@ -305,6 +324,7 @@ export function useAutoMix() {
   const [interestUntil, setInterestUntil] = useState(0);
   /** There is a song to go BACK to. */
   const [canGoBack, setCanGoBack] = useState(false);
+  const [lastHop, setLastHop] = useState<HopInfo | null>(null);
 
   const st = useRef({
     queue: [] as Track[],
@@ -526,6 +546,7 @@ export function useAutoMix() {
     getEngine().stop();
     st.current.running = false;
     st.current.paused = false;
+    setLastHop(null);
     st.current.current = null;
     st.current.prepared = null;
     st.current.preparing = null;
@@ -904,7 +925,7 @@ export function useAutoMix() {
     }
   }
 
-  async function executeHop(prepared: Prepared, end: PlayEnd, back = false) {
+  async function executeHop(prepared: Prepared, end: Exclude<HopTrigger, "back">, back = false) {
     const s = st.current;
     const current = s.current;
     if (!current || !s.running) return;
@@ -966,6 +987,49 @@ export function useAutoMix() {
     s.interestUntil = 0;
     setInterestUntil(0);
     plan.outPoint = ranOut ? current.analysis.duration : engine.position();
+    // stats: the transition itself, so its like / dislike can be read against
+    // the songs, the cue points and the style that made it
+    const lead = dropAt != null ? dropAt - engine.position() : quantizeBeats && !ranOut ? engine.timeToDrop(current.analysis, quantizeBeats) : 0;
+    const hop: HopInfo = {
+      hopId: newSetId(),
+      from: { id: current.meta.id, title: current.meta.title, artist: current.meta.artist },
+      to: { id: next.meta.id, title: next.meta.title, artist: next.meta.artist, thumbnail: next.meta.thumbnail },
+      style: plan.style,
+      outSec: plan.outPoint,
+      inSec: plan.inPoint,
+      durSec: plan.duration,
+      trigger: back ? "back" : end,
+      doneAt: Date.now() + (Math.max(0, lead) + Math.max(1, plan.duration)) * 1000,
+      rating: null,
+    };
+    logEvent({
+      type: "hop",
+      hopId: hop.hopId,
+      setId: s.setId,
+      vibes: s.opts.vibes ?? [],
+      page: location.pathname,
+      from: hop.from.id,
+      fromTitle: hop.from.title,
+      fromArtist: hop.from.artist,
+      to: hop.to.id,
+      toTitle: hop.to.title,
+      toArtist: hop.to.artist,
+      style: plan.style,
+      outSec: hop.outSec,
+      inSec: hop.inSec,
+      durSec: hop.durSec,
+      trigger: hop.trigger,
+      ranOut,
+      beatMatch: plan.beatMatch || !!prepared.matched,
+      keyLock: !!prepared.matched,
+      vocal:
+        plan.style === "vocal_handoff" && prepared.handoff ? "handoff" : gap && dropAt != null ? gap.kind : "",
+      bpmFrom: current.analysis.bpm,
+      bpmTo: next.analysis.bpm,
+      keyFrom: current.analysis.camelot ?? "",
+      keyTo: next.analysis.camelot ?? "",
+    });
+    setLastHop(hop);
     // remember where this song was left, so BACK can return to it (going back
     // itself doesn't, or BACK would bounce between the same two songs)
     const leaving = s.queue[s.nowIdx];
@@ -1037,6 +1101,12 @@ export function useAutoMix() {
     s.opts.onHop?.({ track: hopTrack, plan, index: s.nowIdx });
     prepareNext();
     maybeRefill();
+  }
+
+  /** The listener's like / dislike for a transition (the popup after it). */
+  function rateHop(hopId: string, rating: "up" | "down") {
+    logEvent({ type: "rate", hopId, setId: st.current.setId, rating });
+    setLastHop((h) => (h && h.hopId === hopId ? { ...h, rating } : h));
   }
 
   /** Endless mode: keep ≥4 unplayed tracks ahead by asking the AI for more. */
@@ -1217,6 +1287,8 @@ export function useAutoMix() {
     transitionTo,
     goBack,
     canGoBack,
+    lastHop,
+    rateHop,
     prepareNext,
     prefetch,
     setOptions,

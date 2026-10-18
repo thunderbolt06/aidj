@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Cover } from "@/components/Cover";
-import type { Overview, VibeDetail, VibeRow } from "@/lib/server/vibeStats";
+import type { HopRow, Overview, TransitionStats, VibeDetail, VibeRow } from "@/lib/server/vibeStats";
 
 /**
  * Vibe health: for every vibe chip, what the library has for it (songs,
@@ -89,6 +89,191 @@ function YearSpan({ row }: { row: VibeRow }) {
         <span className="absolute -top-0.5 h-3 w-0.5 rounded bg-cyan-300" style={{ left: x(m) }} />
       </span>
     </span>
+  );
+}
+
+const TRIGGER_LABELS: Record<string, string> = {
+  auto: "the DJ moved on",
+  skip: "NEXT tapped",
+  drop: "NEXT held (drop)",
+  pick: "a song picked",
+  back: "BACK",
+};
+const HOP_FILTERS = ["all", "disliked", "liked", "unrated"] as const;
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+const styleName = (s: string) => s.replace(/_/g, " ");
+
+/**
+ * Which transitions work: like / dislike from the popup after each one (and
+ * B skipped within 20s, the silent verdict) by style, by what set it off, by
+ * song - and every recent transition with its songs and cue points.
+ */
+function Transitions({ t }: { t: TransitionStats }) {
+  const [filter, setFilter] = useState<(typeof HOP_FILTERS)[number]>("all");
+  const recent = t.recent.filter(
+    (r: HopRow) =>
+      filter === "all" ||
+      (filter === "liked" ? r.rating === "up" : filter === "disliked" ? r.rating === "down" : !r.rating)
+  );
+  const dislike = (x: { up: number; down: number }) => (x.up + x.down ? x.down / (x.up + x.down) : null);
+  const T = t.totals;
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Transitions</h2>
+        <p className="text-xs text-zinc-500">
+          {num(T.hops)} transitions · {num(T.up + T.down)} rated ({pct(T.rateShare)}) · 👍 {num(T.up)} · 👎{" "}
+          {num(T.down)} · {pct(T.likeRate)} liked · {pct(T.quickSkipRate)} had the next song skipped within 20s
+        </p>
+      </div>
+      {!T.hops ? (
+        <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-sm text-zinc-400">
+          No transitions logged in this window yet. Each one is logged as it plays, and a 👍 / 👎 popup
+          asks the listener once the blend is over.
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="overflow-x-auto rounded-xl border border-zinc-800 lg:col-span-2">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-zinc-800 bg-zinc-900/60 text-xs text-zinc-400">
+                  <tr>
+                    {["Style", "Played", "👍", "👎", "Disliked", "Next skipped <20s", "Avg length"].map((h) => (
+                      <th key={h} className="whitespace-nowrap px-2 py-2 font-medium">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/70">
+                  {t.byStyle.map((r) => (
+                    <tr key={r.style}>
+                      <td className="whitespace-nowrap px-2 py-1.5">{styleName(r.style)}</td>
+                      <td className="px-2 py-1.5 tabular-nums">{r.hops}</td>
+                      <td className="px-2 py-1.5 tabular-nums text-emerald-300">{r.up || "–"}</td>
+                      <td className="px-2 py-1.5 tabular-nums text-red-300">{r.down || "–"}</td>
+                      <td className="px-2 py-1.5 text-xs">
+                        <RateBar value={dislike(r)} />
+                      </td>
+                      <td className="px-2 py-1.5 text-xs">
+                        <RateBar value={r.quickSkipRate} warn={0.15} bad={0.3} />
+                      </td>
+                      <td className="px-2 py-1.5 tabular-nums text-zinc-400">{num(r.avgDur, 1)}s</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="space-y-4">
+              <div className="rounded-xl border border-zinc-800 p-3">
+                <h3 className="text-xs uppercase tracking-widest text-zinc-500">What set it off</h3>
+                <ul className="mt-2 divide-y divide-zinc-800/70 text-sm">
+                  {t.byTrigger.map((r) => (
+                    <li key={r.trigger} className="flex justify-between gap-2 py-1.5">
+                      <span>{TRIGGER_LABELS[r.trigger] ?? r.trigger}</span>
+                      <span className="text-xs tabular-nums text-zinc-400">
+                        {r.hops} · 👍 {r.up} · 👎 {r.down}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-zinc-800 p-3">
+                <h3 className="text-xs uppercase tracking-widest text-zinc-500">Songs in disliked transitions</h3>
+                <ul className="mt-2 max-h-56 divide-y divide-zinc-800/70 overflow-y-auto text-sm">
+                  {t.songs.map((s) => (
+                    <li key={s.id} className="flex justify-between gap-2 py-1.5">
+                      <span className="min-w-0 truncate">
+                        {s.title} <span className="text-zinc-500">· {s.artist}</span>
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-zinc-400">
+                        👎 {s.down} · 👍 {s.up} · out {s.asFrom} / in {s.asTo}
+                      </span>
+                    </li>
+                  ))}
+                  {!t.songs.length && <li className="py-1.5 text-zinc-500">no disliked transitions</li>}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="mr-2 text-sm font-semibold">Recent transitions</h3>
+              {HOP_FILTERS.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`rounded-full border px-2.5 py-1 text-xs capitalize ${
+                    filter === f ? "border-cyan-500 bg-cyan-950/60 text-cyan-200" : "border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+            <div className="max-h-[32rem] overflow-auto rounded-xl border border-zinc-800">
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 border-b border-zinc-800 bg-zinc-900 text-xs text-zinc-400">
+                  <tr>
+                    {["When", "", "Style", "From (left at)", "To (came in at)", "Length", "Set off by", "Details"].map((h, i) => (
+                      <th key={i} className="whitespace-nowrap px-2 py-2 font-medium">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/70">
+                  {recent.map((r) => (
+                    <tr key={r.hopId} className={r.rating === "down" ? "bg-red-950/20" : ""}>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-xs text-zinc-400">{ago(r.at)}</td>
+                      <td className="px-2 py-1.5">{r.rating === "up" ? "👍" : r.rating === "down" ? "👎" : ""}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-cyan-300">{styleName(r.style)}</td>
+                      <td className="max-w-[14rem] px-2 py-1.5">
+                        <div className="truncate">{r.from.title}</div>
+                        <div className="truncate text-xs text-zinc-500">
+                          {r.from.artist} · <span className="tabular-nums text-zinc-300">{mmss(r.outSec)}</span>
+                        </div>
+                      </td>
+                      <td className="max-w-[14rem] px-2 py-1.5">
+                        <div className="truncate">{r.to.title}</div>
+                        <div className="truncate text-xs text-zinc-500">
+                          {r.to.artist} · <span className="tabular-nums text-zinc-300">{mmss(r.inSec)}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 tabular-nums text-zinc-400">{num(r.durSec, 1)}s</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-xs text-zinc-400">
+                        {TRIGGER_LABELS[r.trigger] ?? r.trigger}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-zinc-500">
+                        {[
+                          r.bpmFrom && r.bpmTo ? `${Math.round(r.bpmFrom)}→${Math.round(r.bpmTo)} bpm` : "",
+                          r.keyFrom && r.keyTo ? `${r.keyFrom}→${r.keyTo}` : "",
+                          r.keyLock ? "key-locked" : "",
+                          r.vocal ? `vocal ${r.vocal}` : "",
+                          r.ranOut ? "song ran out" : "",
+                          r.vibe ?? "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        {r.quickSkip && <span className="ml-1 text-amber-400">· next skipped fast</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {!recent.length && (
+                    <tr>
+                      <td colSpan={8} className="px-2 py-4 text-center text-sm text-zinc-500">
+                        none in this window
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -479,6 +664,8 @@ export default function StatsPage() {
               </div>
             </section>
           )}
+
+          {data.transitions && <Transitions t={data.transitions} />}
 
           <section className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">

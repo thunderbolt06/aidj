@@ -10,6 +10,7 @@ import { listenerHistory } from "@/lib/client/history";
 import { ARC_SHAPES, arcEnergyAt, type ArcShape } from "@/lib/audio/arc";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
+import { TransitionRating } from "@/components/TransitionRating";
 
 const DURATIONS = [10, 20, 30, 45];
 
@@ -127,6 +128,7 @@ export default function ArcPage() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">Energy-Arc Director</h1>
         <p className="text-sm text-zinc-400">

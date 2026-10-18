@@ -8,6 +8,7 @@ import { Cover } from "@/components/Cover";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { MusicVisualizer } from "@/components/MusicVisualizer";
 import { BeatTapPulse } from "@/components/BeatTapPulse";
+import { TransitionRating } from "@/components/TransitionRating";
 
 const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
   { value: "", label: "🤖 AI picks the trick" },
@@ -58,6 +59,7 @@ export default function AutoDjPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-6">
+      <TransitionRating hop={mix.lastHop} onRate={mix.rateHop} />
       <header>
         <h1 className="text-2xl font-bold">Auto-DJ</h1>
         <p className="text-sm text-zinc-400">

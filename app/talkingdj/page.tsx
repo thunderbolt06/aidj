@@ -6,7 +6,7 @@ import { getEngine, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
-import { recentlyPlayed } from "@/lib/client/history";
+import { listenerHistory } from "@/lib/client/history";
 import { SearchPicker } from "@/components/SearchPicker";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
@@ -75,7 +75,7 @@ export default function TalkingDjPage() {
             prompt: action.prompt,
             languages: getSelectedLanguageLabels(),
             songSource: getSongSource(),
-            recent: recentlyPlayed(),
+            ...listenerHistory(),
           }),
         });
         if (intentRes.ok) {

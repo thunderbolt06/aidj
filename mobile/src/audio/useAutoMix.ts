@@ -10,6 +10,7 @@ import {
 } from "./dj";
 import { apiUrl } from "../config";
 import { getSelectedLanguageLabels, getSongSource } from "../prefs";
+import { listenerHistory, notePlayed, noteSkipped, SKIP_SEC } from "../history";
 import { pickVocalExit, vocalExits } from "./vocalExits";
 
 /** Margin between the auto-hop timer firing and the planned drop. */
@@ -70,6 +71,11 @@ export interface AutoMixOptions {
   quantizeBeats?: number;
   /** Auto-refill the queue with AI suggestions so the set never ends. */
   endless?: boolean;
+  /**
+   * The playlist vibes the set was built from (the intent plan's `vibes`):
+   * sent with every refill so the queue keeps to the vibe.
+   */
+  vibes?: string[];
   /** Cap transition length (snappy UIs want ≤4s). */
   maxTransitionDur?: number;
   /** Called after every completed hop. */
@@ -122,6 +128,8 @@ export function useAutoMix() {
     hopTargetPos: 0,
     /** The vocal gap the armed auto-hop lands in (A position + pause length). */
     vocalGap: null as { dropAt: number; room: number; kind: "break" | "line" } | null,
+    /** Track position the song playing now started at (to tell a quick skip). */
+    startPos: 0,
   });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -231,9 +239,23 @@ export function useAutoMix() {
     setSetLog([...st.current.setLog]);
     const famous = first.meta.famousStart ?? 40;
     getEngine().startTrack(first.buffer, Math.max(0, famous - 5), first.analysis);
+    st.current.startPos = Math.max(0, famous - 5);
+    notePlayed(q[0].id);
     setStatus("");
     prepareNext();
     maybeRefill();
+  }
+
+  /**
+   * The song after the one playing. A plain queue loops back to its start; an
+   * endless set never does - replaying its opening songs is what a listener
+   * hears as "it keeps playing the same songs". It waits for the refill instead.
+   */
+  function upcoming(): Track | undefined {
+    const s = st.current;
+    const i = s.nowIdx + 1;
+    if (i < s.queue.length) return s.queue[i];
+    return s.opts.endless ? undefined : s.queue[i % s.queue.length];
   }
 
   /**
@@ -251,7 +273,7 @@ export function useAutoMix() {
         const s = st.current;
         const current = s.current;
         if (!current) return null;
-        const target = track ?? s.queue[(s.nowIdx + 1) % s.queue.length];
+        const target = track ?? upcoming();
         if (!target) return null;
         // already prepared & armed for this target - leave it (and nextReady) be
         if (s.prepared?.trackId === target.id) return s.prepared;
@@ -375,7 +397,7 @@ export function useAutoMix() {
    * Execute the prepared hop instantly. Never loads at hop time. Called bare
    * it is the listener's skip; the auto-hop timer passes "auto".
    */
-  async function hopNow(reason?: "auto") {
+  async function hopNow(reason?: "auto" | "drop") {
     const s = st.current;
     if (!s.running || s.hopping) return;
     s.hopping = true;
@@ -392,8 +414,13 @@ export function useAutoMix() {
       }
       if (!prepared) {
         // last resort: heuristic, no AI, still no blocking UI fetch beyond audio
-        const target = s.queue[(s.nowIdx + 1) % s.queue.length];
-        if (!target) return;
+        const target = upcoming();
+        if (!target) {
+          // an endless set ran dry (refill still in flight): fetch, don't replay
+          setStatus("finding the next song…");
+          maybeRefill();
+          return;
+        }
         const next = await loadTrack(target.id, setStatus);
         prepared = {
           trackId: target.id,
@@ -401,12 +428,15 @@ export function useAutoMix() {
           plan: heuristicPlan(next, getEngine().position(), s.current ?? undefined),
         };
       }
+      // a quick tap past a song is the clearest "not this" a listener gives
+      const playing = s.queue[s.nowIdx];
+      if (!reason && playing && getEngine().position() - s.startPos < SKIP_SEC) noteSkipped(playing.id);
       await executeHop(prepared, reason === "auto");
     } catch (e) {
       setStatus(`hop failed: ${e instanceof Error ? e.message : e} - skipping`);
       // never stall the set: drop the bad track and prepare the following one
       const s2 = st.current;
-      const badIdx = (s2.nowIdx + 1) % s2.queue.length;
+      const badIdx = s2.opts.endless ? s2.nowIdx + 1 : (s2.nowIdx + 1) % s2.queue.length;
       setQueue((q) => q.filter((_, i) => i !== badIdx));
       s2.prepared = null;
       prepareNext();
@@ -493,8 +523,10 @@ export function useAutoMix() {
     );
     setStatus("");
 
+    s.startPos = plan.inPoint;
     const hopTrack = s.queue[s.nowIdx];
     if (hopTrack) {
+      notePlayed(hopTrack.id);
       s.setLog.push({
         title: hopTrack.title,
         artist: hopTrack.artist,
@@ -528,6 +560,10 @@ export function useAutoMix() {
           current: `${currentTrack.title} - ${currentTrack.artist}`,
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),
+          vibes: s.opts.vibes,
+          ...listenerHistory(),
+          // everything already queued, so a refill only brings new songs
+          exclude: s.queue.slice(-150).map((t) => t.id),
         }),
       });
       if (!res.ok) return;
@@ -544,6 +580,9 @@ export function useAutoMix() {
         setQueue((q) => [...q, ...fresh]);
         if (wasStarved) {
           st.current.prepared = null;
+          prepareNext();
+        } else if (!st.current.prepared && !st.current.preparing) {
+          // skipped to the end while this refill was in flight: aim at the new songs
           prepareNext();
         }
       }

@@ -14,7 +14,7 @@ import {
 import { camelotCompatible } from "@/lib/audio/analysis";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
-import { notePlayed, recentlyPlayed } from "@/lib/client/history";
+import { listenerHistory, notePlayed, noteSkipped, SKIP_SEC } from "@/lib/client/history";
 import { flushEvents, logEvent, newSetId } from "@/lib/client/telemetry";
 import type { PlayEnd } from "@/lib/server/events";
 import { timeStretchBuffer } from "@/lib/audio/timestretch";
@@ -282,15 +282,18 @@ export function useAutoMix() {
     const p = s.playing;
     if (!p) return;
     s.playing = null;
+    const playedSec = Math.max(0, pos - p.startPos);
     logEvent({
       type: "play",
       setId: p.setId,
       vibes: p.vibes,
       page: location.pathname,
       track: p.id,
-      playedSec: Math.max(0, pos - p.startPos),
+      playedSec,
       end: s.endOverride ?? end,
     });
+    // a quick skip is the clearest "not this" a listener gives: the next refill hears it
+    if (!s.endOverride && end === "skip" && playedSec < SKIP_SEC) noteSkipped(p.id);
     s.endOverride = null;
   }
 
@@ -383,6 +386,18 @@ export function useAutoMix() {
     window.addEventListener("pagehide", onHide);
     return () => window.removeEventListener("pagehide", onHide);
   }, []);
+
+  /**
+   * The song after the one playing. A plain queue loops back to its start; an
+   * endless set never does - replaying its opening songs is what a listener
+   * hears as "it keeps playing the same songs". It waits for the refill instead.
+   */
+  function upcoming(): Track | undefined {
+    const s = st.current;
+    const i = s.nowIdx + 1;
+    if (i < s.queue.length) return s.queue[i];
+    return s.opts.endless ? undefined : s.queue[i % s.queue.length];
+  }
 
   function setQueue(q: Track[] | ((prev: Track[]) => Track[])) {
     // st.current.queue must update synchronously - pages call start()
@@ -520,7 +535,7 @@ export function useAutoMix() {
         const s = st.current;
         const current = s.current;
         if (!current) return null;
-        const target = track ?? s.queue[(s.nowIdx + 1) % s.queue.length];
+        const target = track ?? upcoming();
         if (!target) return null;
         // already prepared & armed for this target - leave it (and nextReady) be
         if (s.prepared?.trackId === target.id) return s.prepared;
@@ -691,8 +706,13 @@ export function useAutoMix() {
       }
       if (!prepared) {
         // last resort: heuristic, no AI, still no blocking UI fetch beyond audio
-        const target = s.queue[(s.nowIdx + 1) % s.queue.length];
-        if (!target) return;
+        const target = upcoming();
+        if (!target) {
+          // an endless set ran dry (refill still in flight): fetch, don't replay
+          setStatus("finding the next song…");
+          maybeRefill();
+          return;
+        }
         const next = await loadTrack(target.id, setStatus);
         prepared = {
           trackId: target.id,
@@ -705,7 +725,7 @@ export function useAutoMix() {
       setStatus(`hop failed: ${e instanceof Error ? e.message : e} - skipping`);
       // never stall the set: drop the bad track and prepare the following one
       const s2 = st.current;
-      const badIdx = (s2.nowIdx + 1) % s2.queue.length;
+      const badIdx = s2.opts.endless ? s2.nowIdx + 1 : (s2.nowIdx + 1) % s2.queue.length;
       setQueue((q) => q.filter((_, i) => i !== badIdx));
       s2.prepared = null;
       prepareNext();
@@ -882,7 +902,7 @@ export function useAutoMix() {
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),
           vibes: s.opts.vibes,
-          recent: recentlyPlayed(),
+          ...listenerHistory(),
           // everything already queued, so a refill only brings new songs
           exclude: s.queue.slice(-150).map((t) => t.id),
         }),
@@ -901,6 +921,9 @@ export function useAutoMix() {
         setQueue((q) => [...q, ...fresh]);
         if (wasStarved) {
           st.current.prepared = null;
+          prepareNext();
+        } else if (!st.current.prepared && !st.current.preparing) {
+          // skipped to the end while this refill was in flight: aim at the new songs
           prepareNext();
         }
       }

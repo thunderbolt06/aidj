@@ -5,10 +5,13 @@ import { toIsoCodes } from "@/lib/languages";
 import { isOpenSource, parseSongSource } from "@/lib/songSource";
 import { signUrl } from "@/lib/server/cloudfrontSign";
 import {
+  knownLabels,
   loadVibeIndex,
+  profileOf,
   relatedSongs,
   vibeScores,
   type VibeIndex,
+  type VibeProfile,
   type VibeWeight,
 } from "@/lib/server/vibes";
 import type { Track, TrackKind, TrackLicense, TrackMeta } from "@/lib/types";
@@ -496,6 +499,73 @@ function notRecent(recent: unknown): (id: string) => number {
   };
 }
 
+const SACRED = /^(devotional|gospel)$/i;
+
+/**
+ * How well a song fits the vibe's profile, as a weight. A mood the vibe
+ * avoids, or singing in a vibe that wants none, is all but a veto (0.04 - a
+ * thin pool still plays something rather than nothing); wanted moods and the
+ * energy band only lean. Playlists say what people file under a vibe, and a
+ * sloppy one files heartbreak ballads under "party": this is the check.
+ */
+function profileFit(cat: Catalog, p: VibeProfile | null): (r: CatalogRow) => number {
+  if (!p) return () => 1;
+  const avoid = new Set(p.avoid);
+  const want = new Set(p.want);
+  const [lo, hi] = p.energy;
+  // a bhajan or a worship song is "calm" and "emotional" too, but it belongs
+  // only in a vibe that asks for it
+  const keepSacredOut = !(p.genres ?? []).some((g) => SACRED.test(g));
+  return (r) => {
+    const moods = r.moods ?? [];
+    let w = 1;
+    if (moods.some((m) => avoid.has(m))) w *= 0.04;
+    if (keepSacredOut && r.genres.some((g) => SACRED.test(g))) w *= 0.04;
+    if (p.instrumental && !r.instrumental) w *= 0.04;
+    if (moods.length) w *= 0.6 + 0.4 * Math.min(1, moods.filter((m) => want.has(m)).length / 2);
+    const e = energyOf(cat, r);
+    const off = e < lo ? lo - e : e > hi ? e - hi : 0;
+    return w * (0.15 + 0.85 * Math.exp(-((off / 0.15) ** 2)));
+  };
+}
+
+/**
+ * What the listener skipped (ids, newest first). Those songs are out for good;
+ * the artists of the last six skips and their closest playlist neighbours lean
+ * away; and a mood two of those skips share, one the vibe does not ask for (two
+ * ballads skipped in a party set), is turned down until newer skips replace them.
+ */
+function skipPenalty(
+  cat: Catalog,
+  index: VibeIndex | null,
+  skipped: unknown,
+  profile: VibeProfile | null
+): (r: CatalogRow) => number {
+  if (!Array.isArray(skipped) || !skipped.length) return () => 1;
+  const ids = new Set(skipped.filter((x): x is string => typeof x === "string").slice(0, 200));
+  const last = [...ids]
+    .slice(0, 6)
+    .map((id) => cat.byId.get(id))
+    .filter((r): r is CatalogRow => !!r);
+  const artists = new Set(last.map((r) => r.artist));
+  const wanted = new Set(profile?.want ?? []);
+  const moodCount = new Map<string, number>();
+  for (const r of last)
+    for (const m of r.moods ?? []) if (!wanted.has(m)) moodCount.set(m, (moodCount.get(m) ?? 0) + 1);
+  const moods = new Set([...moodCount].filter(([, n]) => n >= 2).map(([m]) => m));
+  const near = new Map<string, number>();
+  if (index)
+    for (const r of last.slice(0, 3))
+      for (const [id, sim] of relatedSongs(index, r.id)) near.set(id, Math.max(near.get(id) ?? 0, sim));
+  return (r) => {
+    if (ids.has(r.id)) return 0.01;
+    let w = 1;
+    if (artists.has(r.artist)) w *= 0.4;
+    if ((r.moods ?? []).some((m) => moods.has(m))) w *= 0.5;
+    return w * (1 - 0.6 * Math.min(1, near.get(r.id) ?? 0));
+  };
+}
+
 /**
  * 0..1 by release year: full marks from 2010, none by 1970. The chart crate
  * holds as many 60s songs as 2020s ones and the Hindi / Punjabi collections
@@ -539,10 +609,10 @@ function recencyLean(vibes: VibeWeight[], era: unknown): (r: CatalogRow) => numb
   return freshness;
 }
 
-/** Vibe labels (or weighted vibes) a caller sent, kept to the ones with data. */
+/** Vibe labels (or weighted vibes) a caller sent, kept to the ones with data or a profile. */
 function vibeWeights(index: VibeIndex | null, vibes: unknown): VibeWeight[] {
   if (!index || !Array.isArray(vibes)) return [];
-  const have = new Set(index.labels);
+  const have = new Set(knownLabels(index));
   const out: VibeWeight[] = [];
   for (const v of vibes.slice(0, 3)) {
     const label = String(typeof v === "string" ? v : v?.label ?? "").toLowerCase();
@@ -578,6 +648,8 @@ export async function pickNext(opts: {
   vibes?: unknown;
   /** Recently played track ids, newest first. */
   recent?: unknown;
+  /** Track ids the listener skipped, newest first. */
+  skipped?: unknown;
 }): Promise<Pick[]> {
   const [cat, index] = await Promise.all([loadCatalog(), loadVibeIndex()]);
   const cur = resolveCurrent(cat, opts.current);
@@ -612,6 +684,13 @@ export async function pickNext(opts: {
   if (inside.length >= 30) pool = [...inside, ...pool.filter((r) => isOpenSource(r.source))];
   const fresh = notRecent(opts.recent);
   const lean = recencyLean(vibes, null);
+  const profile = profileOf(vibes);
+  const fit = profileFit(cat, profile);
+  const unskipped = skipPenalty(cat, index, opts.skipped, profile);
+  // an era vibe's refills stay in its years, as its opening set did
+  const vibeEra = profile?.era;
+  const inEra = (r: CatalogRow) =>
+    !vibeEra || !r.year ? 1 : r.year >= vibeEra[0] && r.year <= vibeEra[1] ? 1 : 0.15;
   const eraNow = recentEra(cat, opts.recent);
   // follows the playing song's era and, once there is a history, the set's
   const follow = (r: CatalogRow) =>
@@ -638,7 +717,10 @@ export async function pickNext(opts: {
       (playlists + style + era + mix + pop + inWindow + sameLanguage) *
       fresh(r.id) *
       follow(r) *
-      (vibes.length ? lean(r) : 1)
+      (vibes.length ? lean(r) : 1) *
+      fit(r) *
+      unskipped(r) *
+      inEra(r)
     );
   };
   // cubed: the best fits come up most often, but not every time
@@ -704,6 +786,8 @@ export interface IntentPickOptions {
   vibes?: VibeWeight[];
   /** Recently played track ids, newest first. */
   recent?: unknown;
+  /** Track ids the listener skipped, newest first. */
+  skipped?: unknown;
   exclude?: string[];
   /** "open" | "commercial" | "both" (see lib/songSource.ts). */
   source?: string;
@@ -720,9 +804,13 @@ export async function pickForIntent(
   f: IntentFilter,
   count = 10,
   languages?: string[],
-  { vibes = [], recent, exclude = [], source }: IntentPickOptions = {}
+  { vibes = [], recent, skipped, exclude = [], source }: IntentPickOptions = {}
 ): Promise<CatalogRow[]> {
   const [cat, index] = await Promise.all([loadCatalog(), loadVibeIndex()]);
+  const profile = profileOf(vibes);
+  const fit = profileFit(cat, profile);
+  const unskipped = skipPenalty(cat, index, skipped, profile);
+  const weigh = (r: CatalogRow) => fit(r) * unskipped(r);
   const inSource = sourceFilter(cat, source);
   const inLanguage = languageFilter(cat, languages, source);
   const fresh = notRecent(recent);
@@ -735,7 +823,8 @@ export async function pickForIntent(
       (!inLanguage || inLanguage(r))
   );
   const [lo, hi] = f.intensity ?? [0, 1];
-  const era = Array.isArray(f.era) && f.era.length === 2 ? f.era : null;
+  // a typed "90s" in the request wins; a chip about an era ("70s evergreen") brings its own
+  const era = Array.isArray(f.era) && f.era.length === 2 ? f.era : (profile?.era ?? null);
   const eraFit = (r: CatalogRow) =>
     !era || !r.year ? 1 : r.year >= era[0] && r.year <= era[1] ? 1 : 0.15;
 
@@ -746,23 +835,38 @@ export async function pickForIntent(
     for (const row of songs) {
       const v = claim.get(row.id);
       if (!v) continue;
-      // the playlists already say what energy the vibe has; this only nudges
+      // with a profile, its mood / energy check (in weigh) replaces this nudge
       const e = energyOf(cat, row);
       const gap = Math.abs(e - Math.min(Math.max(e, lo), hi));
-      const energy = 1 - 0.5 * Math.min(1, gap / 0.3);
+      const energy = profile ? 1 : 1 - 0.5 * Math.min(1, gap / 0.3);
       // squared: core songs come up often, one-playlist songs now and then; the
       // age lean is squared too, so a classic is a rare visit, not a fixture
-      scored.push({ row, s: v * v * energy * eraFit(row) * lean(row) ** 2 * fresh(row.id) });
+      scored.push({ row, s: v * v * energy * eraFit(row) * lean(row) ** 2 * fresh(row.id) * weigh(row) });
     }
   }
+  // a chip plan names no moods or genres; the vibe's profile does
+  const byMood: IntentFilter = profile
+    ? {
+        ...f,
+        moods: f.moods?.length ? f.moods : profile.want,
+        genres: f.genres?.length ? f.genres : profile.genres,
+      }
+    : f;
   if (scored.length < Math.max(8, count)) {
-    scored = filterScores(cat, songs, f, eraFit, fresh, !era);
+    scored = filterScores(cat, songs, byMood, eraFit, fresh, !era, weigh);
   } else {
+    // a vibe the playlist check left thin: songs of its moods from the rest of
+    // the catalog join at a minority share, so its sets don't repeat
+    if (profile && scored.length < 80) {
+      const claimed = new Set(scored.map((c) => c.row.id));
+      const rest = songs.filter((r) => !claimed.has(r.id) && !isOpenSource(r.source));
+      scored = blend(scored, filterScores(cat, rest, byMood, eraFit, fresh, !era, weigh), 0.3);
+    }
     // the playlists only claim hit songs; the open crate (when the listener
     // plays both) joins by genre / tag match, with its share set explicitly
     const openSongs = songs.filter((r) => isOpenSource(r.source));
     if (openSongs.length)
-      scored = blend(scored, filterScores(cat, openSongs, f, eraFit, fresh, !era), OPEN_SHARE);
+      scored = blend(scored, filterScores(cat, openSongs, byMood, eraFit, fresh, !era, weigh), OPEN_SHARE);
   }
 
   const big = scored.length >= count * 5;
@@ -800,7 +904,8 @@ function filterScores(
   f: IntentFilter,
   eraFit: (r: CatalogRow) => number,
   fresh: (id: string) => number,
-  leanRecent: boolean
+  leanRecent: boolean,
+  weigh: (r: CatalogRow) => number = () => 1
 ): { row: CatalogRow; s: number }[] {
   const genres = (f.genres ?? []).map((g) => g.toLowerCase());
   const moods = (f.moods ?? []).map((m) => m.toLowerCase());
@@ -821,7 +926,7 @@ function filterScores(
     if (f.bpm) s -= row.bpm < f.bpm[0] || row.bpm > f.bpm[1] ? 0.5 : 0;
     s += Math.log1p(row.popularity) / Math.log1p(cat.maxPopularity);
     const lean = leanRecent ? freshness(row) ** 2 : 1;
-    out.push({ row, s: Math.exp(1.5 * s) * lean * eraFit(row) * fresh(row.id) });
+    out.push({ row, s: Math.exp(1.5 * s) * lean * eraFit(row) * fresh(row.id) * weigh(row) });
   }
   return out;
 }
@@ -872,11 +977,14 @@ export interface LibraryStats {
   moods: { name: string; count: number }[];
   tags: { name: string; count: number }[];
   licenses: { name: string; count: number }[];
-  /** Every language the library has songs in, whatever the filter. */
+  /** Every language the library has enough songs in to fill sets, whatever the filter. */
   languages: { code: string; count: number }[];
   /** Songs per crate, whatever the filter: the settings only offer a crate that has songs. */
   sources: { open: number; commercial: number };
 }
+
+/** Songs a language needs before the language picker offers it. */
+const MIN_LANGUAGE_SONGS = 150;
 
 function tally(values: string[], top: number): { name: string; count: number }[] {
   const counts = new Map<string, number>();
@@ -904,7 +1012,10 @@ export async function libraryStats(languages?: string[], source?: string): Promi
     moods: tally(songs.flatMap((r) => r.moods ?? []), 40),
     tags: tally(songs.flatMap((r) => r.tags), 60),
     licenses: tally(songs.map((r) => r.license ?? "Unknown"), 30),
+    // the song checks find a few dozen Spanish or Tamil songs among the hits:
+    // they play under "All", but a language is only offered once it can carry a set
     languages: [...cat.languages.entries()]
+      .filter(([, count]) => count >= MIN_LANGUAGE_SONGS)
       .sort((a, b) => b[1] - a[1])
       .map(([code, count]) => ({ code, count })),
     sources: { open: cat.crates.open.songs, commercial: cat.crates.commercial.songs },

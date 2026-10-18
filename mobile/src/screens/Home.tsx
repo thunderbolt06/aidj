@@ -22,6 +22,7 @@ import {
   updateNowPlaying,
 } from "../audio/mediaSession";
 import { apiUrl } from "../config";
+import { listenerHistory } from "../history";
 import {
   MIN_PLAY_RANGE,
   MORE_LANGUAGES,
@@ -194,6 +195,8 @@ export default function Home() {
   const playerDx = useRef(new Animated.Value(0)).current;
   const playerDxVal = useRef(0);
   const mixRef = useRef(mix);
+  /** The playlist vibes of the set playing (from /api/ai/intent). */
+  const vibesRef = useRef<string[]>([]);
   mixRef.current = mix;
 
   const playerPan = useRef(
@@ -269,7 +272,7 @@ export default function Home() {
     if (holdingRef.current) {
       holdingRef.current = false;
       setHolding(false);
-      mix.hopNow(); // release = drop (transition resets the tension FX)
+      mix.hopNow("drop"); // release = drop (transition resets the tension FX)
     } else {
       mix.hopNow(); // quick tap = plain skip
     }
@@ -284,6 +287,9 @@ export default function Home() {
           current: `${current.title} - ${current.artist}`,
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),
+          vibes: vibesRef.current,
+          ...listenerHistory(),
+          exclude: mixRef.current.queue.slice(-150).map((t) => t.id),
         }),
       });
       if (!res.ok) return;
@@ -327,10 +333,13 @@ export default function Home() {
           prompt: text,
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),
+          ...listenerHistory(),
         }),
       });
       if (!res.ok) throw new Error("intent failed - is the backend up?");
-      const plan = (await res.json()) as { queries: string[] };
+      const plan = (await res.json()) as { queries: string[]; vibes?: string[] };
+      // the playlist vibes behind this set: refills and the grid keep to them
+      vibesRef.current = plan.vibes ?? [];
       setBusy("finding the songs…");
       const found = await Promise.all(
         plan.queries.map((q) =>
@@ -344,6 +353,7 @@ export default function Home() {
       setBusy("");
       setHomeView(false);
       if (mix.running) {
+        mix.setOptions({ vibes: vibesRef.current });
         mix.setQueue((q) => [...q, ...tracks]);
         await mix.transitionTo(tracks[0]);
       } else {
@@ -353,6 +363,7 @@ export default function Home() {
           useAi: true,
           quantize: true,
           endless: true,
+          vibes: vibesRef.current,
           minPlaySec,
           onHop: ({ track }) => track && refreshGrid(track),
         });

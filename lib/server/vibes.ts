@@ -181,7 +181,7 @@ export function resolveVibes(
   prompt: string,
   aiPicks: unknown = []
 ): VibeWeight[] {
-  const have = new Set(index.labels);
+  const have = new Set(knownLabels(index));
   const p = prompt.trim().toLowerCase();
   if (have.has(p)) return [{ label: p, weight: 1 }];
   const picks = (Array.isArray(aiPicks) ? aiPicks : [])
@@ -194,7 +194,7 @@ export function resolveVibes(
   // a shared word ("friends") must not turn an English request into a Hindi set
   const allowed = (label: string) =>
     LANGUAGE_VIBES.every(([labels, asks]) => !labels.has(label) || asks.test(p));
-  return index.labels
+  return [...have]
     .filter(allowed)
     .map((label) => {
       const ws = words(label);
@@ -205,6 +205,50 @@ export function resolveVibes(
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 3)
     .map((v, i, a) => ({ label: v.label, weight: v.weight / a[0].weight }));
+}
+
+/**
+ * What a vibe should feel like (lib/vibes.json `profiles`, written by
+ * scripts/library/judge_vibes.mjs): the moods its songs usually carry, the
+ * moods that contradict it, its energy band (library intensity percentile)
+ * and whether it wants no singing. The playlists say which songs people file
+ * under a vibe; the profile keeps out the ones a sloppy playlist let in - a
+ * heartbreak ballad in "bollywood party".
+ */
+export interface VibeProfile {
+  want: string[];
+  avoid: string[];
+  energy: [number, number];
+  instrumental?: boolean;
+  /** Set for a vibe that is a genre or style ("punjabi folk classics"). */
+  genres?: string[];
+  /** Set for a vibe about certain years ("70s evergreen"). */
+  era?: [number, number];
+}
+
+const PROFILES: Record<string, VibeProfile> =
+  (VIBES as unknown as { profiles?: Record<string, VibeProfile> }).profiles ?? {};
+
+/**
+ * The profile a set follows: the leading vibe's avoid list, energy band,
+ * vocals, genres and era, with every named vibe's wanted moods. Null when
+ * none has a profile.
+ */
+export function profileOf(vibes: VibeWeight[]): VibeProfile | null {
+  const have = [...vibes].sort((a, b) => b.weight - a.weight).filter((v) => PROFILES[v.label]);
+  if (!have.length) return null;
+  const lead = PROFILES[have[0].label];
+  return { ...lead, want: [...new Set(have.flatMap((v) => PROFILES[v.label].want))] };
+}
+
+/**
+ * Every vibe a set can be built on: the ones with playlist data, and the ones
+ * whose playlists were all judged off-vibe but that have a profile - those are
+ * built from the profile's moods / genres instead (a "shaadi dance floor"
+ * whose search found only English wedding playlists still plays Hindi songs).
+ */
+export function knownLabels(index: VibeIndex | null): string[] {
+  return [...new Set([...(index?.labels ?? []), ...Object.keys(PROFILES)])];
 }
 
 /** song id -> how strongly the weighted vibes claim it (0..1). */

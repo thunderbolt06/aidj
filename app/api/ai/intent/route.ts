@@ -7,7 +7,7 @@ import {
   toTrack,
   type IntentFilter,
 } from "@/lib/server/library";
-import { loadVibeIndex, resolveVibes } from "@/lib/server/vibes";
+import { knownLabels, loadVibeIndex, resolveVibes } from "@/lib/server/vibes";
 import { recordEvents } from "@/lib/server/events";
 import VIBES from "@/lib/vibes.json";
 
@@ -78,7 +78,7 @@ function knownVibesLine(labels: string[]): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { prompt, history, languages, songSource, recent, exclude } = await req.json();
+  const { prompt, history, languages, songSource, recent, skipped, exclude } = await req.json();
   try {
     // facets of the chosen languages and crate only, so the plan is built from
     // genres and tags those songs actually carry
@@ -92,7 +92,8 @@ export async function POST(req: NextRequest) {
     let plan: ReturnType<typeof heuristicFilter> & { vibes?: unknown } = heuristicFilter(text, genreNames, moodNames);
     // a tapped chip already names a vibe the playlists cover: no model call,
     // so the set starts as fast as the songs load
-    const chip = index?.labels.includes(text.trim().toLowerCase()) ?? false;
+    const labels = knownLabels(index);
+    const chip = labels.includes(text.trim().toLowerCase());
 
     if (process.env.ANTHROPIC_API_KEY && !chip) {
       try {
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
                   ? `Moods: ${stats.moods.map((m) => `${m.name} (${m.count})`).join(", ")}\n`
                   : "") +
                 `Tags: ${stats.tags.map((t) => t.name).join(", ")}\n` +
-                (index?.labels.length ? knownVibesLine(index.labels) : "") +
+                (labels.length ? knownVibesLine(labels) : "") +
                 `Listener's languages: ${Array.isArray(languages) && languages.length ? languages.join(", ") : "any"}\n` +
                 "\n" +
                 (history ? `Previous vibe context: ${history}\n` : "") +
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
     const pickOpts = {
       vibes,
       recent,
+      skipped,
       exclude: Array.isArray(exclude) ? exclude : [],
       source: songSource,
     };
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest) {
         { intensity: plan.intensity, energyArc: plan.energyArc },
         10,
         languages,
-        { recent, exclude: pickOpts.exclude, source: songSource }
+        { recent, skipped, exclude: pickOpts.exclude, source: songSource }
       );
 
     return NextResponse.json({

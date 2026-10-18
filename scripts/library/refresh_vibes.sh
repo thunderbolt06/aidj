@@ -54,6 +54,11 @@ if ! python3 scripts/library/harvest_vibes.py harvest --month "$MONTH"; then
   notify "Playlist search failed this month - kept last month's vibes. See $LOG"
   exit 1
 fi
+# Claude drops the playlists a search found that were not made for the vibe
+# (generic hit lists, one composer's collection, another mood); a hiccup keeps them all
+if grep -q "^ANTHROPIC_API_KEY=." .env.local 2>/dev/null || [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  node scripts/library/judge_vibes.mjs playlists || say "playlist judging failed - this month's vibes keep every playlist"
+fi
 # --topup: a vibe with fewer than 200 library songs asks for what it lacks first
 python3 scripts/library/harvest_vibes.py wanted --month "$MONTH" --max "${VIBES_MAX:-4000}" --topup "${VIBES_TOPUP:-200}" || exit 1
 WANTED="$LIB/sources/vibes/$MONTH/wanted.txt"
@@ -76,6 +81,8 @@ if grep -q "^ANTHROPIC_API_KEY=." .env.local 2>/dev/null || [ -n "${ANTHROPIC_AP
   # original release years, cross-checked: store / YouTube dates are often reissues
   node --experimental-strip-types --no-warnings scripts/library/label_years.mjs \
     || say "year labelling failed - new songs keep their store dates until the next run"
+  # sung language, instrumental, and downloads that are not songs (rebuilds catalog.json)
+  node scripts/library/check_songs.mjs || say "song checks failed - new songs keep their collection's language"
 fi
 
 # album art for the new songs: the offline pass (cached iTunes answers + YouTube thumbnails) is

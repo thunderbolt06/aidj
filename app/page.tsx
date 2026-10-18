@@ -8,7 +8,7 @@ import { useAutoMix } from "@/lib/client/useAutoMix";
 import { MIN_PLAY_RANGE, useMinPlaySec } from "@/lib/client/playerPrefs";
 import { getSelectedLanguages, useLanguagePrefs } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
-import { recentlyPlayed } from "@/lib/client/history";
+import { listenerHistory } from "@/lib/client/history";
 import { LanguagePicker, useAvailableLanguages } from "@/components/LanguagePicker";
 import { SongSourcePicker } from "@/components/SongSourcePicker";
 import { SearchPicker } from "@/components/SearchPicker";
@@ -370,7 +370,7 @@ export default function HomePage() {
           languages: getSelectedLanguages(),
           songSource: getSongSource(),
           vibes: vibesRef.current,
-          recent: recentlyPlayed(),
+          ...listenerHistory(),
           exclude: mix.queue.slice(-150).map((t) => t.id),
         }),
       });
@@ -415,7 +415,7 @@ export default function HomePage() {
           // a Hindi vibe means Hindi songs, even with "All" languages on
           languages: chipLanguage(text) ? [chipLanguage(text)] : getSelectedLanguages(),
           songSource: getSongSource(),
-          recent: recentlyPlayed(),
+          ...listenerHistory(),
           exclude: mix.running ? mix.queue.slice(-150).map((t) => t.id) : [],
         }),
       });

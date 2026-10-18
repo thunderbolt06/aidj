@@ -26,6 +26,7 @@
     "library:label": "node scripts/library/label_songs.mjs",
     "library:years": "node --experimental-strip-types --no-warnings scripts/library/label_years.mjs",
     "library:years:audit": "node scripts/library/audit_years.mjs",
+    "library:eval": "node --experimental-strip-types --no-warnings scripts/library/eval_recs.mjs",
     "library:vibes:schedule": "bash scripts/library/schedule_vibes.sh"
   },
   "dependencies": {

@@ -10,12 +10,13 @@ export const dynamic = "force-dynamic";
  * pre-analyzed library the picks come from the vibe playlists (what the
  * set's `vibes` claim, what shares playlists with `current`) and tempo / key
  * / intensity, so the answer is instant and every pick is guaranteed
- * playable. `recent` (played ids, newest first) keeps sets from repeating.
+ * playable. `recent` (played ids, newest first) keeps sets from repeating;
+ * `skipped` (ids the listener skipped) keeps those out and steers away from them.
  * `query` is an exact `id:` lookup - existing callers that resolve picks via
  * search keep working unchanged; `track` saves them the round-trip.
  */
 export async function POST(req: NextRequest) {
-  const { current, arc, exclude, languages, songSource, vibes, recent } = await req.json();
+  const { current, arc, exclude, languages, songSource, vibes, recent, skipped } = await req.json();
   try {
     const picks = await pickNext({
       current,
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
       source: songSource,
       vibes,
       recent,
+      skipped,
     });
     return NextResponse.json({
       suggestions: picks.map((p) => ({

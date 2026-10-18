@@ -194,7 +194,9 @@ async function main() {
   ]);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// importable for its lists (judge_vibes.mjs reads MOODS) without running
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

@@ -6,7 +6,7 @@ import { searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
-import { recentlyPlayed } from "@/lib/client/history";
+import { listenerHistory } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
 
@@ -50,7 +50,7 @@ export default function VibePage() {
           history: history.current.join(" → ") || undefined,
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),
-          recent: recentlyPlayed(),
+          ...listenerHistory(),
         }),
       });
       if (!res.ok) throw new Error("intent failed - is ANTHROPIC_API_KEY set?");

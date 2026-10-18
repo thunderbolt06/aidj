@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import Home from "./src/screens/Home";
 import { initConfig } from "./src/config";
 import { initPrefs } from "./src/prefs";
+import { initHistory } from "./src/history";
 import { setupAudioSession } from "./src/audio/mediaSession";
 import { colors } from "./src/theme";
 
@@ -13,7 +14,7 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      await Promise.all([initConfig(), initPrefs()]);
+      await Promise.all([initConfig(), initPrefs(), initHistory()]);
       setupAudioSession();
       setReady(true);
     })();

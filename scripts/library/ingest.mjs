@@ -37,6 +37,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeMono } from "../../lib/audio/analysisCore.ts";
+import { ALL_LANGUAGES } from "../../lib/languages.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const LIBRARY = process.env.LIBRARY_DIR || path.join(ROOT, "library");
@@ -320,12 +321,47 @@ function yearOf(m) {
   return null;
 }
 
+/**
+ * check_songs.mjs verdicts (id -> { language, instrumental, notSong }), kept
+ * out of meta/ because the vocal-map batch rewrites those files.
+ */
+async function readChecks() {
+  const file = path.join(LIBRARY, "sources", "checks", "songs.jsonl");
+  const out = new Map();
+  if (!existsSync(file)) return out;
+  for (const line of (await readFile(file, "utf8")).split("\n")) {
+    try {
+      const v = line.trim() && JSON.parse(line);
+      if (v?.id) out.set(v.id, v);
+    } catch {
+      /* a half-written line from an interrupted run */
+    }
+  }
+  return out;
+}
+
+/**
+ * A checked language only replaces the collection's when it is one listeners
+ * can pick: Haryanvi and Sanskrit hymns stay in the Hindi pool (the "haryanvi
+ * dance" and devotional vibes live there), a Chopin nocturne stays English
+ * rather than becoming "other".
+ */
+const PICKABLE = new Set(ALL_LANGUAGES.map((l) => l.iso));
+
 /** Compact one-row-per-entry index: what search and next-track picking read. */
 async function buildCatalog() {
   const files = (await readdir(DIRS.meta)).filter((f) => f.endsWith(".json"));
+  const checks = await readChecks();
   const rows = [];
+  let hidden = 0;
   for (const f of files) {
     const m = JSON.parse(await readFile(path.join(DIRS.meta, f), "utf8"));
+    const check = checks.get(m.id);
+    // a jingle or a jukebox the search landed on: its files stay, it just never plays
+    if (check?.notSong) {
+      hidden++;
+      continue;
+    }
     rows.push({
       id: m.id,
       kind: m.kind,
@@ -339,9 +375,9 @@ async function buildCatalog() {
       genres: m.genres ?? [],
       moods: m.moods ?? [],
       tags: m.tags ?? [],
-      language: m.language ?? null,
+      language: (PICKABLE.has(check?.language) ? check.language : m.language) ?? null,
       year: yearOf(m),
-      instrumental: !!m.instrumental,
+      instrumental: check ? !!check.instrumental : !!m.instrumental,
       popularity: m.popularity ?? 0,
       license: m.license?.name ?? null,
       licenseUrl: m.license?.url ?? null,
@@ -360,7 +396,10 @@ async function buildCatalog() {
   // what gets hosted publicly: everything except all-rights-reserved YouTube rips
   await write("catalog.public.json", rows.filter((r) => r.source !== "youtube"));
   const by = (k) => rows.filter((r) => r.kind === k).length;
-  console.log(`catalog: ${rows.length} entries (${by("song")} songs, ${by("loop")} loops, ${by("sfx")} sfx)`);
+  console.log(
+    `catalog: ${rows.length} entries (${by("song")} songs, ${by("loop")} loops, ${by("sfx")} sfx)` +
+      (hidden ? `, ${hidden} not-songs left out` : "")
+  );
 }
 
 async function worker(shard, shards) {

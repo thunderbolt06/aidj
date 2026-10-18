@@ -1,5 +1,5 @@
 {
-  "_doc": "Vibe chips, shared by the home page (chip pools) and scripts/library/harvest_vibes.py (which searches YouTube playlists for each vibe every month). general = English songs; hindi / punjabi = that language's own vibes; anyLanguage = general vibes that are also harvested in Hindi and Punjabi, so they still play when only those languages are picked. search = playlist searches for a vibe whose label is a poor search phrase (default: '<label> songs playlist' plus a language qualifier). A search key '<label>|hi' (or '|pa') is the phrasing for that vibe in that language - an English label searched in Hindi finds other people's 'Chill' playlists. curated = vibes whose playlists are one channel's uploads by nature (lofi, ambient, royalty-free): a channel dominating a playlist is allowed there and the exact upload is downloaded.",
+  "_doc": "Vibe chips, shared by the home page (chip pools) and scripts/library/harvest_vibes.py (which searches YouTube playlists for each vibe every month). general = English songs; hindi / punjabi = that language's own vibes; anyLanguage = general vibes that are also harvested in Hindi and Punjabi, so they still play when only those languages are picked. search = playlist searches for a vibe whose label is a poor search phrase (default: '<label> songs playlist' plus a language qualifier). A search key '<label>|hi' (or '|pa') is the phrasing for that vibe in that language - an English label searched in Hindi finds other people's 'Chill' playlists. curated = vibes whose playlists are one channel's uploads by nature (lofi, ambient, royalty-free): a channel dominating a playlist is allowed there and the exact upload is downloaded. profiles = per vibe, the moods its songs usually have (want), moods that contradict it (avoid: a song carrying one almost never plays in that vibe), its energy band on the library's 0..1 intensity percentile, and instrumental: true when it wants no singing. Written by scripts/library/judge_vibes.mjs profiles; hand edits are kept (it only fills vibes without one unless --again).",
   "general": [
     "road trip",
     "study focus session",
@@ -98,54 +98,1604 @@
     "yoga and meditation"
   ],
   "search": {
-    "study focus session": ["study songs playlist", "songs to study to playlist"],
-    "background for a house party": ["house party songs 2025 playlist", "party hits 2026 playlist", "best party songs 2020s playlist"],
-    "chill music while we chat": ["chill songs playlist", "chill vibes playlist"],
-    "fashion store playlist": ["fashion store music playlist", "boutique store playlist"],
-    "sad boi hours": ["sad boi songs playlist", "sad songs playlist"],
-    "gym workout time": ["gym workout songs 2025 playlist", "workout music 2026 playlist", "gym playlist 2025"],
-    "morning routine energizer": ["morning songs playlist", "good morning feel good songs"],
-    "pre-game hype": ["pregame songs playlist", "hype songs playlist"],
-    "coffee shop acoustic": ["coffee shop acoustic playlist", "acoustic covers playlist"],
-    "yoga and meditation": ["yoga music playlist", "restorative yoga music playlist", "meditation music playlist"],
-    "exam stress relief": ["calm songs for stress relief playlist", "relaxing songs playlist"],
-    "airport lounge / traveling": ["airport lounge music playlist", "travel songs 2025 playlist", "chill lounge music playlist"],
-    "office lo-fi background": ["lofi hip hop playlist", "chill lofi beats to work to playlist", "lofi study beats playlist"],
-    "late night coding": ["coding music playlist", "deep focus electronic playlist", "lofi coding playlist"],
-    "video background music": ["no copyright background music for videos playlist", "vlog music playlist", "upbeat background music playlist"],
-    "indie rock": ["indie rock playlist", "best indie rock songs"],
-    "electronic": ["electronic music playlist", "edm hits playlist"],
-    "hip hop beats": ["hip hop playlist", "rap hits playlist"],
-    "folk and acoustic": ["indie folk playlist", "acoustic folk songs playlist", "folk pop playlist 2025"],
-    "pop": ["pop hits playlist", "top pop songs playlist"],
-    "jazz": ["jazz playlist", "best jazz songs", "jazz classics playlist"],
-    "classical piano": ["chopin debussy satie piano playlist", "classical piano music playlist", "relaxing classical piano playlist"],
-    "ambient soundscapes": ["ambient music playlist", "ambient electronic chill playlist", "brian eno ambient playlist"],
-    "cinematic soundtrack": ["epic cinematic music playlist", "best movie soundtracks playlist"],
-    "chiptune": ["chiptune playlist", "8 bit music playlist"],
-    "punk energy": ["pop punk playlist 2025", "modern punk rock playlist", "punk rock playlist"],
-    "techno": ["techno playlist", "techno hits 2025 playlist", "melodic techno playlist"],
-    "house": ["house music playlist", "deep house playlist 2025", "tech house playlist"],
-    "funk and soul": ["funk soul playlist", "best funk songs", "classic soul songs playlist", "neo soul playlist"],
-    "blues": ["blues playlist", "best blues songs"],
-    "country": ["country hits playlist", "country songs playlist"],
-    "instrumental only": ["instrumental songs playlist", "instrumental music playlist"],
-    "pakistani pop": ["pakistani songs playlist", "coke studio pakistan playlist"],
-    "haryanvi dance": ["haryanvi songs playlist", "haryanvi dj songs"],
-    "uk bhangra 2000s": ["uk bhangra playlist", "old bhangra songs playlist"],
-    "holi and festive": ["holi special bollywood songs playlist", "holi songs playlist", "holi party dj songs bollywood playlist"],
-    "devotional morning": ["morning bhajan playlist", "hindi bhakti songs playlist", "subah ki aarti bhajan playlist"],
-    "sufi night": ["sufi songs playlist", "bollywood sufi songs playlist", "sufi night songs playlist", "best sufi ghazals", "sufi qawwali playlist"],
-    "late night ghazal": ["ghazal playlist", "best ghazals playlist", "jagjit singh ghazals playlist"],
-    "patriotic anthems": ["desh bhakti songs playlist", "patriotic songs hindi playlist", "republic day songs playlist"],
-    "70s evergreen": ["70s hindi songs playlist", "70s bollywood evergreen playlist", "kishore kumar 70s songs playlist"],
-    "poolside chill|pa": ["punjabi chill songs playlist", "punjabi slow songs playlist", "punjabi lofi songs playlist"],
-    "poolside chill|hi": ["hindi chill songs playlist", "bollywood summer vibes playlist", "hindi lofi songs playlist"],
-    "fashion store playlist|pa": ["punjabi trending songs 2026 playlist", "punjabi swag songs playlist", "new punjabi songs playlist"],
-    "fashion store playlist|hi": ["hindi trending songs 2026 playlist", "bollywood stylish songs playlist", "hindi indie pop playlist"],
-    "cooking in the kitchen|pa": ["punjabi feel good songs playlist", "punjabi romantic songs playlist", "punjabi evergreen hits playlist"],
-    "cooking in the kitchen|hi": ["hindi feel good songs playlist", "bollywood melodies playlist", "old and new bollywood songs playlist"],
-    "morning routine energizer|hi": ["hindi morning songs playlist", "good morning bollywood songs playlist", "hindi energetic morning songs"],
-    "pre-game hype|hi": ["bollywood party songs 2026 playlist", "hindi dance hits playlist", "hindi club songs playlist"]
+    "study focus session": [
+      "study songs playlist",
+      "songs to study to playlist"
+    ],
+    "background for a house party": [
+      "house party songs 2025 playlist",
+      "party hits 2026 playlist",
+      "best party songs 2020s playlist"
+    ],
+    "chill music while we chat": [
+      "chill songs playlist",
+      "chill vibes playlist"
+    ],
+    "fashion store playlist": [
+      "fashion store music playlist",
+      "boutique store playlist"
+    ],
+    "sad boi hours": [
+      "sad boi songs playlist",
+      "sad songs playlist"
+    ],
+    "gym workout time": [
+      "gym workout songs 2025 playlist",
+      "workout music 2026 playlist",
+      "gym playlist 2025"
+    ],
+    "morning routine energizer": [
+      "morning songs playlist",
+      "good morning feel good songs"
+    ],
+    "pre-game hype": [
+      "pregame songs playlist",
+      "hype songs playlist"
+    ],
+    "coffee shop acoustic": [
+      "coffee shop acoustic playlist",
+      "acoustic covers playlist"
+    ],
+    "yoga and meditation": [
+      "yoga music playlist",
+      "restorative yoga music playlist",
+      "meditation music playlist"
+    ],
+    "exam stress relief": [
+      "calm songs for stress relief playlist",
+      "relaxing songs playlist"
+    ],
+    "airport lounge / traveling": [
+      "airport lounge music playlist",
+      "travel songs 2025 playlist",
+      "chill lounge music playlist"
+    ],
+    "office lo-fi background": [
+      "lofi hip hop playlist",
+      "chill lofi beats to work to playlist",
+      "lofi study beats playlist"
+    ],
+    "late night coding": [
+      "coding music playlist",
+      "deep focus electronic playlist",
+      "lofi coding playlist"
+    ],
+    "video background music": [
+      "no copyright background music for videos playlist",
+      "vlog music playlist",
+      "upbeat background music playlist"
+    ],
+    "indie rock": [
+      "indie rock playlist",
+      "best indie rock songs"
+    ],
+    "electronic": [
+      "electronic music playlist",
+      "edm hits playlist"
+    ],
+    "hip hop beats": [
+      "hip hop playlist",
+      "rap hits playlist"
+    ],
+    "folk and acoustic": [
+      "indie folk playlist",
+      "acoustic folk songs playlist",
+      "folk pop playlist 2025"
+    ],
+    "pop": [
+      "pop hits playlist",
+      "top pop songs playlist"
+    ],
+    "jazz": [
+      "jazz playlist",
+      "best jazz songs",
+      "jazz classics playlist"
+    ],
+    "classical piano": [
+      "chopin debussy satie piano playlist",
+      "classical piano music playlist",
+      "relaxing classical piano playlist"
+    ],
+    "ambient soundscapes": [
+      "ambient music playlist",
+      "ambient electronic chill playlist",
+      "brian eno ambient playlist"
+    ],
+    "cinematic soundtrack": [
+      "epic cinematic music playlist",
+      "best movie soundtracks playlist"
+    ],
+    "chiptune": [
+      "chiptune playlist",
+      "8 bit music playlist"
+    ],
+    "punk energy": [
+      "pop punk playlist 2025",
+      "modern punk rock playlist",
+      "punk rock playlist"
+    ],
+    "techno": [
+      "techno playlist",
+      "techno hits 2025 playlist",
+      "melodic techno playlist"
+    ],
+    "house": [
+      "house music playlist",
+      "deep house playlist 2025",
+      "tech house playlist"
+    ],
+    "funk and soul": [
+      "funk soul playlist",
+      "best funk songs",
+      "classic soul songs playlist",
+      "neo soul playlist"
+    ],
+    "blues": [
+      "blues playlist",
+      "best blues songs"
+    ],
+    "country": [
+      "country hits playlist",
+      "country songs playlist"
+    ],
+    "instrumental only": [
+      "instrumental songs playlist",
+      "instrumental music playlist"
+    ],
+    "pakistani pop": [
+      "pakistani songs playlist",
+      "coke studio pakistan playlist"
+    ],
+    "haryanvi dance": [
+      "haryanvi songs playlist",
+      "haryanvi dj songs"
+    ],
+    "uk bhangra 2000s": [
+      "uk bhangra playlist",
+      "old bhangra songs playlist"
+    ],
+    "holi and festive": [
+      "holi special bollywood songs playlist",
+      "holi songs playlist",
+      "holi party dj songs bollywood playlist"
+    ],
+    "devotional morning": [
+      "morning bhajan playlist",
+      "hindi bhakti songs playlist",
+      "subah ki aarti bhajan playlist"
+    ],
+    "sufi night": [
+      "sufi songs playlist",
+      "bollywood sufi songs playlist",
+      "sufi night songs playlist",
+      "best sufi ghazals",
+      "sufi qawwali playlist"
+    ],
+    "late night ghazal": [
+      "ghazal playlist",
+      "best ghazals playlist",
+      "jagjit singh ghazals playlist"
+    ],
+    "patriotic anthems": [
+      "desh bhakti songs playlist",
+      "patriotic songs hindi playlist",
+      "republic day songs playlist"
+    ],
+    "70s evergreen": [
+      "70s hindi songs playlist",
+      "70s bollywood evergreen playlist",
+      "kishore kumar 70s songs playlist"
+    ],
+    "poolside chill|pa": [
+      "punjabi chill songs playlist",
+      "punjabi slow songs playlist",
+      "punjabi lofi songs playlist"
+    ],
+    "poolside chill|hi": [
+      "hindi chill songs playlist",
+      "bollywood summer vibes playlist",
+      "hindi lofi songs playlist"
+    ],
+    "fashion store playlist|pa": [
+      "punjabi trending songs 2026 playlist",
+      "punjabi swag songs playlist",
+      "new punjabi songs playlist"
+    ],
+    "fashion store playlist|hi": [
+      "hindi trending songs 2026 playlist",
+      "bollywood stylish songs playlist",
+      "hindi indie pop playlist"
+    ],
+    "cooking in the kitchen|pa": [
+      "punjabi feel good songs playlist",
+      "punjabi romantic songs playlist",
+      "punjabi evergreen hits playlist"
+    ],
+    "cooking in the kitchen|hi": [
+      "hindi feel good songs playlist",
+      "bollywood melodies playlist",
+      "old and new bollywood songs playlist"
+    ],
+    "morning routine energizer|hi": [
+      "hindi morning songs playlist",
+      "good morning bollywood songs playlist",
+      "hindi energetic morning songs"
+    ],
+    "pre-game hype|hi": [
+      "bollywood party songs 2026 playlist",
+      "hindi dance hits playlist",
+      "hindi club songs playlist"
+    ]
+  },
+  "profiles": {
+    "road trip": {
+      "want": [
+        "upbeat",
+        "feel-good",
+        "happy",
+        "energetic",
+        "summery"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak"
+      ],
+      "energy": [
+        0.45,
+        0.85
+      ]
+    },
+    "study focus session": {
+      "want": [
+        "calm",
+        "chill",
+        "mellow",
+        "dreamy"
+      ],
+      "avoid": [
+        "hype",
+        "angry",
+        "party",
+        "energetic"
+      ],
+      "energy": [
+        0,
+        0.35
+      ],
+      "instrumental": true
+    },
+    "background for a house party": {
+      "want": [
+        "party",
+        "groovy",
+        "upbeat",
+        "feel-good",
+        "energetic"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic",
+        "calm"
+      ],
+      "energy": [
+        0.5,
+        0.9
+      ]
+    },
+    "chill music while we chat": {
+      "want": [
+        "chill",
+        "mellow",
+        "feel-good",
+        "groovy"
+      ],
+      "avoid": [
+        "hype",
+        "angry",
+        "party"
+      ],
+      "energy": [
+        0.15,
+        0.5
+      ]
+    },
+    "fashion store playlist": {
+      "want": [
+        "groovy",
+        "confident",
+        "upbeat",
+        "chill",
+        "sensual"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "angry"
+      ],
+      "energy": [
+        0.4,
+        0.75
+      ]
+    },
+    "late night chill": {
+      "want": [
+        "late-night",
+        "chill",
+        "mellow",
+        "dreamy",
+        "sensual"
+      ],
+      "avoid": [
+        "hype",
+        "party",
+        "angry"
+      ],
+      "energy": [
+        0.1,
+        0.45
+      ]
+    },
+    "slow and romantic": {
+      "want": [
+        "romantic",
+        "sensual",
+        "mellow",
+        "calm",
+        "dreamy"
+      ],
+      "avoid": [
+        "hype",
+        "angry",
+        "party",
+        "energetic"
+      ],
+      "energy": [
+        0.05,
+        0.4
+      ]
+    },
+    "gym workout time": {
+      "want": [
+        "energetic",
+        "hype",
+        "motivational",
+        "confident",
+        "empowering"
+      ],
+      "avoid": [
+        "calm",
+        "sad",
+        "melancholic",
+        "mellow"
+      ],
+      "energy": [
+        0.7,
+        1
+      ]
+    },
+    "sad boi hours": {
+      "want": [
+        "sad",
+        "heartbreak",
+        "melancholic",
+        "emotional",
+        "late-night"
+      ],
+      "avoid": [
+        "happy",
+        "party",
+        "hype",
+        "feel-good"
+      ],
+      "energy": [
+        0.1,
+        0.5
+      ]
+    },
+    "rainy day mood": {
+      "want": [
+        "melancholic",
+        "calm",
+        "mellow",
+        "nostalgic",
+        "dreamy"
+      ],
+      "avoid": [
+        "party",
+        "hype"
+      ],
+      "energy": [
+        0.1,
+        0.45
+      ]
+    },
+    "morning routine energizer": {
+      "want": [
+        "happy",
+        "upbeat",
+        "feel-good",
+        "energetic",
+        "motivational"
+      ],
+      "avoid": [
+        "sad",
+        "dark",
+        "heartbreak",
+        "melancholic"
+      ],
+      "energy": [
+        0.5,
+        0.85
+      ]
+    },
+    "cooking in the kitchen": {
+      "want": [
+        "feel-good",
+        "groovy",
+        "happy",
+        "upbeat",
+        "playful"
+      ],
+      "avoid": [
+        "dark",
+        "angry"
+      ],
+      "energy": [
+        0.35,
+        0.7
+      ]
+    },
+    "pre-game hype": {
+      "want": [
+        "hype",
+        "party",
+        "energetic",
+        "confident"
+      ],
+      "avoid": [
+        "sad",
+        "melancholic",
+        "calm",
+        "heartbreak",
+        "mellow"
+      ],
+      "energy": [
+        0.7,
+        1
+      ]
+    },
+    "long night drive": {
+      "want": [
+        "late-night",
+        "dreamy",
+        "chill",
+        "nostalgic",
+        "emotional"
+      ],
+      "avoid": [
+        "party"
+      ],
+      "energy": [
+        0.25,
+        0.6
+      ]
+    },
+    "coffee shop acoustic": {
+      "want": [
+        "mellow",
+        "chill",
+        "calm",
+        "romantic"
+      ],
+      "avoid": [
+        "hype",
+        "angry",
+        "party"
+      ],
+      "energy": [
+        0.05,
+        0.4
+      ],
+      "genres": [
+        "Acoustic",
+        "Singer-Songwriter",
+        "Indie Folk"
+      ]
+    },
+    "yoga and meditation": {
+      "want": [
+        "calm",
+        "dreamy",
+        "chill"
+      ],
+      "avoid": [
+        "hype",
+        "angry",
+        "party",
+        "energetic",
+        "dark"
+      ],
+      "energy": [
+        0,
+        0.3
+      ],
+      "instrumental": true,
+      "genres": [
+        "Ambient"
+      ]
+    },
+    "cleaning the house": {
+      "want": [
+        "upbeat",
+        "happy",
+        "feel-good",
+        "energetic",
+        "groovy"
+      ],
+      "avoid": [
+        "sad",
+        "melancholic",
+        "heartbreak"
+      ],
+      "energy": [
+        0.5,
+        0.85
+      ]
+    },
+    "exam stress relief": {
+      "want": [
+        "calm",
+        "chill",
+        "feel-good",
+        "mellow"
+      ],
+      "avoid": [
+        "angry",
+        "hype",
+        "dark"
+      ],
+      "energy": [
+        0.1,
+        0.45
+      ]
+    },
+    "airport lounge / traveling": {
+      "want": [
+        "chill",
+        "mellow",
+        "dreamy",
+        "groovy"
+      ],
+      "avoid": [
+        "angry",
+        "hype"
+      ],
+      "energy": [
+        0.2,
+        0.55
+      ]
+    },
+    "office lo-fi background": {
+      "want": [
+        "chill",
+        "mellow",
+        "calm",
+        "dreamy"
+      ],
+      "avoid": [
+        "hype",
+        "angry",
+        "party"
+      ],
+      "energy": [
+        0.05,
+        0.35
+      ],
+      "instrumental": true,
+      "genres": [
+        "Lo-Fi"
+      ]
+    },
+    "late night coding": {
+      "want": [
+        "late-night",
+        "chill",
+        "dreamy",
+        "mellow"
+      ],
+      "avoid": [
+        "party"
+      ],
+      "energy": [
+        0.15,
+        0.5
+      ],
+      "instrumental": true
+    },
+    "poolside chill": {
+      "want": [
+        "summery",
+        "chill",
+        "feel-good",
+        "groovy"
+      ],
+      "avoid": [
+        "sad",
+        "dark",
+        "angry"
+      ],
+      "energy": [
+        0.3,
+        0.65
+      ]
+    },
+    "video background music": {
+      "want": [
+        "chill",
+        "feel-good",
+        "upbeat",
+        "calm"
+      ],
+      "avoid": [
+        "angry",
+        "dark"
+      ],
+      "energy": [
+        0.2,
+        0.6
+      ],
+      "instrumental": true
+    },
+    "indie rock": {
+      "want": [
+        "energetic",
+        "nostalgic",
+        "melancholic",
+        "upbeat"
+      ],
+      "avoid": [],
+      "energy": [
+        0.35,
+        0.8
+      ],
+      "genres": [
+        "Indie Rock",
+        "Alternative Rock"
+      ]
+    },
+    "electronic": {
+      "want": [
+        "energetic",
+        "groovy",
+        "dreamy",
+        "upbeat"
+      ],
+      "avoid": [],
+      "energy": [
+        0.4,
+        0.9
+      ],
+      "genres": [
+        "Electronic",
+        "EDM"
+      ]
+    },
+    "hip hop beats": {
+      "want": [
+        "confident",
+        "groovy",
+        "chill",
+        "hype"
+      ],
+      "avoid": [],
+      "energy": [
+        0.35,
+        0.8
+      ],
+      "genres": [
+        "Hip-Hop",
+        "Rap",
+        "Trap"
+      ]
+    },
+    "folk and acoustic": {
+      "want": [
+        "mellow",
+        "calm",
+        "nostalgic",
+        "emotional"
+      ],
+      "avoid": [
+        "hype",
+        "party"
+      ],
+      "energy": [
+        0.05,
+        0.45
+      ],
+      "genres": [
+        "Folk",
+        "Indie Folk",
+        "Acoustic",
+        "Singer-Songwriter"
+      ]
+    },
+    "pop": {
+      "want": [
+        "happy",
+        "upbeat",
+        "feel-good",
+        "romantic"
+      ],
+      "avoid": [],
+      "energy": [
+        0.3,
+        0.8
+      ],
+      "genres": [
+        "Pop",
+        "Dance Pop"
+      ]
+    },
+    "jazz": {
+      "want": [
+        "mellow",
+        "chill",
+        "groovy",
+        "late-night",
+        "romantic"
+      ],
+      "avoid": [],
+      "energy": [
+        0.1,
+        0.55
+      ],
+      "genres": [
+        "Jazz"
+      ]
+    },
+    "classical piano": {
+      "want": [
+        "calm",
+        "emotional",
+        "dreamy",
+        "melancholic"
+      ],
+      "avoid": [
+        "hype",
+        "party",
+        "angry"
+      ],
+      "energy": [
+        0,
+        0.35
+      ],
+      "instrumental": true,
+      "genres": [
+        "Soundtrack",
+        "Ambient"
+      ]
+    },
+    "ambient soundscapes": {
+      "want": [
+        "calm",
+        "dreamy",
+        "chill"
+      ],
+      "avoid": [
+        "hype",
+        "party",
+        "angry"
+      ],
+      "energy": [
+        0,
+        0.3
+      ],
+      "instrumental": true,
+      "genres": [
+        "Ambient"
+      ]
+    },
+    "cinematic soundtrack": {
+      "want": [
+        "epic",
+        "emotional",
+        "dreamy",
+        "dark"
+      ],
+      "avoid": [
+        "party"
+      ],
+      "energy": [
+        0.2,
+        0.8
+      ],
+      "instrumental": true,
+      "genres": [
+        "Soundtrack"
+      ]
+    },
+    "chiptune": {
+      "want": [
+        "playful",
+        "upbeat",
+        "energetic",
+        "happy"
+      ],
+      "avoid": [],
+      "energy": [
+        0.45,
+        0.85
+      ],
+      "instrumental": true,
+      "genres": [
+        "Electronic"
+      ]
+    },
+    "punk energy": {
+      "want": [
+        "energetic",
+        "angry",
+        "hype",
+        "confident"
+      ],
+      "avoid": [
+        "calm",
+        "mellow"
+      ],
+      "energy": [
+        0.7,
+        1
+      ],
+      "genres": [
+        "Punk",
+        "Pop Punk"
+      ]
+    },
+    "techno": {
+      "want": [
+        "energetic",
+        "dark",
+        "hype",
+        "late-night"
+      ],
+      "avoid": [],
+      "energy": [
+        0.6,
+        0.95
+      ],
+      "genres": [
+        "Electronic",
+        "EDM"
+      ]
+    },
+    "house": {
+      "want": [
+        "groovy",
+        "party",
+        "upbeat",
+        "energetic"
+      ],
+      "avoid": [],
+      "energy": [
+        0.55,
+        0.9
+      ],
+      "genres": [
+        "House",
+        "Dance"
+      ]
+    },
+    "funk and soul": {
+      "want": [
+        "groovy",
+        "feel-good",
+        "sensual",
+        "happy"
+      ],
+      "avoid": [],
+      "energy": [
+        0.35,
+        0.75
+      ],
+      "genres": [
+        "Funk",
+        "Soul",
+        "Motown"
+      ]
+    },
+    "blues": {
+      "want": [
+        "melancholic",
+        "emotional",
+        "sad",
+        "late-night"
+      ],
+      "avoid": [],
+      "energy": [
+        0.15,
+        0.55
+      ],
+      "genres": [
+        "Blues"
+      ]
+    },
+    "country": {
+      "want": [
+        "nostalgic",
+        "feel-good",
+        "emotional",
+        "romantic"
+      ],
+      "avoid": [],
+      "energy": [
+        0.25,
+        0.7
+      ],
+      "genres": [
+        "Country",
+        "Country Pop"
+      ]
+    },
+    "instrumental only": {
+      "want": [
+        "calm",
+        "dreamy",
+        "epic",
+        "chill"
+      ],
+      "avoid": [],
+      "energy": [
+        0.1,
+        0.6
+      ],
+      "instrumental": true
+    },
+    "bollywood party": {
+      "want": [
+        "party",
+        "upbeat",
+        "energetic",
+        "hype",
+        "feel-good"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic"
+      ],
+      "energy": [
+        0.6,
+        0.95
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "shaadi dance floor": {
+      "want": [
+        "party",
+        "happy",
+        "energetic",
+        "feel-good",
+        "playful"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic",
+        "dark"
+      ],
+      "energy": [
+        0.55,
+        0.95
+      ],
+      "genres": [
+        "Bollywood",
+        "Bhangra"
+      ]
+    },
+    "sangeet night": {
+      "want": [
+        "happy",
+        "playful",
+        "feel-good",
+        "party",
+        "romantic"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "dark",
+        "angry"
+      ],
+      "energy": [
+        0.45,
+        0.9
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "romantic bollywood": {
+      "want": [
+        "romantic",
+        "emotional",
+        "mellow",
+        "dreamy"
+      ],
+      "avoid": [
+        "party",
+        "hype",
+        "angry"
+      ],
+      "energy": [
+        0.1,
+        0.5
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "heartbreak hours": {
+      "want": [
+        "heartbreak",
+        "sad",
+        "emotional",
+        "melancholic"
+      ],
+      "avoid": [
+        "party",
+        "happy",
+        "hype"
+      ],
+      "energy": [
+        0.1,
+        0.5
+      ],
+      "genres": [
+        "Bollywood",
+        "Indian Pop"
+      ]
+    },
+    "sufi night": {
+      "want": [
+        "emotional",
+        "romantic",
+        "mellow",
+        "late-night"
+      ],
+      "avoid": [
+        "party",
+        "hype"
+      ],
+      "energy": [
+        0.2,
+        0.6
+      ],
+      "genres": [
+        "Sufi"
+      ]
+    },
+    "retro classics": {
+      "want": [
+        "nostalgic",
+        "romantic",
+        "mellow",
+        "emotional",
+        "happy"
+      ],
+      "avoid": [],
+      "energy": [
+        0.15,
+        0.6
+      ],
+      "genres": [
+        "Bollywood",
+        "Retro"
+      ],
+      "era": [
+        1950,
+        1989
+      ]
+    },
+    "90s nostalgia": {
+      "want": [
+        "nostalgic",
+        "romantic",
+        "emotional",
+        "feel-good"
+      ],
+      "avoid": [],
+      "energy": [
+        0.2,
+        0.65
+      ],
+      "genres": [
+        "Bollywood"
+      ],
+      "era": [
+        1990,
+        1999
+      ]
+    },
+    "2000s hits": {
+      "want": [
+        "nostalgic",
+        "romantic",
+        "upbeat",
+        "feel-good"
+      ],
+      "avoid": [],
+      "energy": [
+        0.3,
+        0.75
+      ],
+      "genres": [
+        "Bollywood"
+      ],
+      "era": [
+        2000,
+        2009
+      ]
+    },
+    "indie pop": {
+      "want": [
+        "chill",
+        "dreamy",
+        "romantic",
+        "mellow"
+      ],
+      "avoid": [],
+      "energy": [
+        0.15,
+        0.55
+      ],
+      "genres": [
+        "Indie Pop",
+        "Indian Pop"
+      ]
+    },
+    "desi hip hop": {
+      "want": [
+        "confident",
+        "hype",
+        "energetic",
+        "angry"
+      ],
+      "avoid": [],
+      "energy": [
+        0.5,
+        0.9
+      ],
+      "genres": [
+        "Desi Hip-Hop"
+      ]
+    },
+    "road trip with friends": {
+      "want": [
+        "upbeat",
+        "feel-good",
+        "happy",
+        "energetic",
+        "nostalgic"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak"
+      ],
+      "energy": [
+        0.45,
+        0.85
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "gym motivation": {
+      "want": [
+        "motivational",
+        "energetic",
+        "hype",
+        "empowering",
+        "confident"
+      ],
+      "avoid": [
+        "sad",
+        "calm",
+        "mellow",
+        "heartbreak"
+      ],
+      "energy": [
+        0.7,
+        1
+      ],
+      "genres": [
+        "Bollywood",
+        "Desi Hip-Hop"
+      ]
+    },
+    "monsoon rain": {
+      "want": [
+        "romantic",
+        "dreamy",
+        "nostalgic",
+        "mellow"
+      ],
+      "avoid": [
+        "angry",
+        "hype"
+      ],
+      "energy": [
+        0.1,
+        0.5
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "late night ghazal": {
+      "want": [
+        "melancholic",
+        "romantic",
+        "calm",
+        "emotional",
+        "late-night"
+      ],
+      "avoid": [
+        "party",
+        "hype",
+        "energetic"
+      ],
+      "energy": [
+        0,
+        0.35
+      ],
+      "genres": [
+        "Ghazal"
+      ]
+    },
+    "holi and festive": {
+      "want": [
+        "party",
+        "happy",
+        "playful",
+        "energetic",
+        "feel-good"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic",
+        "dark"
+      ],
+      "energy": [
+        0.55,
+        0.95
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "devotional morning": {
+      "want": [
+        "calm",
+        "emotional",
+        "mellow"
+      ],
+      "avoid": [
+        "party",
+        "sensual",
+        "angry",
+        "hype"
+      ],
+      "energy": [
+        0.05,
+        0.4
+      ],
+      "genres": [
+        "Devotional"
+      ]
+    },
+    "patriotic anthems": {
+      "want": [
+        "empowering",
+        "emotional",
+        "epic",
+        "motivational"
+      ],
+      "avoid": [
+        "party",
+        "sensual"
+      ],
+      "energy": [
+        0.35,
+        0.8
+      ],
+      "genres": [
+        "Bollywood"
+      ]
+    },
+    "pakistani pop": {
+      "want": [
+        "romantic",
+        "emotional",
+        "nostalgic",
+        "feel-good"
+      ],
+      "avoid": [],
+      "energy": [
+        0.25,
+        0.65
+      ],
+      "genres": [
+        "Pop",
+        "Sufi",
+        "Pop Rock"
+      ]
+    },
+    "haryanvi dance": {
+      "want": [
+        "party",
+        "energetic",
+        "playful",
+        "hype",
+        "confident"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic"
+      ],
+      "energy": [
+        0.6,
+        0.95
+      ],
+      "genres": [
+        "Indian Pop",
+        "Desi Hip-Hop"
+      ]
+    },
+    "70s evergreen": {
+      "want": [
+        "nostalgic",
+        "romantic",
+        "mellow",
+        "happy",
+        "emotional"
+      ],
+      "avoid": [],
+      "energy": [
+        0.15,
+        0.6
+      ],
+      "genres": [
+        "Bollywood",
+        "Retro"
+      ],
+      "era": [
+        1965,
+        1984
+      ]
+    },
+    "punjabi party": {
+      "want": [
+        "party",
+        "hype",
+        "energetic",
+        "confident"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic"
+      ],
+      "energy": [
+        0.6,
+        0.95
+      ],
+      "genres": [
+        "Punjabi Pop",
+        "Bhangra"
+      ]
+    },
+    "bhangra dance floor": {
+      "want": [
+        "party",
+        "energetic",
+        "happy",
+        "hype"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic",
+        "calm"
+      ],
+      "energy": [
+        0.65,
+        1
+      ],
+      "genres": [
+        "Bhangra"
+      ]
+    },
+    "punjabi hip hop": {
+      "want": [
+        "confident",
+        "hype",
+        "energetic",
+        "dark"
+      ],
+      "avoid": [],
+      "energy": [
+        0.5,
+        0.9
+      ],
+      "genres": [
+        "Punjabi Hip-Hop"
+      ]
+    },
+    "punjabi romantic": {
+      "want": [
+        "romantic",
+        "emotional",
+        "mellow",
+        "dreamy"
+      ],
+      "avoid": [
+        "angry",
+        "hype",
+        "party"
+      ],
+      "energy": [
+        0.15,
+        0.55
+      ],
+      "genres": [
+        "Punjabi Pop"
+      ]
+    },
+    "punjabi wedding": {
+      "want": [
+        "party",
+        "happy",
+        "energetic",
+        "feel-good",
+        "playful"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak",
+        "melancholic",
+        "dark"
+      ],
+      "energy": [
+        0.55,
+        0.95
+      ],
+      "genres": [
+        "Bhangra",
+        "Punjabi Pop",
+        "Punjabi Folk"
+      ]
+    },
+    "punjabi folk classics": {
+      "want": [
+        "nostalgic",
+        "emotional",
+        "happy",
+        "romantic"
+      ],
+      "avoid": [],
+      "energy": [
+        0.25,
+        0.7
+      ],
+      "genres": [
+        "Punjabi Folk"
+      ]
+    },
+    "punjabi pop": {
+      "want": [
+        "upbeat",
+        "romantic",
+        "feel-good",
+        "confident"
+      ],
+      "avoid": [],
+      "energy": [
+        0.4,
+        0.8
+      ],
+      "genres": [
+        "Punjabi Pop"
+      ]
+    },
+    "uk bhangra 2000s": {
+      "want": [
+        "party",
+        "energetic",
+        "nostalgic",
+        "hype"
+      ],
+      "avoid": [
+        "sad",
+        "heartbreak"
+      ],
+      "energy": [
+        0.6,
+        0.95
+      ],
+      "genres": [
+        "Bhangra"
+      ],
+      "era": [
+        1998,
+        2009
+      ]
+    },
+    "punjabi swagger for the gym": {
+      "want": [
+        "confident",
+        "hype",
+        "energetic",
+        "motivational",
+        "empowering"
+      ],
+      "avoid": [
+        "sad",
+        "calm",
+        "mellow",
+        "heartbreak"
+      ],
+      "energy": [
+        0.65,
+        1
+      ],
+      "genres": [
+        "Punjabi Hip-Hop",
+        "Punjabi Pop"
+      ]
+    },
+    "punjabi long drive": {
+      "want": [
+        "feel-good",
+        "confident",
+        "romantic",
+        "nostalgic",
+        "chill"
+      ],
+      "avoid": [],
+      "energy": [
+        0.3,
+        0.7
+      ],
+      "genres": [
+        "Punjabi Pop"
+      ]
+    },
+    "2010s punjabi hits": {
+      "want": [
+        "upbeat",
+        "party",
+        "confident",
+        "romantic"
+      ],
+      "avoid": [],
+      "energy": [
+        0.4,
+        0.85
+      ],
+      "genres": [
+        "Punjabi Pop",
+        "Punjabi Hip-Hop"
+      ],
+      "era": [
+        2010,
+        2019
+      ]
+    }
   }
 }

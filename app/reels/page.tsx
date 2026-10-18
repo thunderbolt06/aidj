@@ -6,7 +6,7 @@ import { loadTrack, searchTracks } from "@/lib/client/dj";
 import { useAutoMix } from "@/lib/client/useAutoMix";
 import { getSelectedLanguageLabels } from "@/lib/client/langPrefs";
 import { getSongSource } from "@/lib/client/sourcePrefs";
-import { recentlyPlayed } from "@/lib/client/history";
+import { listenerHistory } from "@/lib/client/history";
 import { HeatmapBar } from "@/components/HeatmapBar";
 import { Cover } from "@/components/Cover";
 
@@ -38,7 +38,7 @@ export default function ReelsPage() {
           prompt: seed,
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),
-          recent: recentlyPlayed(),
+          ...listenerHistory(),
         }),
       });
       if (!res.ok) throw new Error("intent failed - ANTHROPIC_API_KEY?");
@@ -72,7 +72,7 @@ export default function ReelsPage() {
         body: JSON.stringify({
           current: `${current.title} - ${current.artist}`,
           vibes: vibesRef.current,
-          recent: recentlyPlayed(),
+          ...listenerHistory(),
           exclude: feed.map((t) => t.id),
           languages: getSelectedLanguageLabels(),
           songSource: getSongSource(),

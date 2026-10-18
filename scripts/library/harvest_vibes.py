@@ -570,14 +570,28 @@ def position_weight(i):
     return 1.0 - 0.5 * min(1.0, i / ENTRIES_PER_PLAYLIST)
 
 
+def dropped_playlists():
+    """{(label, lang, playlist id)} that judge_vibes.mjs found were not made for that vibe."""
+    path = os.path.join(SRC, "judge", "playlists.json")
+    if not os.path.exists(path):
+        return set()
+    return {tuple(k.rsplit("|", 2)) for k, v in read_json(path).items() if v.get("keep") is False}
+
+
 def walk_harvest(month, matcher, only=None):
     """Yield (label, lang, playlist, position, entry, artist, title, confident, library id)."""
     vibes, _ = load_vibes()
     wanted_vibes = set(vibes)
+    # a search for "bollywood party" also finds "Bollywood 90s Hits" and "Self
+    # Love Songs Hindi": playlists the judge dropped neither nominate downloads
+    # nor speak for the vibe
+    dropped = dropped_playlists()
     for (label, lang), s in sorted(latest_searches(month).items()):
         if (label, lang) not in wanted_vibes or (only and label not in only):
             continue
         for pid in s["playlists"]:
+            if (label, lang, pid) in dropped:
+                continue
             path = os.path.join(month_dir(s["_month"]), "playlists", f"{pid}.json")
             if not os.path.exists(path):
                 continue

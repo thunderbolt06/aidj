@@ -140,6 +140,8 @@ export async function planTransition(
   opts?: {
     timeoutMs?: number;
     stemsAvailable?: boolean;
+    /** B's beat can come in under A's singer (lib/audio/handoff.ts). */
+    handoffAvailable?: boolean;
     arc?: { energy: number; phase: string; styleBias: string[] } | null;
     recentStyles?: string[];
   }
@@ -176,6 +178,7 @@ export async function planTransition(
       },
       harmonic: camelotCompatible(from.analysis.camelot, to.analysis.camelot),
       stemsAvailable: opts?.stemsAvailable ?? false,
+      handoffAvailable: opts?.handoffAvailable ?? false,
       arc: opts?.arc
         ? {
             energy: opts.arc.energy,

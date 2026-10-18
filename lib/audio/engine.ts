@@ -515,6 +515,9 @@ export class DJEngine {
         equalPowerFade(aGain, bGain, t0, dur);
         break;
       }
+      // vocal_handoff needs B's entry planned (that path uses vocalHandoff());
+      // forced via transition() it degrades to the bass swap it starts with
+      case "vocal_handoff":
       case "bass_swap": {
         B.low.gain.setValueAtTime(-24, t0);
         equalPowerFade(aGain, bGain, t0, dur);
@@ -1029,6 +1032,147 @@ export class DJEngine {
     this.active = 1 - this.active;
     const end = t0 + 2 * beatCtx;
     setTimeout(() => this.onTransitionEnd?.(), (end - ctx.currentTime) * 1000 + 50);
+    return end;
+  }
+
+  /**
+   * Vocal handoff - the beat changes first, the singer later. At t0 (a bar)
+   * B's instrumental comes in and takes the low end while A's band drains out
+   * over two beats, leaving A's VOCAL riding B's groove for `bars` bars. On the
+   * handoff bar A's vocal echoes out and B's own singer arrives (the caller
+   * picked `inPoint` so B is instrumental until then - lib/audio/handoff.ts).
+   *
+   * A's vocal is held with a vocal-focus tap of A: the centre channel (most
+   * songs pan the lead vocal dead centre, the band wide) with the kick and
+   * bass cut and the hi-hats tamed. Returns the ctx time the handoff completes.
+   */
+  vocalHandoff(
+    bFull: AudioBuffer,
+    opts: {
+      inPoint: number;
+      bars: number;
+      analyses: { from: TrackAnalysis; to: TrackAnalysis };
+      quantizeBeats?: number;
+      /** A's track position for B's entry (wins over quantizeBeats). */
+      dropAt?: number;
+    }
+  ): number {
+    const ctx = this.ctx;
+    const A = this.activeDeck;
+    const B = this.nextDeck;
+    const { from, to } = opts.analyses;
+    const aRate = A.rate();
+    const aBeat = from.bpm ? 60 / from.bpm : 0.5;
+    const beatCtx = aBeat / aRate;
+
+    // B comes in on a bar (a phrase when quantizing), or exactly at dropAt
+    const t0 = this.entryTime(from, 0, {
+      dropAt: opts.dropAt,
+      quantizeBeats: Math.max(4, opts.quantizeBeats ?? 4),
+    });
+    const tH = t0 + Math.max(1, opts.bars) * 4 * beatCtx; // the handoff bar
+    const end = tH + beatCtx;
+    const now = ctx.currentTime;
+
+    // the singer has to sit on B's beat: hold B at A's tempo through the handoff
+    let rate = 1;
+    if (to.bpm > 0 && from.bpm > 0) {
+      rate = (from.bpm / to.bpm) * aRate;
+      if (rate < 0.92 || rate > 1.08) rate = 1;
+    }
+    let inPoint = Math.max(0, opts.inPoint);
+    if (to.bpm > 0) {
+      const bAnchor = to.downbeatOffset ?? to.beatOffset;
+      const beat = 60 / to.bpm;
+      inPoint = Math.max(0, bAnchor + Math.round((inPoint - bAnchor) / beat) * beat);
+    }
+
+    B.buffer = bFull;
+    B.resetFx(now);
+    B.trim.gain.setValueAtTime(trimGainFromLoudness(to.loudness), now);
+    B.play(t0, inPoint, rate);
+    if (rate !== 1 && B.source) {
+      B.source.playbackRate.setValueAtTime(rate, end);
+      B.source.playbackRate.linearRampToValueAtTime(1, end + 4);
+    }
+
+    // B's instrumental: in over a beat, mids dipped a touch so A's voice sits
+    // on top, opened back up as B's own singer arrives
+    const aGain = A.gain.gain;
+    const bGain = B.gain.gain;
+    aGain.cancelScheduledValues(now);
+    bGain.cancelScheduledValues(now);
+    aGain.setValueAtTime(aGain.value, now);
+    bGain.setValueAtTime(0, now);
+    bGain.setValueAtTime(0, t0);
+    bGain.linearRampToValueAtTime(1, t0 + beatCtx);
+    B.mid.gain.setValueAtTime(-3, t0);
+    B.mid.gain.setValueAtTime(-3, tH - beatCtx);
+    B.mid.gain.linearRampToValueAtTime(0, tH);
+
+    // A's band: bass swapped out on the 1, the rest gone over two beats
+    A.low.gain.setValueAtTime(0, t0);
+    A.low.gain.linearRampToValueAtTime(-30, t0 + 0.1);
+    aGain.setValueAtTime(aGain.value, t0);
+    aGain.linearRampToValueAtTime(0, t0 + 2 * beatCtx);
+
+    // A's vocal: in as the band goes (complementary, so the voice stays level),
+    // echoed through the last beats of the hold, gone on the handoff bar
+    const hold = ctx.createGain();
+    const level = 1.15; // the focus tap loses the sides
+    hold.gain.setValueAtTime(0, now);
+    hold.gain.setValueAtTime(0, t0);
+    hold.gain.linearRampToValueAtTime(level, t0 + 2 * beatCtx);
+    hold.gain.setValueAtTime(level, tH - 0.02);
+    hold.gain.linearRampToValueAtTime(0, tH + beatCtx / 4);
+    hold.connect(A.trim); // trim → master + echo send
+    A.echoSend.gain.cancelScheduledValues(now);
+    A.echoSend.gain.setValueAtTime(0, tH - 2 * beatCtx);
+    A.echoSend.gain.linearRampToValueAtTime(0.55, tH);
+    A.echoSend.gain.setTargetAtTime(0, tH + 0.05, 0.1);
+
+    const nodes: AudioNode[] = [hold];
+    const filter = (type: BiquadFilterType, freq: number, gain = 0) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.gain.value = gain;
+      nodes.push(f);
+      return f;
+    };
+    if (A.source) {
+      // vocal focus: centre channel (L+R mono), 24 dB/oct high-pass under the
+      // voice, a little presence, the hi-hats pulled down
+      const mono = ctx.createGain();
+      mono.channelCount = 1;
+      mono.channelCountMode = "explicit";
+      mono.channelInterpretation = "speakers";
+      nodes.push(mono);
+      A.source
+        .connect(mono)
+        .connect(filter("highpass", 170))
+        .connect(filter("highpass", 170))
+        .connect(filter("peaking", 3000, 2))
+        .connect(filter("highshelf", 8000, -6))
+        .connect(hold);
+    }
+
+    setTimeout(
+      () => {
+        for (const n of nodes) {
+          try {
+            n.disconnect();
+          } catch {
+            /* already gone */
+          }
+        }
+      },
+      Math.max(0, (tH + 3 - now) * 1000)
+    );
+
+    A.stopSource(tH + 0.5);
+    this.active = 1 - this.active;
+    setTimeout(() => this.onTransitionEnd?.(), (end - now) * 1000 + 50);
     return end;
   }
 

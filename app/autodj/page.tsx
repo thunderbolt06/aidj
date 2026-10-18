@@ -25,6 +25,7 @@ const TRICKS: { value: TransitionStyle | ""; label: string }[] = [
   { value: "tape_stop", label: "📼 Tape stop" },
   { value: "gate", label: "🔲 Gate / strobe" },
   { value: "stem_acapella", label: "🎤 Acapella-in (stems)" },
+  { value: "vocal_handoff", label: "🎙️ Vocal handoff (beat first, singer later)" },
 ];
 
 export default function AutoDjPage() {

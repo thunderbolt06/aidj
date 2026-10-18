@@ -96,7 +96,8 @@ export type TransitionStyle =
   | "tape_stop" // power-cut: A pitch-drops to a halt over ~1 beat, then B drops
   | "gate" // rhythmic strobe-gate on A for a bar while B fades up underneath
   | "stem_acapella" // B's isolated vocal rides over A, then B's full mix drops in
-  | "vocal_throw"; // A's last sung word is thrown (echoed) over B's intro
+  | "vocal_throw" // A's last sung word is thrown (echoed) over B's intro
+  | "vocal_handoff"; // B's beat comes in under A's singer, then B's singer takes over
 
 export interface TransitionPlan {
   style: TransitionStyle;

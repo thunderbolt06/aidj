@@ -27,6 +27,7 @@ import {
 } from "@/lib/audio/arc";
 import type { TrackAnalysis } from "@/lib/types";
 import { pickVocalExit, vocalExits } from "@/lib/audio/vocalExits";
+import { handoffEntry, handoffExits, handoffTempoOk, type HandoffEntry } from "@/lib/audio/handoff";
 
 export interface AutoMixOptions {
   /**
@@ -82,6 +83,51 @@ interface Prepared {
   plan: TransitionPlan;
   /** Key-locked, pitch-preserved buffer + its remapped analysis (if prepared). */
   matched?: { buffer: AudioBuffer; analysis: TrackAnalysis; inPoint: number };
+  /** Vocal handoff: where B's instrumental starts and its singer arrives. */
+  handoff?: Handoff;
+}
+
+interface Handoff {
+  entry: HandoffEntry;
+  /** B's singer's pickup before the handoff bar, in A seconds. */
+  pickupA: number;
+}
+
+/**
+ * Can B's beat come in under A's singer? Only when A's voice suits B's music
+ * - harmonic keys (with some confidence) and a tight tempo match - and B has a
+ * clean instrumental run into one of its sung entries. Null otherwise.
+ */
+function handoffFor(from: LoadedTrack, to: LoadedTrack): Handoff | null {
+  const a = from.analysis;
+  const b = to.analysis;
+  if (!from.meta.vocals?.length || from.meta.instrumental) return null;
+  if (!handoffTempoOk(a.bpm, b.bpm)) return null;
+  if (!a.camelot || !b.camelot || !camelotCompatible(a.camelot, b.camelot)) return null;
+  if (Math.min(a.keyConfidence ?? 0, b.keyConfidence ?? 0) < 0.3) return null;
+  const entry = handoffEntry(to.meta.vocals, b, to.meta.famousStart);
+  if (!entry) return null;
+  return { entry, pickupA: (entry.pickup * b.bpm) / a.bpm };
+}
+
+/**
+ * Fit a vocal_handoff plan to the pair: B starts where its instrumental run
+ * begins and stays tempo-locked, or - when the pair can't hand off - the plan
+ * falls back to the blend the handoff starts with (and says so).
+ */
+function applyHandoff(plan: TransitionPlan, from: LoadedTrack, to: LoadedTrack): Handoff | undefined {
+  if (plan.style !== "vocal_handoff") return undefined;
+  const h = handoffFor(from, to);
+  if (!h) {
+    const clash = !camelotCompatible(from.analysis.camelot, to.analysis.camelot);
+    plan.style = clash ? "echo_out" : "bass_swap";
+    plan.reasoning = `${plan.reasoning} (No clean vocal handoff for this pair - ${plan.style.replace("_", " ")} instead.)`;
+    return undefined;
+  }
+  plan.inPoint = h.entry.inPoint;
+  plan.beatMatch = true;
+  plan.duration = (h.entry.bars * 4 * 60) / from.analysis.bpm;
+  return h;
 }
 
 export interface HopLogEntry {
@@ -134,10 +180,32 @@ function aimAtVocalGap(
   plan: TransitionPlan,
   pos: number,
   desired: number,
-  floor: number
+  floor: number,
+  handoff?: Handoff
 ): { waitSec: number; dropAt: number; room: number; kind: "break" | "line" } | null {
   const a = current.analysis;
   const beat = a.bpm > 0 ? 60 / a.bpm : 0.5;
+  if (plan.style === "vocal_handoff" && handoff) {
+    // B's beat comes in `bars` before A's line ends, so A's last line rides
+    // it: aim the drop (not the line end) near the desired moment
+    const exits = handoffExits(
+      vocalExits(current.meta.vocals, a),
+      current.meta.vocals,
+      a,
+      handoff.entry.bars,
+      handoff.pickupA
+    ).filter((e) => e.dropAt >= pos + VOCAL_GAP_MARGIN + 0.5);
+    const byDrop = exits.map((e) => ({ ...e, at: e.dropAt }));
+    const pick = pickVocalExit(byDrop, desired, floor);
+    const exit = pick ? exits[byDrop.indexOf(pick as (typeof byDrop)[number])] : null;
+    if (!exit || exit.at > a.duration - 8) return null;
+    return {
+      waitSec: Math.max(0, exit.dropAt - VOCAL_GAP_MARGIN - pos),
+      dropAt: exit.dropAt,
+      room: exit.room,
+      kind: exit.kind,
+    };
+  }
   // an acapella-in plays B's vocal for 8 beats BEFORE the drop: that lead-in
   // must sit in the gap too, so it needs a longer one and the drop moves later
   const stem = plan.style === "stem_acapella";
@@ -574,6 +642,7 @@ export function useAutoMix() {
             plan = await planTransition(current, next, getEngine().position(), {
               timeoutMs: 5000,
               stemsAvailable: st.current.opts.stems,
+              handoffAvailable: !!handoffFor(current, next),
               arc: currentArc(),
               recentStyles: st.current.setLog
                 .slice(-3)
@@ -592,11 +661,14 @@ export function useAutoMix() {
           Math.abs(current.analysis.bpm - next.analysis.bpm) /
             Math.max(current.analysis.bpm, 1) <
           0.08;
-        const prepared: Prepared = { trackId: target.id, next, plan };
+        const handoff = applyHandoff(plan, current, next);
+        const prepared: Prepared = { trackId: target.id, next, plan, handoff };
 
         // key-lock: pre-stretch B (pitch-preserved) to A's tempo so beat-match
-        // doesn't detune it - done now, during prepare-ahead, never at hop time
-        if (st.current.opts.keyLock && plan.beatMatch) {
+        // doesn't detune it - done now, during prepare-ahead, never at hop time.
+        // A handoff always key-locks: A's singer is in key with B only if B
+        // keeps its pitch
+        if ((st.current.opts.keyLock || handoff) && plan.beatMatch) {
           const m = buildMatched(
             getEngine().ctx,
             next.buffer,
@@ -676,7 +748,7 @@ export function useAutoMix() {
         st.current.interestUntil,
         Math.min(desired, famousEnd) - 4
       );
-      const gap = aimAtVocalGap(cur, prepared.plan, pos, desired, floor);
+      const gap = aimAtVocalGap(cur, prepared.plan, pos, desired, floor, prepared.handoff);
       if (gap) {
         waitSec = gap.waitSec;
         st.current.vocalGap = { dropAt: gap.dropAt, room: gap.room, kind: gap.kind };
@@ -791,8 +863,18 @@ export function useAutoMix() {
           Math.abs(s.current.analysis.bpm - next.analysis.bpm) /
             Math.max(s.current.analysis.bpm, 1) <
           0.08;
-        if (resumeAt != null) plan.inPoint = resumeAt;
-        prepared = { trackId: track.id, next, plan };
+        // resuming a song where it was left: no handoff (it would move B's entry)
+        const handoff = resumeAt == null ? applyHandoff(plan, s.current, next) : undefined;
+        if (resumeAt != null) {
+          if (plan.style === "vocal_handoff") plan.style = "bass_swap";
+          plan.inPoint = resumeAt;
+        }
+        prepared = { trackId: track.id, next, plan, handoff };
+        // no time to key-lock at click time: hand off only when B needs no stretch
+        if (handoff && Math.abs(s.current.analysis.bpm / next.analysis.bpm - 1) > 0.01) {
+          prepared.handoff = undefined;
+          plan.style = "bass_swap";
+        }
       }
       await executeHop(prepared, "pick", resumeAt != null);
     } catch (e) {
@@ -864,14 +946,16 @@ export function useAutoMix() {
       }
     }
 
-    if (s.opts.maxTransitionDur && plan.style !== "cut")
+    if (s.opts.maxTransitionDur && plan.style !== "cut" && plan.style !== "vocal_handoff")
       plan.duration = Math.min(plan.duration, s.opts.maxTransitionDur);
     // auto-hop aimed at a vocal gap: B enters as A's line ends, and A is gone
     // before its singer comes back
     const gap = end === "auto" ? s.vocalGap : null;
     s.vocalGap = null;
     const dropAt = gap && gap.dropAt > engine.position() ? gap.dropAt : undefined;
-    if (gap && dropAt != null) {
+    if (gap && dropAt != null && plan.style === "vocal_handoff") {
+      plan.reasoning = `${plan.reasoning} 🎤 B's beat under A's last line, B's singer on the next bar.`;
+    } else if (gap && dropAt != null) {
       // after a mere breath (dense pop) the blend has to be quick
       plan.duration = Math.min(plan.duration, Math.max(1.5, gap.room + 1));
       plan.reasoning = `${plan.reasoning} 🎤 ${
@@ -902,7 +986,16 @@ export function useAutoMix() {
     setNowIdx(s.nowIdx);
     setNextReady(false);
 
-    if (plan.style === "stem_acapella" && stemVocal) {
+    if (plan.style === "vocal_handoff" && prepared.handoff) {
+      const m = prepared.matched;
+      engine.vocalHandoff(m ? m.buffer : next.buffer, {
+        inPoint: m ? m.inPoint : plan.inPoint,
+        bars: prepared.handoff.entry.bars,
+        analyses: { from: current.analysis, to: m ? m.analysis : next.analysis },
+        quantizeBeats,
+        dropAt,
+      });
+    } else if (plan.style === "stem_acapella" && stemVocal) {
       engine.stemSwap(next.buffer, {
         bVocal: stemVocal,
         inPoint: plan.inPoint,

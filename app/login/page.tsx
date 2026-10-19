@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 /** Sign-in for a private deployment (only reachable when APP_PASSWORD is set). */
@@ -20,7 +21,7 @@ export default function LoginPage() {
     if (res?.ok) {
       const next = new URLSearchParams(window.location.search).get("next");
       // only ever follow a same-site path
-      window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      window.location.href = next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/";
       return;
     }
     setError(res?.status === 401 ? "Wrong password" : "Could not sign in");
@@ -51,6 +52,9 @@ export default function LoginPage() {
         </button>
         {error && <p className="text-xs text-red-400">{error}</p>}
       </form>
+      <Link href="/welcome" className="text-xs text-zinc-500 hover:text-cyan-300">
+        ← What is Everplay?
+      </Link>
     </main>
   );
 }

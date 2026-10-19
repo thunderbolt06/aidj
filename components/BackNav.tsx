@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isPublicPath } from "@/lib/site/config";
 
-/** Back-to-lab link shown on every experiment page (hidden on home). */
+/** Back-to-lab link shown on every experiment page (hidden on home and the marketing pages). */
 export function BackNav() {
   const pathname = usePathname();
-  if (!pathname || pathname === "/") return null;
+  if (!pathname || pathname === "/" || isPublicPath(pathname)) return null;
   return (
     <nav className="mx-auto w-full max-w-3xl px-6 pt-4">
       <Link

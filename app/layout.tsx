@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BackNav } from "@/components/BackNav";
+import { SITE_URL } from "@/lib/site/config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,6 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Everplay",
   description: "Tell it a vibe. It plays only the famous parts, transitions like a DJ, and never stops.",
   openGraph: {

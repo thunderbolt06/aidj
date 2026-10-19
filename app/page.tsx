@@ -596,7 +596,7 @@ export default function HomePage() {
 
               <div className="border-t border-zinc-800 pt-3">
                 <Link
-                  href="/features"
+                  href="/lab"
                   onClick={() => setSettingsOpen(false)}
                   className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 transition hover:border-cyan-600 hover:text-cyan-300"
                 >

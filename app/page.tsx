@@ -30,7 +30,7 @@ import { TransitionRating } from "@/components/TransitionRating";
  * queue sheet) rebuilt around a different listening contract than
  * Spotify/YT Music: songs don't play out, the DJ hops when a song has given
  * its best moment, and YOU steer it physically:
- *   - tap spacebar = "keep it going" (+15s per tap)
+ *   - tap spacebar = pause / resume
  *   - BACK: transition back to the last song, where it was left
  *   - NEXT: quick tap skips; press & hold builds tension, release drops
  *   - 9-grid = pick the next door instead of a linear queue
@@ -225,7 +225,6 @@ export default function HomePage() {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState("");
   const [grid, setGrid] = useState<Suggestion[]>([]);
-  const [tapToExtend, setTapToExtend] = useState(true);
   const [holding, setHolding] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -277,7 +276,7 @@ export default function HomePage() {
     return () => document.removeEventListener("pointerdown", close);
   }, [settingsOpen]);
 
-  // spacebar: quick tap extends interest, hold+release transitions
+  // spacebar: quick tap pauses/resumes, hold+release transitions
   useEffect(() => {
     if (!mix.running) return;
     const isTyping = (e: KeyboardEvent) => {
@@ -301,8 +300,8 @@ export default function HomePage() {
         holdingRef.current = false;
         setHolding(false);
         mix.hopNow("drop"); // transition resets the tension FX
-      } else if (tapToExtend) {
-        mix.tapInterest();
+      } else {
+        mix.togglePause();
       }
     };
     window.addEventListener("keydown", down);
@@ -313,7 +312,7 @@ export default function HomePage() {
       if (holdTimer.current) clearTimeout(holdTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mix.running, tapToExtend]);
+  }, [mix.running]);
 
   // hardware/OS media keys (headphones, keyboard, lock screen, car stereo):
   // play/pause → our pause toggle, next → NEXT's plain-skip tap, back → BACK
@@ -551,7 +550,7 @@ export default function HomePage() {
           {settingsOpen && (
             <div className="fixed inset-x-3 top-16 z-40 max-h-[70vh] space-y-4 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/95 p-4 text-sm text-zinc-300 shadow-xl backdrop-blur animate-[drop-in_150ms_ease] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:max-h-none sm:w-80">
               <p className="text-xs text-zinc-500">
-                space: tap = keep · hold = drop
+                space: tap = pause · hold = drop
               </p>
 
               <div className="space-y-2 border-t border-zinc-800 pt-3">

@@ -133,11 +133,11 @@ function sparseEnergy(energy: number[], buckets = 40): number[] {
   );
 }
 
-/** Vocal breaks 20-60 s after the hook starts - where the chorus can end. */
+/** Vocal breaks and section ends 20-60 s after the hook starts - where the chorus can end. */
 function vocalBreaksAfterHook(from: LoadedTrack, position: number): number[] {
   const hook = from.meta.famousStart ?? 40;
   return vocalExits(from.meta.vocals, from.analysis)
-    .filter((e) => e.kind === "break" && e.at > position && e.at >= hook + 20 && e.at <= hook + 60)
+    .filter((e) => e.kind !== "line" && e.at > position && e.at >= hook + 20 && e.at <= hook + 60)
     .map((e) => Math.round(e.at));
 }
 

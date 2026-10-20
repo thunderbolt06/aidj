@@ -6,8 +6,11 @@
  * sung (`vocals`, from Demucs - scripts/library/vocal_map.py); this turns
  * those stretches into ranked exit points on the beat grid.
  *
- * Dense pop and rap barely pause at all, so the end of any sung line (a
- * breath of a third of a second) is the fallback: still no word cut in half.
+ * English pop often runs chorus straight into verse with only a second or
+ * two of band between them - shorter than a break, but after a long stretch
+ * of singing it still ends the section ("section"). Dense pop and rap barely
+ * pause at all, so the end of any sung line (a breath of a third of a
+ * second) is the last resort: still no word cut in half.
  *
  * No imports so the mobile app can carry an identical copy.
  */
@@ -24,11 +27,17 @@ export interface VocalExit {
   para: number;
   /** 0..1: how much quieter the music gets after the line (the "low tone"). */
   dip: number;
-  /** 0..1 overall quality - every "break" outranks every "line". */
+  /** 0..1 overall quality - "break" outranks "section", which outranks "line". */
   score: number;
-  /** "break": the band plays alone for a bar or more; "line": only a breath. */
-  kind: "break" | "line";
+  /**
+   * "break": the band plays alone for a bar or more; "section": a shorter
+   * pause that closes a long stretch of singing (a chorus ending); "line":
+   * only a breath between two lines.
+   */
+  kind: VocalExitKind;
 }
+
+export type VocalExitKind = "break" | "section" | "line";
 
 interface Grid {
   bpm: number;
@@ -44,6 +53,10 @@ const MIN_ROOM = 2.5;
 const LINE_GAP = 0.3;
 /** A sung stretch shorter than this is an ad-lib or a chopped syllable. */
 const MIN_LINE = 1;
+/** A pause this long after SECTION_PARA of singing closes a section. */
+const SECTION_GAP = 1;
+/** Seconds of singing a para needs before a short pause can end it. */
+const SECTION_PARA = 12;
 
 export function vocalExits(vocals: VocalSegments | undefined, grid: Grid): VocalExit[] {
   if (!vocals?.length) return [];
@@ -59,6 +72,24 @@ export function vocalExits(vocals: VocalSegments | undefined, grid: Grid): Vocal
     const end = vocals[i][1];
     const next = i + 1 < vocals.length ? vocals[i + 1][0] : grid.duration;
     if (next - end < minRoom) {
+      const para = end - paraStart;
+      if (next - end >= SECTION_GAP && para >= SECTION_PARA && end - vocals[i][0] >= MIN_LINE) {
+        // too short for a break, but it closes a long para: a section ends
+        const onBeat = beat > 0 ? anchor + Math.ceil((end - 0.1 - anchor) / beat) * beat : end;
+        const at = next - onBeat >= SECTION_GAP * 0.8 ? onBeat : end;
+        const room = next - at;
+        const dip = energyDip(grid.energy, paraStart, end, at, room);
+        exits.push({
+          at: round(at),
+          room: round(room),
+          para: round(para),
+          dip: round(dip),
+          score: round(0.3 + (0.1 * Math.min(room, minRoom)) / minRoom + 0.05 * dip + (0.04 * Math.min(para, 24)) / 24),
+          kind: "section",
+        });
+        paraStart = next;
+        continue;
+      }
       // still inside the para - but a finished line is a fallback exit
       if (next - end >= LINE_GAP && end - vocals[i][0] >= MIN_LINE) {
         const onBeat = beat > 0 ? anchor + Math.ceil((end - 0.05 - anchor) / beat) * beat : end;
@@ -67,7 +98,7 @@ export function vocalExits(vocals: VocalSegments | undefined, grid: Grid): Vocal
         exits.push({
           at: round(at),
           room: round(room),
-          para: round(end - paraStart),
+          para: round(para),
           dip: 0,
           score: round(0.1 + (0.15 * Math.min(room, 1.5)) / 1.5),
           kind: "line",
@@ -110,10 +141,11 @@ const CHORUS_MIN = 20;
 const CHORUS_MAX = 60;
 
 /**
- * Where the hook's sung para really ends: the first instrumental break
- * 20-60 s after the hook starts. Choruses run different lengths, so this
- * replaces the flat "hook + 35 s" whenever the song has a vocal map and
- * pauses in that window (`fromVocals`); otherwise it falls back to it.
+ * Where the hook's sung para really ends: the first instrumental break or
+ * section end 20-60 s after the hook starts. Choruses run different
+ * lengths, so this replaces the flat "hook + 35 s" whenever the song has a
+ * vocal map and pauses in that window (`fromVocals`); otherwise it falls
+ * back to it.
  */
 export function hookEnd(
   vocals: VocalSegments | undefined,
@@ -122,7 +154,7 @@ export function hookEnd(
 ): { at: number; fromVocals: boolean } {
   const start = hookStart ?? 40;
   const brk = vocalExits(vocals, grid).find(
-    (e) => e.kind === "break" && e.at >= start + CHORUS_MIN && e.at <= start + CHORUS_MAX
+    (e) => e.kind !== "line" && e.at >= start + CHORUS_MIN && e.at <= start + CHORUS_MAX
   );
   return brk ? { at: brk.at, fromVocals: true } : { at: start + HOOK_PLAYOUT, fromVocals: false };
 }

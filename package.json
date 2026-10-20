@@ -22,6 +22,7 @@
     "library:grow": "bash scripts/library/grow_fma.sh",
     "library:push": "bash scripts/library/sync_s3.sh",
     "library:vocals": "bash scripts/library/vocal_map.sh",
+    "library:famous": "node --experimental-strip-types --no-warnings scripts/library/famous_parts.mjs",
     "library:vibes": "bash scripts/library/refresh_vibes.sh",
     "library:label": "node scripts/library/label_songs.mjs",
     "library:years": "node --experimental-strip-types --no-warnings scripts/library/label_years.mjs",

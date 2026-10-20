@@ -36,7 +36,7 @@ import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { analyzeMono } from "../../lib/audio/analysisCore.ts";
+import { analyzeMono, pickHook, SONG_HOOK_FROM } from "../../lib/audio/analysisCore.ts";
 import { ALL_LANGUAGES } from "../../lib/languages.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -229,6 +229,11 @@ async function analyzeFile(file, kind) {
     duration: Math.round(analysis.duration),
     heatmap: isSong ? heatmapFrom(interest, analysis.duration) : [],
     famousStart: isSong ? hookStart : null,
+    // the hook searched for where a chart song's hook can start - used when
+    // a YouTube "most replayed" graph has no real peak (see ingestOne)
+    chartHook: isSong
+      ? pickHook(interest, { bpm: analysis.bpm, anchor: analysis.downbeatOffset }, SONG_HOOK_FROM)
+      : null,
     cueIn: isSong ? cueIn : 0,
     cueOut: isSong ? cueOut : analysis.duration,
     intensity,
@@ -240,7 +245,8 @@ async function analyzeFile(file, kind) {
 async function reanalyzeOne(metaFile) {
   const metaPath = path.join(DIRS.meta, metaFile);
   const meta = JSON.parse(await readFile(metaPath, "utf8"));
-  const computed = await analyzeFile(path.join(DIRS.audio, meta.file), meta.kind);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { chartHook, ...computed } = await analyzeFile(path.join(DIRS.audio, meta.file), meta.kind);
   await makeCover(meta.id, { camelot: computed.analysis.camelot, intensity: computed.intensity });
   await writeFile(metaPath, JSON.stringify({ ...meta, ...computed, ingestedAt: new Date().toISOString() }));
   return "ok";
@@ -252,11 +258,13 @@ async function ingestOne(file, fromInbox) {
   const metaPath = path.join(DIRS.meta, `${info.id}.json`);
   if (existsSync(metaPath) && !flag("force")) return "skip";
 
-  const computed = await analyzeFile(file, info.kind);
+  const { chartHook, ...computed } = await analyzeFile(file, info.kind);
   if (info.heatmap?.length) {
-    // a real "most replayed" curve beats the computed hook estimate
+    // a real "most replayed" peak beats the computed hook estimate; a graph
+    // without one (famous_start in fetch_youtube.py gave null) leaves the
+    // hook to the audio
     computed.heatmap = info.heatmap;
-    computed.famousStart = info.famousStart ?? computed.famousStart;
+    computed.famousStart = info.famousStart ?? chartHook ?? computed.famousStart;
   }
 
   if (info.bpmHint) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Track, TransitionPlan } from "@/lib/types";
+import type { Track, TransitionPlan, TransitionStyle } from "@/lib/types";
 import {
   getEngine,
   heuristicPlan,
@@ -27,7 +27,7 @@ import {
   type ArcTarget,
 } from "@/lib/audio/arc";
 import type { TrackAnalysis } from "@/lib/types";
-import { HOOK_PLAYOUT, hookEnd, pickVocalExit, vocalExits } from "@/lib/audio/vocalExits";
+import { HOOK_PLAYOUT, hookEnd, pickVocalExit, vocalExits, type VocalExitKind } from "@/lib/audio/vocalExits";
 import { handoffEntry, handoffExits, handoffTempoOk, type HandoffEntry } from "@/lib/audio/handoff";
 
 export interface AutoMixOptions {
@@ -188,6 +188,35 @@ function buildMatched(
 
 /** Margin between the auto-hop timer firing and the planned drop. */
 const VOCAL_GAP_MARGIN = 2.5;
+/** When no line ends near the hop, how far to look before giving up. */
+const WIDE_LATE = 30;
+const WIDE_EARLY = 15;
+/** Styles that hide a vocal cut mid-line: A's last word echoes, rolls or winds down. */
+const MASKS_A_VOCAL = new Set<TransitionStyle>(["echo_out", "tape_stop", "brake", "backspin", "loop_roll"]);
+
+/** Where an auto-hop lands: a vocal exit, or - when A never pauses - a phrase line. */
+type GapKind = VocalExitKind | "phrase";
+
+/**
+ * The 8-bar phrase line nearest `desired` (no earlier than `floor`, waiting
+ * costs twice as much as leaving early), or null without a beat grid.
+ */
+function phraseNear(a: TrackAnalysis, desired: number, floor: number): number | null {
+  if (!(a.bpm > 0)) return null;
+  const anchor = a.downbeatOffset ?? a.beatOffset ?? 0;
+  const phrase = (8 * 4 * 60) / a.bpm;
+  let best: number | null = null;
+  let bestCost = Infinity;
+  const first = anchor + Math.ceil((Math.max(floor, desired - 8) - anchor) / phrase) * phrase;
+  for (let t = first; t <= desired + 20 && t <= a.duration - 8; t += phrase) {
+    const cost = t > desired ? 2 * (t - desired) : desired - t;
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = t;
+    }
+  }
+  return best;
+}
 
 /**
  * Aim an auto-hop at a vocal gap: the first moment near `desired` where A's
@@ -202,7 +231,7 @@ function aimAtVocalGap(
   desired: number,
   floor: number,
   handoff?: Handoff
-): { waitSec: number; dropAt: number; room: number; kind: "break" | "line" } | null {
+): { waitSec: number; dropAt: number; room: number; kind: GapKind } | null {
   const a = current.analysis;
   const beat = a.bpm > 0 ? 60 / a.bpm : 0.5;
   if (plan.style === "vocal_handoff" && handoff) {
@@ -231,18 +260,28 @@ function aimAtVocalGap(
   const stem = plan.style === "stem_acapella";
   const lead = stem ? 8 * beat : 0;
   const preRoll = stem ? 8 * beat : 4 * beat; // longest pre-roll per engine path
-  let exits = vocalExits(current.meta.vocals, a);
+  let exits = vocalExits(current.meta.vocals, a).filter((e) => e.at <= a.duration - 8);
   if (stem) exits = exits.filter((e) => e.room >= lead * 0.9);
   const hardFloor = pos + preRoll + VOCAL_GAP_MARGIN + 0.5;
-  const exit = pickVocalExit(exits, desired, Math.max(floor, hardFloor));
-  if (!exit || exit.at > a.duration - 8) return null;
-  const dropAt = exit.at + lead;
-  return {
-    waitSec: Math.max(0, dropAt - preRoll - VOCAL_GAP_MARGIN - pos),
-    dropAt,
-    room: exit.room - lead,
-    kind: exit.kind,
-  };
+  const lo = Math.max(floor, hardFloor);
+  // dense pop can sing for 40 s without a breath the map can see: look
+  // further out before giving up on a clean exit
+  const exit = pickVocalExit(exits, desired, lo) ?? pickVocalExit(exits, desired, lo, WIDE_LATE, WIDE_EARLY);
+  if (exit) {
+    const dropAt = exit.at + lead;
+    return {
+      waitSec: Math.max(0, dropAt - preRoll - VOCAL_GAP_MARGIN - pos),
+      dropAt,
+      room: exit.room - lead,
+      kind: exit.kind,
+    };
+  }
+  // A sings straight through: leave on a phrase line (hopNow picks a style
+  // that hides the cut) rather than whenever the timer happens to fire
+  if (stem || !current.meta.vocals?.length) return null;
+  const dropAt = phraseNear(a, desired, lo);
+  if (dropAt == null) return null;
+  return { waitSec: Math.max(0, dropAt - preRoll - VOCAL_GAP_MARGIN - pos), dropAt, room: 0, kind: "phrase" };
 }
 
 /**
@@ -348,7 +387,7 @@ export function useAutoMix() {
     /** Track position the armed auto-hop timer is aiming at. */
     hopTargetPos: 0,
     /** The vocal gap the armed auto-hop lands in (A position + pause length). */
-    vocalGap: null as { dropAt: number; room: number; kind: "break" | "line" } | null,
+    vocalGap: null as { dropAt: number; room: number; kind: GapKind } | null,
     /** Stats (lib/client/telemetry): the set, and the song playing in it. */
     setId: "",
     playing: null as { id: string; startPos: number; setId: string; vibes: string[] } | null,
@@ -987,20 +1026,34 @@ export function useAutoMix() {
     const dropAt = gap && gap.dropAt > engine.position() ? gap.dropAt : undefined;
     if (gap && dropAt != null && plan.style === "vocal_handoff") {
       plan.reasoning = `${plan.reasoning} 🎤 B's beat under A's last line, B's singer on the next bar.`;
+    } else if (gap && dropAt != null && gap.kind === "phrase") {
+      // A never pauses near here: its singer gets cut on the phrase, so the
+      // trick has to hide that - a crossfade would stack two singers
+      if (!MASKS_A_VOCAL.has(plan.style)) {
+        plan.style = "echo_out";
+        plan.duration = Math.min(Math.max(plan.duration, 4), 8);
+      }
+      plan.reasoning = `${plan.reasoning} 🎤 A sings straight through - ${plan.style.replace("_", " ")} on the phrase.`;
     } else if (gap && dropAt != null) {
       // after a mere breath (dense pop) the blend has to be quick
       plan.duration = Math.min(plan.duration, Math.max(1.5, gap.room + 1));
       plan.reasoning = `${plan.reasoning} 🎤 ${
-        gap.kind === "break" ? "Timed to the break after the vocal line." : "Timed to the end of a vocal line."
+        gap.kind === "break"
+          ? "Timed to the break after the vocal line."
+          : gap.kind === "section"
+            ? "Timed to the end of the section."
+            : "Timed to the end of a vocal line."
       }`;
     }
     // interest taps apply to the song they were tapped on - reset for the next
     s.interestUntil = 0;
     setInterestUntil(0);
-    plan.outPoint = ranOut ? current.analysis.duration : engine.position();
     // stats: the transition itself, so its like / dislike can be read against
     // the songs, the cue points and the style that made it
     const lead = dropAt != null ? dropAt - engine.position() : quantizeBeats && !ranOut ? engine.timeToDrop(current.analysis, quantizeBeats) : 0;
+    // where A is actually left: the drop, not the moment the hop timer fired
+    // (an auto-hop fires a few seconds early so the trick's pre-roll fits)
+    plan.outPoint = ranOut ? current.analysis.duration : (dropAt ?? engine.position() + Math.max(0, lead));
     const hop: HopInfo = {
       hopId: newSetId(),
       from: { id: current.meta.id, title: current.meta.title, artist: current.meta.artist },

@@ -121,9 +121,46 @@ def chart_for_year(year):
 
 
 def famous_start(heatmap):
-    """Most-replayed peak, ignoring the first 10s (intros always spike)."""
-    late = [p for p in heatmap if p["start"] > 10]
-    return round(max(late, key=lambda p: p["value"])["start"]) if late else None
+    """Most-replayed peak, ignoring the first 10s (intros always spike) and the
+    last quarter.
+
+    None when the curve has no real peak - ingest then finds the hook in the
+    audio. Big hits' graphs often just decay from 0:00, so their highest point
+    after 10s is the tail of the intro spike (verse 1, not the chorus), and a
+    flat curve's maximum is noise. Same rule as heatmapTrusted() in
+    famous_parts.mjs.
+    """
+    # like the audio hook search: a peak in the last quarter (often the final
+    # chorus) leaves too little song to play out, so look before it
+    end = heatmap[-1]["end"] if heatmap else 0
+    late = [(i, p) for i, p in enumerate(heatmap) if 10 < p["start"] <= end * 0.75]
+    if not late:
+        return None
+    i, peak = max(late, key=lambda x: x[1]["value"])
+    values = sorted(p["value"] for _, p in late)
+    median = values[len(values) // 2]
+    if peak["value"] < median * 1.15:
+        return None  # flat: no part is replayed more than the rest
+    if prominence([p["value"] for p in heatmap], i) < 0.1:
+        return None  # a ripple on the slope off the intro spike
+    return round(peak["start"])
+
+
+def prominence(values, i):
+    """How far peak i rises above the dip separating it from higher ground,
+    as a share of its height (topographic prominence)."""
+    pk = values[i]
+    if pk <= 0:
+        return 0
+
+    def base(step):
+        low, j = pk, i + step
+        while 0 <= j < len(values) and values[j] < pk:
+            low = min(low, values[j])
+            j += step
+        return low
+
+    return (pk - max(base(-1), base(1))) / pk
 
 
 def ensure_ytdlp():

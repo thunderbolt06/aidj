@@ -79,7 +79,10 @@ export interface HopEvent extends Base {
   toTitle: string;
   toArtist: string;
   style: string;
-  /** where A was left and B came in, seconds into each song */
+  /**
+   * where A was left (B's drop - before 2026-10-20 it was when the hop timer
+   * fired, a few seconds earlier) and where B came in, seconds into each song
+   */
   outSec: number;
   inSec: number;
   durSec: number;
@@ -88,7 +91,10 @@ export interface HopEvent extends Base {
   ranOut: boolean;
   beatMatch: boolean;
   keyLock: boolean;
-  /** timed to A's vocals: "handoff" (vocal_handoff), "break" / "line" (a vocal gap), or "" */
+  /**
+   * timed to A's vocals: "handoff" (vocal_handoff), "break" / "section" / "line"
+   * (a vocal gap), "phrase" (A never paused - left on a phrase line), or ""
+   */
   vocal: string;
   bpmFrom: number;
   bpmTo: number;

@@ -111,6 +111,20 @@ function handoffFor(from: LoadedTrack, to: LoadedTrack): Handoff | null {
   return { entry, pickupA: (entry.pickup * b.bpm) / a.bpm };
 }
 
+/** Plain blends the handoff replaces when the pair qualifies: it is the default for two sung songs. */
+const HANDOFF_REPLACES = new Set(["crossfade", "bass_swap", "filter_sweep"]);
+
+/**
+ * Make the vocal handoff the default: when the pair passes the handoff gates
+ * and the planner (AI or heuristic) only chose a plain blend, hand off instead.
+ * A forced style or a trick (echo_out, cut, riser...) is left alone.
+ */
+function preferHandoff(plan: TransitionPlan, from: LoadedTrack, to: LoadedTrack, forced?: string) {
+  if (forced || !HANDOFF_REPLACES.has(plan.style) || !handoffFor(from, to)) return;
+  plan.style = "vocal_handoff";
+  plan.reasoning = `${plan.reasoning} (A's singer rides B's beat, then B's singer takes over.)`;
+}
+
 /**
  * Fit a vocal_handoff plan to the pair: B starts where its instrumental run
  * begins and stays tempo-locked, or - when the pair can't hand off - the plan
@@ -724,6 +738,7 @@ export function useAutoMix() {
           Math.abs(current.analysis.bpm - next.analysis.bpm) /
             Math.max(current.analysis.bpm, 1) <
           0.08;
+        preferHandoff(plan, current, next, st.current.opts.styleHint);
         const handoff = applyHandoff(plan, current, next);
         const prepared: Prepared = { trackId: target.id, next, plan, handoff };
 
@@ -935,6 +950,7 @@ export function useAutoMix() {
             Math.max(s.current.analysis.bpm, 1) <
           0.08;
         // resuming a song where it was left: no handoff (it would move B's entry)
+        if (resumeAt == null) preferHandoff(plan, s.current, next, s.opts.styleHint);
         const handoff = resumeAt == null ? applyHandoff(plan, s.current, next) : undefined;
         if (resumeAt != null) {
           if (plan.style === "vocal_handoff") plan.style = "bass_swap";

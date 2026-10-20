@@ -211,6 +211,14 @@ const MASKS_A_VOCAL = new Set<TransitionStyle>(["echo_out", "tape_stop", "brake"
 /** Where an auto-hop lands: a vocal exit, or - when A never pauses - a phrase line. */
 type GapKind = VocalExitKind | "phrase";
 
+/** An armed auto-hop's landing spot; `handoff` when it is a vocal_handoff bar. */
+interface VocalGap {
+  dropAt: number;
+  room: number;
+  kind: GapKind;
+  handoff?: boolean;
+}
+
 /**
  * The 8-bar phrase line nearest `desired` (no earlier than `floor`, waiting
  * costs twice as much as leaving early), or null without a beat grid.
@@ -245,7 +253,7 @@ function aimAtVocalGap(
   desired: number,
   floor: number,
   handoff?: Handoff
-): { waitSec: number; dropAt: number; room: number; kind: GapKind } | null {
+): (VocalGap & { waitSec: number }) | null {
   const a = current.analysis;
   const beat = a.bpm > 0 ? 60 / a.bpm : 0.5;
   if (plan.style === "vocal_handoff" && handoff) {
@@ -261,13 +269,17 @@ function aimAtVocalGap(
     const byDrop = exits.map((e) => ({ ...e, at: e.dropAt }));
     const pick = pickVocalExit(byDrop, desired, floor);
     const exit = pick ? exits[byDrop.indexOf(pick as (typeof byDrop)[number])] : null;
-    if (!exit || exit.at > a.duration - 8) return null;
-    return {
-      waitSec: Math.max(0, exit.dropAt - VOCAL_GAP_MARGIN - pos),
-      dropAt: exit.dropAt,
-      room: exit.room,
-      kind: exit.kind,
-    };
+    if (exit && exit.at <= a.duration - 8) {
+      return {
+        waitSec: Math.max(0, exit.dropAt - VOCAL_GAP_MARGIN - pos),
+        dropAt: exit.dropAt,
+        room: exit.room,
+        kind: exit.kind,
+        handoff: true,
+      };
+    }
+    // no handoff bar near the hop: a plain exit below (hopNow drops the
+    // handoff for it) beats leaving mid-line whenever the timer fires
   }
   // an acapella-in plays B's vocal for 8 beats BEFORE the drop: that lead-in
   // must sit in the gap too, so it needs a longer one and the drop moves later
@@ -401,7 +413,7 @@ export function useAutoMix() {
     /** Track position the armed auto-hop timer is aiming at. */
     hopTargetPos: 0,
     /** The vocal gap the armed auto-hop lands in (A position + pause length). */
-    vocalGap: null as { dropAt: number; room: number; kind: GapKind } | null,
+    vocalGap: null as VocalGap | null,
     /** Stats (lib/client/telemetry): the set, and the song playing in it. */
     setId: "",
     playing: null as { id: string; startPos: number; setId: string; vibes: string[] } | null,
@@ -837,7 +849,7 @@ export function useAutoMix() {
       const gap = aimAtVocalGap(cur, prepared.plan, pos, desired, floor, prepared.handoff);
       if (gap) {
         waitSec = gap.waitSec;
-        st.current.vocalGap = { dropAt: gap.dropAt, room: gap.room, kind: gap.kind };
+        st.current.vocalGap = { dropAt: gap.dropAt, room: gap.room, kind: gap.kind, handoff: gap.handoff };
       }
     }
     // never wait past the end of the song: the floors above (20s, min-play,
@@ -1040,6 +1052,11 @@ export function useAutoMix() {
     const gap = end === "auto" ? s.vocalGap : null;
     s.vocalGap = null;
     const dropAt = gap && gap.dropAt > engine.position() ? gap.dropAt : undefined;
+    if (gap && dropAt != null && plan.style === "vocal_handoff" && !gap.handoff) {
+      // the hop is timed to a plain vocal exit, not a handoff bar
+      plan.style = "bass_swap";
+      plan.reasoning = `${plan.reasoning} (No handoff bar near the exit - bass swap instead.)`;
+    }
     if (gap && dropAt != null && plan.style === "vocal_handoff") {
       plan.reasoning = `${plan.reasoning} 🎤 B's beat under A's last line, B's singer on the next bar.`;
     } else if (gap && dropAt != null && gap.kind === "phrase") {

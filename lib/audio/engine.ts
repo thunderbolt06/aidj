@@ -164,6 +164,21 @@ export class DJEngine {
       };
   }
 
+  /**
+   * Call right after the decks swap: fires onTransitionEnd once the hop is
+   * done and lets go of the song the idle deck just finished. A decoded song
+   * is ~85 MB, and a phone that keeps every outgoing one reloads the tab.
+   */
+  private finishTransition(ms: number) {
+    const old = this.nextDeck;
+    const buf = old.buffer;
+    setTimeout(() => {
+      // skip if a newer hop already reloaded or restarted this deck
+      if (old !== this.activeDeck && !old.playing && old.buffer === buf) old.buffer = null;
+      this.onTransitionEnd?.();
+    }, ms);
+  }
+
   get activeDeck() {
     return this.decks[this.active];
   }
@@ -706,7 +721,7 @@ export class DJEngine {
     this.active = 1 - this.active;
 
     const timeLeft = (end - ctx.currentTime) * 1000;
-    setTimeout(() => this.onTransitionEnd?.(), timeLeft + 50);
+    this.finishTransition(timeLeft + 50);
     return end;
   }
 
@@ -830,7 +845,7 @@ export class DJEngine {
 
     this.active = 1 - this.active;
     const msLeft = (dropAt - ctx.currentTime) * 1000;
-    setTimeout(() => this.onTransitionEnd?.(), msLeft + 60);
+    this.finishTransition(msLeft + 60);
     return dropAt;
   }
 
@@ -1031,7 +1046,7 @@ export class DJEngine {
     A.stopSource(aStopAt);
     this.active = 1 - this.active;
     const end = t0 + 2 * beatCtx;
-    setTimeout(() => this.onTransitionEnd?.(), (end - ctx.currentTime) * 1000 + 50);
+    this.finishTransition((end - ctx.currentTime) * 1000 + 50);
     return end;
   }
 
@@ -1172,7 +1187,7 @@ export class DJEngine {
 
     A.stopSource(tH + 0.5);
     this.active = 1 - this.active;
-    setTimeout(() => this.onTransitionEnd?.(), (end - now) * 1000 + 50);
+    this.finishTransition((end - now) * 1000 + 50);
     return end;
   }
 
@@ -1275,7 +1290,7 @@ export class DJEngine {
 
     A.stopSource(t0 + 0.3);
     this.active = 1 - this.active;
-    setTimeout(() => this.onTransitionEnd?.(), (t0 - now) * 1000 + 80);
+    this.finishTransition((t0 - now) * 1000 + 80);
     return t0;
   }
 }

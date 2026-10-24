@@ -30,6 +30,40 @@ export interface LoadedTrack {
   analysis: TrackAnalysis;
 }
 
+/** Phones and tablets: touch-first devices with a tight per-tab memory budget. */
+function isTouchDevice(): boolean {
+  return typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+}
+
+/**
+ * A decoded song is raw PCM - about 85 MB for a 4-minute track - and mobile
+ * Safari reloads the whole tab (dropping the set back to home) once it runs
+ * out of memory. So the decode caches keep only the most recently used few;
+ * anything playing or prepared stays alive through its own references.
+ */
+function decodedCacheSize(kind: "track" | "stem"): number {
+  if (kind === "stem") return isTouchDevice() ? 2 : 6;
+  // phones: the song playing, the next one, and one warm grid tile
+  return isTouchDevice() ? 3 : 12;
+}
+
+/** Read through an LRU map: a hit becomes the newest entry. */
+function lruGet<V>(map: Map<string, V>, key: string): V | undefined {
+  const hit = map.get(key);
+  if (hit !== undefined) {
+    map.delete(key);
+    map.set(key, hit);
+  }
+  return hit;
+}
+
+/** Insert as newest and drop the oldest entries past `max`. */
+function lruSet<V>(map: Map<string, V>, key: string, value: V, max: number) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > max) map.delete(map.keys().next().value as string);
+}
+
 const cache = new Map<string, Promise<LoadedTrack>>();
 
 /**
@@ -41,7 +75,7 @@ export function loadTrack(
   id: string,
   onStatus?: (s: string) => void
 ): Promise<LoadedTrack> {
-  const hit = cache.get(id);
+  const hit = lruGet(cache, id);
   if (hit) return hit;
   const p = (async () => {
     onStatus?.("loading…");
@@ -65,8 +99,10 @@ export function loadTrack(
     onStatus?.("");
     return { meta, buffer, analysis };
   })();
-  p.catch(() => cache.delete(id));
-  cache.set(id, p);
+  p.catch(() => {
+    if (cache.get(id) === p) cache.delete(id);
+  });
+  lruSet(cache, id, p, decodedCacheSize("track"));
   return p;
 }
 
@@ -208,7 +244,7 @@ export function loadStem(
   stem: "vocals" | "instrumental"
 ): Promise<AudioBuffer> {
   const key = `${id}-${stem}`;
-  const hit = stemCache.get(key);
+  const hit = lruGet(stemCache, key);
   if (hit) return hit;
   const p = (async () => {
     const res = await fetch(`/api/stems/${id}?stem=${stem}`);
@@ -218,8 +254,10 @@ export function loadStem(
     }
     return getEngine().decode(await res.arrayBuffer());
   })();
-  p.catch(() => stemCache.delete(key));
-  stemCache.set(key, p);
+  p.catch(() => {
+    if (stemCache.get(key) === p) stemCache.delete(key);
+  });
+  lruSet(stemCache, key, p, decodedCacheSize("stem"));
   return p;
 }
 

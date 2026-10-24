@@ -412,8 +412,11 @@ export default function HomePage() {
       const rest = ok.filter((s) => !picked.includes(s));
       const tiles = [...picked, ...rest].slice(0, 9);
       setGrid(tiles);
-      // warm the first few tiles so taps are near-instant (stagger extractions)
-      tiles.slice(0, 3).forEach((s, i) => {
+      // warm the first few tiles so taps are near-instant (stagger extractions).
+      // This reruns on every hop, so phones warm just one: each warm tile is a
+      // full decoded song held in memory (see decodedCacheSize)
+      const warm = navigator.maxTouchPoints > 0 ? 1 : 3;
+      tiles.slice(0, warm).forEach((s, i) => {
         setTimeout(() => loadTrack(s.track.id).catch(() => {}), i * 4000);
       });
     } catch {
